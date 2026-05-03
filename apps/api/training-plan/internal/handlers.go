@@ -31,7 +31,7 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		protected.DELETE("/:id/like", h.UnlikePlan)
 		protected.GET("/:id/comments", h.ListPlanComment)
 		protected.POST("/:id/comments", h.AddPlanComment)
-		protected.DELETE("/:planId/comments/:commentId", h.RemovePlanComment)
+		protected.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
 		protected.POST("/:id/subscribe", h.Subscribe)
 		protected.POST("/:id/days/:dayId/complete", h.CompleteDay)
 		protected.POST("/:id/feedback", h.AddFeedback)
@@ -176,9 +176,15 @@ func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
 		return
 	}
 
+	hasNextPage := false
+	if nextCursor != "" {
+		hasNextPage = true
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"data":   plans,
-		"cursor": nextCursor,
+		"data":        plans,
+		"nextCursor":  nextCursor,
+		"hasNextPage": hasNextPage,
 	})
 }
 
