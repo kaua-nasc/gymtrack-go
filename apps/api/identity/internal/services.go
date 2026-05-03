@@ -56,7 +56,8 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":  u.ID,
 		"type": u.Type,
-		"exp":  time.Now().Add(time.Hour * 24).Unix(),
+		"iat":  time.Now().Unix(),
+		"exp":  time.Now().Add(time.Minute * 60).Unix(), // Aligned with NestJS 60m
 	})
 
 	secret := os.Getenv("JWT_SECRET")
