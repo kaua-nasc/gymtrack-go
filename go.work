@@ -1,0 +1,8 @@
+go 1.26.2
+
+use (
+	./apps/api/identity
+	./apps/api/training-plan
+	./libs/auth
+	./libs/db
+)
