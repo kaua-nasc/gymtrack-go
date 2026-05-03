@@ -5,4 +5,5 @@ use (
 	./apps/api/training-plan
 	./libs/auth
 	./libs/db
+	./libs/config
 )
