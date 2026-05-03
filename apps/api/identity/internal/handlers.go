@@ -18,10 +18,10 @@ func NewUserHandler(srv *UserService) *UserHandler {
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	r.POST("/users/register", h.Register)
-	r.POST("/users/login", h.Login)
+	r.POST("/identity/auth", h.Login)
 
 	// Protected routes
-	protected := r.Group("/users")
+	protected := r.Group("/identity/users")
 	protected.Use(auth.AuthMiddleware())
 	{
 		protected.GET("/:id", h.GetUser)
@@ -47,7 +47,7 @@ func (h *UserHandler) Login(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"token": token})
+	ctx.JSON(http.StatusOK, gin.H{"accessToken": token})
 }
 
 func (h *UserHandler) ListUsers(ctx *gin.Context) {

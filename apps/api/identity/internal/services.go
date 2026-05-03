@@ -2,12 +2,18 @@ package internal
 
 import (
 	"context"
+	"crypto/subtle"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/scrypt"
 )
 
 type UserService struct {
@@ -40,16 +46,21 @@ func (s *UserService) Register(ctx context.Context, u User) (*User, error) {
 		return nil, err
 	}
 
+	u.Password = "" // Clear password before returning
 	return &u, nil
 }
 
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	u, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || u == nil {
+		fmt.Println(err)
 		return "", errors.New("invalid credentials")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)); err != nil {
+	ok, err := VerifyScryptPassword(password, u.Password)
+	if err != nil || !ok {
+		fmt.Println(err)
+		fmt.Println(ok)
 		return "", errors.New("invalid credentials")
 	}
 
@@ -74,9 +85,72 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 }
 
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
-	return s.repo.FindByID(ctx, id)
+	u, err := s.repo.FindByID(ctx, id)
+	if err != nil || u == nil {
+		return u, err
+	}
+	u.Password = ""
+	return u, nil
 }
 
 func (s *UserService) ListUsers(ctx context.Context, ids []string) ([]*User, error) {
-	return s.repo.ListByIDs(ctx, ids)
+	users, err := s.repo.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, u := range users {
+		u.Password = ""
+	}
+	return users, nil
+}
+
+func VerifyScryptPassword(plainPassword, stored string) (bool, error) {
+	parts := strings.Split(stored, "$")
+	if len(parts) != 6 {
+		return false, errors.New("invalid hash format")
+	}
+
+	if parts[0] != "scrypt" {
+		return false, errors.New("unsupported hash type")
+	}
+
+	N, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return false, err
+	}
+
+	r, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return false, err
+	}
+
+	p, err := strconv.Atoi(parts[3])
+	if err != nil {
+		return false, err
+	}
+
+	salt := []byte(parts[4])
+
+	expectedHash, err := base64.RawURLEncoding.DecodeString(parts[5])
+	if err != nil {
+		return false, err
+	}
+
+	derivedKey, err := scrypt.Key(
+		[]byte(plainPassword),
+		salt,
+		N,
+		r,
+		p,
+		len(expectedHash),
+	)
+	if err != nil {
+		return false, err
+	}
+
+	if len(derivedKey) != len(expectedHash) {
+		return false, nil
+	}
+
+	return subtle.ConstantTimeCompare(derivedKey, expectedHash) == 1, nil
 }

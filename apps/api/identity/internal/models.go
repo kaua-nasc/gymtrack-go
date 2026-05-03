@@ -7,16 +7,17 @@ import (
 type UserType string
 
 const (
-	Admin  UserType = "admin"
+	Admin   UserType = "admin"
 	Trainer UserType = "trainer"
 	Client  UserType = "client"
 )
 
 type User struct {
 	ID        string    `json:"id"`
-	Name      string    `json:"name"`
+	FirstName string    `json:"firstName"`
+	LastName  string    `json:"lastName"`
 	Email     string    `json:"email"`
-	Password  string    `json:"-"`
+	Password  string    `json:"password"`
 	Type      UserType  `json:"type"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`

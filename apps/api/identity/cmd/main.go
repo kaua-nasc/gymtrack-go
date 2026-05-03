@@ -6,9 +6,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal"
+	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
 	"go.uber.org/fx"
 )
@@ -23,18 +26,32 @@ func NewDatabase() (*sql.DB, error) {
 }
 
 func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
+	port := os.Getenv("PORT")
+	if port == "" {
+		panic("PORT not found")
+	}
+
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:4200"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	handler.RegisterRoutes(r)
 
 	server := &http.Server{
-		Addr:    ":3334",
+		Addr:    port,
 		Handler: r,
 	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			log.Println("Identity API Running, port :3334")
+			log.Println("Identity API Running, port " + port)
 			go server.ListenAndServe()
 			return nil
 		},
@@ -47,6 +64,8 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
 }
 
 func main() {
+	config.LoadEnvironmentVariable()
+
 	fx.New(
 		fx.Provide(
 			NewDatabase,
