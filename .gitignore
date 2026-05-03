@@ -1,0 +1,17 @@
+# Binários
+/bin/
+/dist/
+main
+
+# Variáveis de Ambiente
+.env
+*.local
+
+# Testes e Cobertura
+*.out
+*.prof
+*.test
+
+# IDEs
+.vscode/
+.idea/
