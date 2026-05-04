@@ -33,8 +33,8 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("/:id/comments", h.ListPlanComment)
 		plans.POST("/:id/comments", h.AddPlanComment)
 		plans.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
-		plans.POST("/subscriptions", h.ListSubscription)
-		plans.POST("/subscriptions/:userId", h.ListSubscription)
+		plans.GET("/subscriptions", h.ListSubscription)
+		plans.GET("/subscriptions/:userId", h.ListSubscription)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
@@ -109,7 +109,7 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 		return
 	}
 
-	if userId != "" {
+	if userId == "" {
 		userId = user.ID
 	}
 

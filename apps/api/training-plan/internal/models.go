@@ -290,4 +290,3 @@ type PlanDayProgress struct {
 	Day              *Day              `json:"day,omitempty"`
 	PlanSubscription *PlanSubscription `json:"planSubscription,omitempty"`
 }
-

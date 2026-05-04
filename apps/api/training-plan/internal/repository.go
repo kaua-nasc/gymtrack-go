@@ -77,7 +77,7 @@ func (r *TrainingPlanRepository) Find(ctx context.Context, id string) (*Training
 		SELECT 
 			id, name, "authorId", "timeInDays", type, visibility, 
 			level, observation, pathology, "maxSubscriptions", 
-				image_url, description, "createdAt", "updatedAt"
+				"imageUrl", description, "createdAt", "updatedAt"
 		FROM training_plans 
 		WHERE id = $1 
 		LIMIT 1`
@@ -379,9 +379,13 @@ func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId st
 }
 
 func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
-	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE "trainingPlanId" = $1`
+	query := `
+		SELECT 
+			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
+			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
+		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -389,8 +393,11 @@ func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId st
 
 	var subscriptions []*PlanSubscription
 	for rows.Next() {
-		c := &PlanSubscription{}
-		err := rows.Scan(&c.Id)
+		c := &PlanSubscription{TrainingPlan: &TrainingPlan{}}
+		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type, &c.TrainingPlan.Id,
+			&c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays, &c.TrainingPlan.Type, &c.TrainingPlan.Visibility,
+			&c.TrainingPlan.Level, &c.TrainingPlan.Observation, &c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions,
+			&c.TrainingPlan.ImageUrl, &c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
