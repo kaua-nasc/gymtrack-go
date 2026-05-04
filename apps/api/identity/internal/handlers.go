@@ -18,7 +18,7 @@ func NewUserHandler(srv *UserService) *UserHandler {
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	r.POST("/users/register", h.Register)
-	r.POST("/identity/auth", h.Login)
+	r.POST("/identity/auth/login", h.Login)
 
 	// Protected routes
 	protected := r.Group("/identity/users")
