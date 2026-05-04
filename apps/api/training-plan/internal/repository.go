@@ -21,9 +21,9 @@ func NewTrainingPlanRepository(database *sql.DB) *TrainingPlanRepository {
 func (r *TrainingPlanRepository) Create(ctx context.Context, p *TrainingPlan) error {
 	query := `
 		INSERT INTO training_plans (
-			id, name, author_id, time_in_days, type, visibility, 
-			level, observation, pathology, max_subscriptions, 
-			image_url, description, created_at, updated_at
+			id, name, "authorId", "timeInDays", type, visibility, 
+			level, observation, pathology, "maxSubscriptions", 
+			"imageUrl", description, "createdAt", "updatedAt"
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -41,10 +41,10 @@ func (r *TrainingPlanRepository) Create(ctx context.Context, p *TrainingPlan) er
 func (r *TrainingPlanRepository) Update(ctx context.Context, p *TrainingPlan) error {
 	query := `
 		UPDATE training_plans SET 
-			name = $1, time_in_days = $2, type = $3, visibility = $4, 
+			name = $1, "timeInDays" = $2, type = $3, visibility = $4, 
 			level = $5, observation = $6, pathology = $7, 
-			max_subscriptions = $8, image_url = $9, description = $10, 
-			updated_at = $11
+			"maxSubscriptions" = $8, "imageUrl" = $9, description = $10, 
+			"updatedAt" = $11
 		WHERE id = $12`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -61,7 +61,7 @@ func (r *TrainingPlanRepository) Update(ctx context.Context, p *TrainingPlan) er
 }
 
 func (r *TrainingPlanRepository) CountByAuthor(ctx context.Context, authorId string) (int, error) {
-	query := "SELECT COUNT(*) FROM training_plans WHERE author_id = $1"
+	query := `SELECT COUNT(*) FROM training_plans WHERE "authorId" = $1`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, authorId).Scan(&count)
@@ -75,9 +75,9 @@ func (r *TrainingPlanRepository) CountByAuthor(ctx context.Context, authorId str
 func (r *TrainingPlanRepository) Find(ctx context.Context, id string) (*TrainingPlan, error) {
 	query := `
 		SELECT 
-			id, name, author_id, time_in_days, type, visibility, 
-			level, observation, pathology, max_subscriptions, 
-			image_url, description, created_at, updated_at
+			id, name, "authorId", "timeInDays", type, visibility, 
+			level, observation, pathology, "maxSubscriptions", 
+				image_url, description, "createdAt", "updatedAt"
 		FROM training_plans 
 		WHERE id = $1 
 		LIMIT 1`
@@ -100,24 +100,27 @@ func (r *TrainingPlanRepository) Find(ctx context.Context, id string) (*Training
 }
 
 func (r *TrainingPlanRepository) List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error) {
-	sqlStr := `SELECT id, author_id, name, visibility, created_at, image_url FROM training_plans WHERE 1=1`
+	// sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", image_url FROM training_plans WHERE 1=1`
+	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl" FROM training_plans WHERE 1=1`
 
 	var args []interface{}
 
 	if authorId != "" {
-		sqlStr += ` AND (visibility = 'public' OR author_id = $1 OR id IN (SELECT training_plan_id FROM private_participants WHERE user_id = $1))`
+		// sqlStr += ` AND (visibility = 'public' OR "authorId" = $1 OR id IN (SELECT "trainingPlanId" FROM private_participants WHERE user_id = $1))`
+		sqlStr += ` AND (visibility = 'PUBLIC' OR "authorId" = $1 OR id IN (SELECT "trainingPlanId" FROM private_participants WHERE "userId" = $1))`
 		args = append(args, authorId)
 	} else {
-		sqlStr += ` AND visibility = 'public'`
+		sqlStr += ` AND visibility = 'PUBLIC'`
 	}
 
 	if cursor != nil {
 		argCount := len(args)
-		sqlStr += fmt.Sprintf(` AND (created_at, id) < ($%d, $%d)`, argCount+1, argCount+2)
+		// sqlStr += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, argCount+1, argCount+2)
+		sqlStr += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, argCount+1, argCount+2)
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
-	sqlStr += fmt.Sprintf(` ORDER BY created_at DESC, id DESC LIMIT $%d`, len(args)+1)
+	sqlStr += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
 	args = append(args, limit+1)
 
 	rows, err := r.db.QueryContext(ctx, sqlStr, args...)
@@ -155,10 +158,10 @@ func (r *TrainingPlanRepository) LikesCount(ctx context.Context, ids *[]string) 
 	}
 
 	query := `
-		SELECT training_plan_id, COUNT(*) 
+		SELECT "trainingPlanId", COUNT(*) 
 		FROM training_plan_likes 
-		WHERE training_plan_id = ANY($1) 
-		GROUP BY training_plan_id`
+		WHERE "trainingPlanId" = ANY($1) 
+		GROUP BY "trainingPlanId"`
 
 	rows, err := r.db.QueryContext(ctx, query, pq.Array(*ids))
 	if err != nil {
@@ -185,9 +188,9 @@ func (r *TrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string,
 	}
 
 	query := `
-		SELECT training_plan_id 
+		SELECT "trainingPlanId" 
 		FROM training_plan_likes 
-		WHERE liked_by = $1 AND training_plan_id = ANY($2)`
+		WHERE liked_by = $1 AND "trainingPlanId" = ANY($2)`
 
 	rows, err := r.db.QueryContext(ctx, query, *userId, pq.Array(*ids))
 	if err != nil {
@@ -209,7 +212,7 @@ func (r *TrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string,
 
 // Day Methods
 func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
-	query := `INSERT INTO days (id, name, training_plan_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO days (id, name, "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, d.Id, d.Name, d.TrainingPlanId, d.CreatedAt, d.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create day: %w", err)
@@ -218,7 +221,7 @@ func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 }
 
 func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
-	query := `SELECT id, name, training_plan_id, created_at, updated_at FROM days WHERE training_plan_id = $1 ORDER BY created_at ASC`
+	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 ORDER BY "createdAt" ASC`
 	rows, err := r.db.QueryContext(ctx, query, planID)
 	if err != nil {
 		return nil, fmt.Errorf("could not list days: %w", err)
@@ -241,7 +244,7 @@ func (r *TrainingPlanRepository) CreateExercise(ctx context.Context, e *Exercise
 	query := `
 		INSERT INTO exercises (
 			id, name, day_id, type, sets_number, reps_number, 
-			description, observation, created_at, updated_at
+				description, observation, "createdAt", "updatedAt"
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	_, err := r.db.ExecContext(ctx, query,
@@ -258,10 +261,10 @@ func (r *TrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID s
 	query := `
 		SELECT 
 			id, name, day_id, type, sets_number, reps_number, 
-			description, observation, created_at, updated_at 
+				description, observation, "createdAt", "updatedAt" 
 		FROM exercises 
 		WHERE day_id = $1 
-		ORDER BY created_at ASC`
+			ORDER BY "createdAt" ASC`
 
 	rows, err := r.db.QueryContext(ctx, query, dayID)
 	if err != nil {
@@ -284,7 +287,7 @@ func (r *TrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID s
 }
 
 func (r *TrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPlanLike) error {
-	query := `INSERT INTO training_plan_likes (id, liked_by, training_plan_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO training_plan_likes (id, liked_by, "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, like.Id, like.LikedBy, like.TrainingPlanId, like.CreatedAt, like.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not like plan: %w", err)
@@ -293,7 +296,7 @@ func (r *TrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPla
 }
 
 func (r *TrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId string) error {
-	query := `DELETE FROM training_plan_likes WHERE training_plan_id = $1 AND liked_by = $2`
+	query := `DELETE FROM training_plan_likes WHERE "trainingPlanId" = $1 AND liked_by = $2`
 	_, err := r.db.ExecContext(ctx, query, planId, userId)
 	if err != nil {
 		return fmt.Errorf("could not unlike plan: %w", err)
@@ -302,7 +305,7 @@ func (r *TrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId 
 }
 
 func (r *TrainingPlanRepository) AddPlanComment(ctx context.Context, c *TrainingPlanComment) error {
-	query := `INSERT INTO training_plan_comments (id, content, author_id, training_plan_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO training_plan_comments (id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, c.Id, c.Content, c.AuthorId, c.TrainingPlanId, c.CreatedAt, c.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not add comment: %w", err)
@@ -320,7 +323,7 @@ func (r *TrainingPlanRepository) RemovePlanComment(ctx context.Context, commentI
 }
 
 func (r *TrainingPlanRepository) FindComment(ctx context.Context, id string) (*TrainingPlanComment, error) {
-	query := `SELECT id, content, author_id, training_plan_id, created_at, updated_at FROM training_plan_comments WHERE id = $1 LIMIT 1`
+	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE id = $1 LIMIT 1`
 	var c TrainingPlanComment
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&c.Id, &c.Content, &c.AuthorId, &c.TrainingPlanId, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
@@ -333,17 +336,17 @@ func (r *TrainingPlanRepository) FindComment(ctx context.Context, id string) (*T
 }
 
 func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error) {
-	query := `SELECT id, content, author_id, training_plan_id, created_at, updated_at FROM training_plan_comments WHERE training_plan_id = $1`
+	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE "trainingPlanId" = $1`
 
 	var args []interface{}
 	args = append(args, planId)
 
 	if cursor != nil {
-		query += ` AND (created_at, id) < ($2, $3)`
+		query += ` AND ("createdAt", id) < ($2, $3)`
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
-	query += fmt.Sprintf(` ORDER BY created_at DESC, id DESC LIMIT $%d`, len(args)+1)
+	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
 	args = append(args, limit+1)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -375,8 +378,30 @@ func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId st
 	return comments, nextCursor, nil
 }
 
+func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
+	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE "trainingPlanId" = $1`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subscriptions []*PlanSubscription
+	for rows.Next() {
+		c := &PlanSubscription{}
+		err := rows.Scan(&c.Id)
+		if err != nil {
+			return nil, err
+		}
+		subscriptions = append(subscriptions, c)
+	}
+
+	return subscriptions, nil
+}
+
 func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
-	query := `SELECT id, training_plan_id, user_id, status, type, created_at, updated_at FROM plan_subscriptions WHERE training_plan_id = $1 AND user_id = $2 LIMIT 1`
+	query := `SELECT id, "trainingPlanId", user_id, status, type, "createdAt", "updatedAt" FROM plan_subscriptions WHERE "trainingPlanId" = $1 AND user_id = $2 LIMIT 1`
 	var s PlanSubscription
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
@@ -389,7 +414,7 @@ func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, u
 }
 
 func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, planId, userId string, status PlanSubscriptionStatus) error {
-	query := `UPDATE plan_subscriptions SET status = $1, updated_at = NOW() WHERE training_plan_id = $2 AND user_id = $3`
+	query := `UPDATE plan_subscriptions SET status = $1, "updatedAt" = NOW() WHERE "trainingPlanId" = $2 AND user_id = $3`
 	_, err := r.db.ExecContext(ctx, query, status, planId, userId)
 	if err != nil {
 		return fmt.Errorf("could not update subscription status: %w", err)
@@ -398,7 +423,7 @@ func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, p
 }
 
 func (r *TrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error {
-	query := `INSERT INTO plan_subscriptions (id, training_plan_id, user_id, status, type, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	query := `INSERT INTO plan_subscriptions (id, "trainingPlanId", user_id, status, type, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, s.Id, s.TrainingPlanId, s.UserId, s.Status, s.Type, s.CreatedAt, s.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create subscription: %w", err)
@@ -406,8 +431,17 @@ func (r *TrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *
 	return nil
 }
 
+func (r *TrainingPlanRepository) DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error {
+	query := `INSERT INTO plan_subscriptions (id, "trainingPlanId", user_id, status, type, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := r.db.ExecContext(ctx, query, s.Id)
+	if err != nil {
+		return fmt.Errorf("could not delete subscription: %w", err)
+	}
+	return nil
+}
+
 func (r *TrainingPlanRepository) CreateSubscriptionProgress(ctx context.Context, p *PlanDayProgress) error {
-	query := `INSERT INTO plan_day_progress (id, day_id, plan_subscription_id, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO plan_day_progress (id, day_id, plan_subscription_id, status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, p.Id, p.DayId, p.PlanSubscriptionId, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create progress: %w", err)
@@ -417,7 +451,7 @@ func (r *TrainingPlanRepository) CreateSubscriptionProgress(ctx context.Context,
 
 // Access and Invite Methods
 func (r *TrainingPlanRepository) CreateAccessRequest(ctx context.Context, req *PlanAccessRequest) error {
-	query := `INSERT INTO plan_access_requests (id, user_id, training_plan_id, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO plan_access_requests (id, user_id, "trainingPlanId", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, req.Id, req.UserId, req.TrainingPlanId, req.Status, req.CreatedAt, req.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create access request: %w", err)
@@ -426,7 +460,7 @@ func (r *TrainingPlanRepository) CreateAccessRequest(ctx context.Context, req *P
 }
 
 func (r *TrainingPlanRepository) CreateInvite(ctx context.Context, i *PlanInvite) error {
-	query := `INSERT INTO plan_invites (id, plan_id, sender_id, recipient_id, recipient_email, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	query := `INSERT INTO plan_invites (id, plan_id, sender_id, recipient_id, recipient_email, status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err := r.db.ExecContext(ctx, query, i.Id, i.PlanId, i.SenderId, i.RecipientId, i.RecipientEmail, i.Status, i.CreatedAt, i.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create invite: %w", err)
@@ -436,7 +470,7 @@ func (r *TrainingPlanRepository) CreateInvite(ctx context.Context, i *PlanInvite
 
 // Participant Methods
 func (r *TrainingPlanRepository) AddParticipant(ctx context.Context, p *PlanParticipant) error {
-	query := `INSERT INTO private_participants (id, user_id, training_plan_id, expiration_date, approved_at, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	query := `INSERT INTO private_participants (id, user_id, "trainingPlanId", expiration_date, approved_at, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, p.Id, p.UserId, p.TrainingPlanId, p.ExpirationDate, p.ApprovedAt, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not add participant: %w", err)
@@ -445,7 +479,7 @@ func (r *TrainingPlanRepository) AddParticipant(ctx context.Context, p *PlanPart
 }
 
 func (r *TrainingPlanRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM private_participants WHERE training_plan_id = $1 AND user_id = $2)`
+	query := `SELECT EXISTS(SELECT 1 FROM private_participants WHERE "trainingPlanId" = $1 AND user_id = $2)`
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&exists)
 	if err != nil {
@@ -456,7 +490,7 @@ func (r *TrainingPlanRepository) IsParticipant(ctx context.Context, planId, user
 
 // Feedback and Log Methods
 func (r *TrainingPlanRepository) AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error {
-	query := `INSERT INTO training_plan_feedbacks (id, training_plan_id, user_id, rating, message, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	query := `INSERT INTO training_plan_feedbacks (id, "trainingPlanId", user_id, rating, message, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, f.Id, f.TrainingPlanId, f.UserId, f.Rating, f.Message, f.CreatedAt, f.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not add feedback: %w", err)
@@ -465,7 +499,7 @@ func (r *TrainingPlanRepository) AddFeedback(ctx context.Context, f *TrainingPla
 }
 
 func (r *TrainingPlanRepository) LogExercise(ctx context.Context, l *ExerciseLog) error {
-	query := `INSERT INTO exercise_logs (id, user_id, exercise_id, reps, weight, notes, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	query := `INSERT INTO exercise_logs (id, user_id, exercise_id, reps, weight, notes, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err := r.db.ExecContext(ctx, query, l.Id, l.UserId, l.ExerciseId, pq.Array(l.Reps), pq.Array(l.Weight), l.Notes, l.CreatedAt, l.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not log exercise: %w", err)

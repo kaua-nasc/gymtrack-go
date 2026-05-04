@@ -20,11 +20,13 @@ func NewIdentityService() *IdentityService {
 	}
 }
 
-func (s *IdentityService) ExistsUser(ctx context.Context, id string) (bool, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/users/%s", s.baseURL, id), nil)
+func (s *IdentityService) ExistsUser(ctx context.Context, id string, token string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/identity/users/%s", s.baseURL, id), nil)
 	if err != nil {
 		return false, err
 	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
@@ -43,18 +45,18 @@ func (s *IdentityService) ExistsUser(ctx context.Context, id string) (bool, erro
 	return true, nil
 }
 
-func (s *IdentityService) ListUser(ctx context.Context, ids *[]string) (map[string]*any, error) {
+func (s *IdentityService) ListUser(ctx context.Context, ids *[]string, token string) (map[string]*any, error) {
 	if ids == nil || len(*ids) == 0 {
 		return map[string]*any{}, nil
 	}
 
-	// In a real app, this would be a GET /users?ids=uuid1,uuid2...
-	// For now, let's implement a placeholder that calls the service
-	url := fmt.Sprintf("%s/users?ids=%s", s.baseURL, strings.Join(*ids, ","))
+	url := fmt.Sprintf("%s/identity/users?ids=%s", s.baseURL, strings.Join(*ids, ","))
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {

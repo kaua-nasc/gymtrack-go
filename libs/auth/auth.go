@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 type UserContextKeyType string
 
 const UserContextKey UserContextKeyType = "user"
+const TokenContextKey UserContextKeyType = "token"
 
 type AuthUser struct {
 	ID   string
@@ -22,6 +24,7 @@ type AuthUser struct {
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
+
 		if authHeader == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
 			c.Abort()
@@ -30,6 +33,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Step 1: Extraction (Bearer <token>)
 		parts := strings.Split(authHeader, " ")
+
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
 			c.Abort()
@@ -38,9 +42,6 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		tokenString := parts[1]
 		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			secret = "default_secret" // Must be identical to NestJS JWT_SECRET
-		}
 
 		// Step 2 & 3: Signature Verification (HS256) and Expiration check
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -85,6 +86,16 @@ func AuthMiddleware() gin.HandlerFunc {
 			ID:   userID,
 			Type: userType,
 		})
+		c.Set(string(TokenContextKey), tokenString)
+
+		// Inject into request context so it propagates to service layer
+		ctx := c.Request.Context()
+		ctx = context.WithValue(ctx, string(UserContextKey), AuthUser{
+			ID:   userID,
+			Type: userType,
+		})
+		ctx = context.WithValue(ctx, string(TokenContextKey), tokenString)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}

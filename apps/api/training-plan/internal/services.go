@@ -38,8 +38,10 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 		return nil, err
 	}
 
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
 	// 1. Check if user exists in identity service
-	exists, err := s.identity.ExistsUser(ctx, user.ID)
+	exists, err := s.identity.ExistsUser(ctx, user.ID, token)
 	if err != nil || !exists {
 		return nil, errors.New("user not found")
 	}
@@ -138,6 +140,13 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 		return nil, nil
 	}
 
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+	authorIds := []string{plan.AuthorId}
+	authorsMap, err := s.identity.ListUser(ctx, &authorIds, token)
+	if err == nil {
+		plan.Author = authorsMap[plan.AuthorId]
+	}
+
 	// Hydrate with days and exercises
 	days, err := s.repo.ListDaysByPlan(ctx, id)
 	if err == nil {
@@ -194,6 +203,8 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 	var userLikesSet map[string]bool
 	var authorsMap map[string]*any
 
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
 	g.Go(func() error {
 		var err error
 		likesMap, err = s.repo.LikesCount(ctx, &planIDs)
@@ -211,7 +222,7 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 
 	g.Go(func() error {
 		var err error
-		authorsMap, err = s.identity.ListUser(ctx, &authorIDs)
+		authorsMap, err = s.identity.ListUser(ctx, &authorIDs, token)
 		return err
 	})
 
@@ -301,6 +312,25 @@ func (s *TrainingPlanService) ListPlanComments(ctx context.Context, planId, curs
 		return nil, "", err
 	}
 
+	if len(comments) > 0 {
+		authorIDsMap := make(map[string]bool)
+		for _, c := range comments {
+			authorIDsMap[c.AuthorId] = true
+		}
+		var authorIDs []string
+		for id := range authorIDsMap {
+			authorIDs = append(authorIDs, id)
+		}
+
+		token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+		authorsMap, err := s.identity.ListUser(ctx, &authorIDs, token)
+		if err == nil {
+			for _, c := range comments {
+				c.Author = authorsMap[c.AuthorId]
+			}
+		}
+	}
+
 	// Encode cursor
 	var nextCursorStr string
 	if rawNextCursor != nil {
@@ -325,6 +355,16 @@ func (s *TrainingPlanService) authorizeAccess(ctx context.Context, plan *Trainin
 }
 
 // Subscription Logic
+
+func (s *TrainingPlanService) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
+	subscriptions, err := s.repo.ListSubscription(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return subscriptions, nil
+}
+
 func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId string, subType PlanSubscriptionType) error {
 	existing, err := s.repo.FindSubscription(ctx, planId, userId)
 	if err != nil {
@@ -345,6 +385,19 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 	}
 
 	return s.repo.CreatePlanSubscription(ctx, sub)
+}
+
+// Unsubscription Logic
+func (s *TrainingPlanService) Unsubscribe(ctx context.Context, planId, userId string) error {
+	existing, err := s.repo.FindSubscription(ctx, planId, userId)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		return errors.New("already subscribed")
+	}
+
+	return s.repo.DeletePlanSubscription(ctx, existing)
 }
 
 func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, dayId string) error {

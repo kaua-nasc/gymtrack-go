@@ -4,7 +4,7 @@ import "time"
 
 type CursorData struct {
 	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // Enums
@@ -199,8 +199,8 @@ type PlanParticipant struct {
 	UpdatedAt      time.Time `json:"updatedAt"`
 	UserId         string    `json:"userId" validate:"required,uuid4"`
 	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
-	ExpirationDate time.Time `json:"expiration_date"`
-	ApprovedAt     time.Time `json:"approved_at"`
+	ExpirationDate time.Time `json:"expirationDate"`
+	ApprovedAt     time.Time `json:"approvedAt"`
 
 	// Relations
 	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
@@ -290,3 +290,4 @@ type PlanDayProgress struct {
 	Day              *Day              `json:"day,omitempty"`
 	PlanSubscription *PlanSubscription `json:"planSubscription,omitempty"`
 }
+

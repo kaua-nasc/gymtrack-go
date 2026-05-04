@@ -5,7 +5,6 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -53,14 +52,11 @@ func (s *UserService) Register(ctx context.Context, u User) (*User, error) {
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	u, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || u == nil {
-		fmt.Println(err)
 		return "", errors.New("invalid credentials")
 	}
 
 	ok, err := VerifyScryptPassword(password, u.Password)
 	if err != nil || !ok {
-		fmt.Println(err)
-		fmt.Println(ok)
 		return "", errors.New("invalid credentials")
 	}
 

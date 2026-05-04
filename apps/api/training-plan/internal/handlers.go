@@ -24,6 +24,7 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		protected.GET("", h.ListPlan)
 		protected.POST("", h.CreatePlan)
+		protected.GET("author/:authorId", h.ListPlan)
 		protected.PUT("/:id", h.UpdatePlan)
 		protected.GET("/exists/:id", h.ExistsPlan)
 		protected.GET("/:id", h.GetPlan)
@@ -32,8 +33,11 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		protected.GET("/:id/comments", h.ListPlanComment)
 		protected.POST("/:id/comments", h.AddPlanComment)
 		protected.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
-		protected.POST("/:id/subscribe", h.Subscribe)
-		protected.POST("/:id/days/:dayId/complete", h.CompleteDay)
+		protected.POST("/subscriptions", h.ListSubscription)
+		protected.POST("/subscriptions/:userId", h.ListSubscription)
+		protected.POST("/:id/subscriptions", h.Subscribe)
+		protected.DELETE("/:id/subscriptions", h.Unsubscribe)
+		protected.PUT("/:id/days/:dayId/complete", h.CompleteDay)
 		protected.POST("/:id/feedback", h.AddFeedback)
 	}
 
@@ -97,6 +101,26 @@ func (h *TrainingPlanHandler) LogExercise(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
+func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
+	userId := ctx.Param("userId")
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if userId != "" {
+		userId = user.ID
+	}
+
+	if _, err := h.srv.ListSubscription(ctx.Request.Context(), userId); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
 func (h *TrainingPlanHandler) Subscribe(ctx *gin.Context) {
 	id := ctx.Param("id")
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
@@ -115,6 +139,22 @@ func (h *TrainingPlanHandler) Subscribe(ctx *gin.Context) {
 	}
 
 	if err := h.srv.Subscribe(ctx.Request.Context(), id, user.ID, body.Type); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (h *TrainingPlanHandler) Unsubscribe(ctx *gin.Context) {
+	id := ctx.Param("id")
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.Unsubscribe(ctx.Request.Context(), id, user.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -296,8 +336,8 @@ func (h *TrainingPlanHandler) ListPlanComment(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"data":   comments,
-		"cursor": nextCursor,
+		"data":       comments,
+		"nextCursor": nextCursor,
 	})
 }
 
