@@ -26,6 +26,9 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		protected.GET("", h.ListUsers)
 		protected.GET("/:id", h.GetUser)
+
+		protected.POST("/:id/follows", h.FollowUser)
+		protected.POST("/:id/unfollows", h.UnfollowUser)
 	}
 }
 
@@ -99,4 +102,38 @@ func (h *UserHandler) GetUser(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, res)
+}
+
+func (h *UserHandler) FollowUser(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.FollowUser(ctx.Request.Context(), user.ID, id); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) UnfollowUser(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.UnfollowUser(ctx.Request.Context(), user.ID, id); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }

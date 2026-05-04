@@ -5,12 +5,15 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
 )
@@ -151,4 +154,62 @@ func VerifyScryptPassword(plainPassword, stored string) (bool, error) {
 	}
 
 	return subtle.ConstantTimeCompare(derivedKey, expectedHash) == 1, nil
+}
+
+func (s *UserService) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
+	follows, err := s.repo.ListFollowing(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return follows, nil
+}
+
+func (s *UserService) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
+	follows, err := s.repo.ListFollower(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return follows, nil
+}
+
+func (s *UserService) FollowUser(ctx context.Context, followerId, followingId string) error {
+	users, err := s.repo.ListByIDs(ctx, []string{followerId, followingId})
+
+	var follower, following *User
+	for _, user := range users {
+		if user.ID == followerId {
+			follower = user
+		} else {
+			following = user
+		}
+	}
+
+	if following == nil {
+		return fmt.Errorf("usuario nao existe")
+	}
+
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	now := time.Now().UTC()
+	follow := &UserFollows{
+		ID:          id.String(),
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		FollowerId:  follower.ID,
+		FollowingId: following.ID,
+	}
+
+	s.repo.FollowUser(ctx, *follow)
+
+	return nil
+}
+
+func (s *UserService) UnfollowUser(ctx context.Context, followerId, followingId string) error {
+	return s.repo.UnfollowUser(ctx, followerId, followingId)
 }
