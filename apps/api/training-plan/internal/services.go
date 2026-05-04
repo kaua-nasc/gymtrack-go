@@ -69,9 +69,10 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 		return nil, errors.New("only trainers and admins can create training plans")
 	}
 
+	now := time.Now().UTC()
 	plan.AuthorId = user.ID
-	plan.CreatedAt = time.Now()
-	plan.UpdatedAt = time.Now()
+	plan.CreatedAt = now
+	plan.UpdatedAt = now
 
 	// 3. Save the plan
 	if err := s.repo.Create(ctx, &plan); err != nil {
@@ -82,8 +83,8 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	// 4. Save nested days and exercises (Cascade)
 	for _, day := range plan.Days {
 		day.TrainingPlanId = plan.Id
-		day.CreatedAt = time.Now()
-		day.UpdatedAt = time.Now()
+		day.CreatedAt = now
+		day.UpdatedAt = now
 		if err := s.repo.CreateDay(ctx, &day); err != nil {
 			slog.ErrorContext(ctx, "failed to save plan day", slog.String("plan_id", plan.Id), slog.Any("error", err))
 			return nil, fmt.Errorf("could not save plan day: %w", err)
@@ -91,8 +92,8 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 
 		for _, exercise := range day.Exercises {
 			exercise.DayId = day.Id
-			exercise.CreatedAt = time.Now()
-			exercise.UpdatedAt = time.Now()
+			exercise.CreatedAt = now
+			exercise.UpdatedAt = now
 			if err := s.repo.CreateExercise(ctx, &exercise); err != nil {
 				slog.ErrorContext(ctx, "failed to save exercise", slog.String("day_id", day.Id), slog.Any("error", err))
 				return nil, fmt.Errorf("could not save exercise: %w", err)
@@ -111,11 +112,34 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 		return fmt.Errorf("error on generate uuid")
 	}
 
+	now := time.Now().UTC()
 	day.Id = id.String()
-	day.CreatedAt = time.Now()
-	day.UpdatedAt = time.Now()
+	day.CreatedAt = now
+	day.UpdatedAt = now
 	if err := s.repo.CreateDay(ctx, &day); err != nil {
 		slog.ErrorContext(ctx, "failed to save plan day", slog.String("day_id", day.Id), slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
+}
+
+func (s *TrainingPlanService) CreateDays(ctx context.Context, days []Day) error {
+	now := time.Now().UTC()
+	for i := range days {
+		id, err := uuid.NewV7()
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+			return fmt.Errorf("error on generate uuid")
+		}
+
+		days[i].Id = id.String()
+		days[i].CreatedAt = now
+		days[i].UpdatedAt = now
+	}
+
+	if err := s.repo.CreateDays(ctx, days); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
 		return fmt.Errorf("could not save plan day: %w", err)
 	}
 
@@ -159,7 +183,7 @@ func (s *TrainingPlanService) UpdatePlan(ctx context.Context, id string, data Tr
 	plan.Observation = data.Observation
 	plan.Pathology = data.Pathology
 	plan.Description = data.Description
-	plan.UpdatedAt = time.Now()
+	plan.UpdatedAt = time.Now().UTC()
 
 	if err := s.repo.Update(ctx, plan); err != nil {
 		slog.ErrorContext(ctx, "failed to update training plan", slog.String("plan_id", id), slog.Any("error", err))
@@ -168,6 +192,15 @@ func (s *TrainingPlanService) UpdatePlan(ctx context.Context, id string, data Tr
 
 	slog.InfoContext(ctx, "training plan updated successfully", slog.String("plan_id", id))
 	return plan, nil
+}
+
+func (s *TrainingPlanService) DeletePlan(ctx context.Context, id string) error {
+	if err := s.repo.DeletePlan(ctx, id); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
 }
 
 func (s *TrainingPlanService) ExistsPlan(ctx context.Context, id string) (bool, error) {
@@ -323,12 +356,13 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 func (s *TrainingPlanService) LikePlan(ctx context.Context, planId string, userId string) error {
 	slog.InfoContext(ctx, "liking training plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 
+	now := time.Now().UTC()
 	like := &TrainingPlanLike{
 		Id:             fmt.Sprintf("%s:%s", planId, userId),
 		LikedBy:        userId,
 		TrainingPlanId: planId,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err := s.repo.LikePlan(ctx, like); err != nil {
 		slog.ErrorContext(ctx, "failed to like plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
@@ -355,13 +389,14 @@ func (s *TrainingPlanService) AddPlanComment(ctx context.Context, planId, conten
 		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
 		return nil, fmt.Errorf("error on generate uuid")
 	}
+	now := time.Now().UTC()
 	comment := &TrainingPlanComment{
 		Id:             id.String(),
 		Content:        content,
 		AuthorId:       userId,
 		TrainingPlanId: planId,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err := s.repo.AddPlanComment(ctx, comment); err != nil {
 		slog.ErrorContext(ctx, "failed to add comment to plan", slog.String("plan_id", planId), slog.Any("error", err))
@@ -490,14 +525,15 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		return errors.New("already subscribed")
 	}
 
+	now := time.Now().UTC()
 	sub := &PlanSubscription{
 		Id:             fmt.Sprintf("%s:%s", planId, userId),
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Status:         InProgress,
 		Type:           subType,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if err := s.repo.CreatePlanSubscription(ctx, sub); err != nil {
@@ -541,13 +577,14 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 		return errors.New("subscription not found")
 	}
 
+	now := time.Now().UTC()
 	progress := &PlanDayProgress{
 		Id:                 fmt.Sprintf("%s:%s:%s", planId, userId, dayId),
 		DayId:              dayId,
 		PlanSubscriptionId: sub.Id,
 		Status:             DayCompleted,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 
 	if err := s.repo.CreateSubscriptionProgress(ctx, progress); err != nil {
@@ -560,14 +597,15 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId string, rating float64, message *string) error {
 	slog.InfoContext(ctx, "adding feedback to plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Float64("rating", rating))
 
+	now := time.Now().UTC()
 	feedback := &TrainingPlanFeedback{
 		Id:             fmt.Sprintf("%s:%s", planId, userId),
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Rating:         rating,
 		Message:        message,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	if err := s.repo.AddFeedback(ctx, feedback); err != nil {
 		slog.ErrorContext(ctx, "failed to add feedback", slog.String("plan_id", planId), slog.Any("error", err))
@@ -579,15 +617,22 @@ func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId st
 func (s *TrainingPlanService) LogExercise(ctx context.Context, exerciseId, userId string, reps []int, weight []float64, notes *string) error {
 	slog.InfoContext(ctx, "logging exercise", slog.String("exercise_id", exerciseId), slog.String("user_id", userId))
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	now := time.Now().UTC()
 	log := &ExerciseLog{
-		Id:         fmt.Sprintf("%s:%s:%d", exerciseId, userId, time.Now().UnixNano()),
+		Id:         id.String(),
 		UserId:     userId,
 		ExerciseId: exerciseId,
 		Reps:       reps,
 		Weight:     weight,
 		Notes:      notes,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	if err := s.repo.LogExercise(ctx, log); err != nil {
 		slog.ErrorContext(ctx, "failed to log exercise", slog.String("exercise_id", exerciseId), slog.Any("error", err))

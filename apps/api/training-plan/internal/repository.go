@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/lib/pq"
 )
@@ -217,6 +218,39 @@ func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 	if err != nil {
 		return fmt.Errorf("could not create day: %w", err)
 	}
+	return nil
+}
+
+func (r *TrainingPlanRepository) CreateDays(ctx context.Context, days []Day) error {
+	if len(days) == 0 {
+		return nil
+	}
+
+	numFields := 5
+	placeholderCount := len(days) * numFields
+	placeholders := make([]string, 0, len(days))
+	values := make([]any, 0, placeholderCount)
+
+	for i, d := range days {
+		offset := i * numFields
+		placeholders = append(placeholders, fmt.Sprintf(
+			"($%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5,
+		))
+
+		values = append(values, d.Id, d.Name, d.TrainingPlanId, d.CreatedAt, d.UpdatedAt)
+	}
+
+	query := fmt.Sprintf(
+		"INSERT INTO days (id, name, \"trainingPlanId\", \"createdAt\", \"updatedAt\") VALUES %s",
+		strings.Join(placeholders, ","),
+	)
+
+	_, err := r.db.ExecContext(ctx, query, values...)
+	if err != nil {
+		return fmt.Errorf("could not batch create days: %w", err)
+	}
+
 	return nil
 }
 
@@ -443,6 +477,15 @@ func (r *TrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *
 	_, err := r.db.ExecContext(ctx, query, s.Id, s.TrainingPlanId, s.UserId, s.Status, s.Type, s.CreatedAt, s.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("could not create subscription: %w", err)
+	}
+	return nil
+}
+
+func (r *TrainingPlanRepository) DeletePlan(ctx context.Context, id string) error {
+	query := `delete from training_plans where id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("could not delete day: %w", err)
 	}
 	return nil
 }

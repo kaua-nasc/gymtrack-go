@@ -25,9 +25,10 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("", h.ListPlan)
 		plans.POST("", h.CreatePlan)
 		plans.GET("author/:authorId", h.ListPlan)
-		plans.PUT("/:id", h.UpdatePlan)
-		plans.GET("/exists/:id", h.ExistsPlan)
 		plans.GET("/:id", h.GetPlan)
+		plans.PUT("/:id", h.UpdatePlan)
+		plans.DELETE("/:id", h.DeletePlan)
+		plans.GET("/exists/:id", h.ExistsPlan)
 		plans.POST("/:id/like", h.LikePlan)
 		plans.DELETE("/:id/like", h.UnlikePlan)
 		plans.GET("/:id/comments", h.ListPlanComment)
@@ -37,6 +38,7 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("/subscriptions/:userId", h.ListSubscription)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
+		plans.POST("/:id/days/batch", h.CreateDays)
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
@@ -252,6 +254,17 @@ func (h *TrainingPlanHandler) UpdatePlan(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, updatedPlan)
 }
 
+func (h *TrainingPlanHandler) DeletePlan(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	if err := h.srv.DeletePlan(ctx.Request.Context(), id); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
 func (h *TrainingPlanHandler) ExistsPlan(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if id == "" {
@@ -383,6 +396,21 @@ func (h *TrainingPlanHandler) RemovePlanComment(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
+}
+
+func (h *TrainingPlanHandler) CreateDays(ctx *gin.Context) {
+	var days []Day
+	if err := ctx.ShouldBindJSON(&days); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.CreateDays(ctx.Request.Context(), days); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {

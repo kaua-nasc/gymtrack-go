@@ -38,8 +38,9 @@ func (s *UserService) Register(ctx context.Context, u User) (*User, error) {
 	}
 	u.Password = string(hashedPassword)
 
-	u.CreatedAt = time.Now()
-	u.UpdatedAt = time.Now()
+	now := time.Now().UTC()
+	u.CreatedAt = now
+	u.UpdatedAt = now
 
 	if err := s.repo.Create(ctx, &u); err != nil {
 		return nil, err
@@ -60,11 +61,12 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 		return "", errors.New("invalid credentials")
 	}
 
+	now := time.Now().UTC()
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":  u.ID,
 		"type": u.Type,
-		"iat":  time.Now().Unix(),
-		"exp":  time.Now().Add(time.Minute * 60).Unix(), // Aligned with NestJS 60m
+		"iat":  now.Unix(),
+		"exp":  now.Add(time.Minute * 60).Unix(), // Aligned with NestJS 60m
 	})
 
 	secret := os.Getenv("JWT_SECRET")
