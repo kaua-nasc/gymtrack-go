@@ -24,8 +24,8 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	protected := r.Group("/identity/users")
 	protected.Use(auth.AuthMiddleware())
 	{
-		protected.GET("/:id", h.GetUser)
 		protected.GET("", h.ListUsers)
+		protected.GET("/:id", h.GetUser)
 	}
 }
 

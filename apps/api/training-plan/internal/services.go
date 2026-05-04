@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"golang.org/x/sync/errgroup"
 )
@@ -263,8 +264,12 @@ func (s *TrainingPlanService) UnlikePlan(ctx context.Context, planId string, use
 }
 
 func (s *TrainingPlanService) AddPlanComment(ctx context.Context, planId, content, userId string) (*TrainingPlanComment, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return nil, fmt.Errorf("error on generate uuid")
+	}
 	comment := &TrainingPlanComment{
-		Id:             fmt.Sprintf("%s:%s:%d", planId, userId, time.Now().UnixNano()),
+		Id:             id.String(),
 		Content:        content,
 		AuthorId:       userId,
 		TrainingPlanId: planId,

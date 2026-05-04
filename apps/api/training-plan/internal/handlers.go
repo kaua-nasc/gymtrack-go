@@ -19,26 +19,26 @@ func NewTrainingPlanHandler(srv *TrainingPlanService) *TrainingPlanHandler {
 }
 
 func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
-	protected := r.Group("/training-plans")
-	protected.Use(auth.AuthMiddleware())
+	plans := r.Group("/training-plans")
+	plans.Use(auth.AuthMiddleware())
 	{
-		protected.GET("", h.ListPlan)
-		protected.POST("", h.CreatePlan)
-		protected.GET("author/:authorId", h.ListPlan)
-		protected.PUT("/:id", h.UpdatePlan)
-		protected.GET("/exists/:id", h.ExistsPlan)
-		protected.GET("/:id", h.GetPlan)
-		protected.POST("/:id/like", h.LikePlan)
-		protected.DELETE("/:id/like", h.UnlikePlan)
-		protected.GET("/:id/comments", h.ListPlanComment)
-		protected.POST("/:id/comments", h.AddPlanComment)
-		protected.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
-		protected.POST("/subscriptions", h.ListSubscription)
-		protected.POST("/subscriptions/:userId", h.ListSubscription)
-		protected.POST("/:id/subscriptions", h.Subscribe)
-		protected.DELETE("/:id/subscriptions", h.Unsubscribe)
-		protected.PUT("/:id/days/:dayId/complete", h.CompleteDay)
-		protected.POST("/:id/feedback", h.AddFeedback)
+		plans.GET("", h.ListPlan)
+		plans.POST("", h.CreatePlan)
+		plans.GET("author/:authorId", h.ListPlan)
+		plans.PUT("/:id", h.UpdatePlan)
+		plans.GET("/exists/:id", h.ExistsPlan)
+		plans.GET("/:id", h.GetPlan)
+		plans.POST("/:id/like", h.LikePlan)
+		plans.DELETE("/:id/like", h.UnlikePlan)
+		plans.GET("/:id/comments", h.ListPlanComment)
+		plans.POST("/:id/comments", h.AddPlanComment)
+		plans.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
+		plans.POST("/subscriptions", h.ListSubscription)
+		plans.POST("/subscriptions/:userId", h.ListSubscription)
+		plans.POST("/:id/subscriptions", h.Subscribe)
+		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
+		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
+		plans.POST("/:id/feedback", h.AddFeedback)
 	}
 
 	exercises := r.Group("/exercises")
@@ -350,7 +350,7 @@ func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
 	}
 
 	var body struct {
-		Content string `json:"content" binding:"required"`
+		Message string `json:"message" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -358,7 +358,7 @@ func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
 		return
 	}
 
-	comment, err := h.srv.AddPlanComment(ctx.Request.Context(), id, body.Content, user.ID)
+	comment, err := h.srv.AddPlanComment(ctx.Request.Context(), id, body.Message, user.ID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
