@@ -67,7 +67,7 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
 func main() {
 	config.LoadEnvironmentVariable()
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	slog.SetDefault(logger)
 
 	fx.New(

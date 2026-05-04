@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -64,6 +65,8 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.TrainingPlanHandler) *gin.
 
 func main() {
 	config.LoadEnvironmentVariable()
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	slog.SetDefault(logger)
 
 	fx.New(
 		fx.Provide(
