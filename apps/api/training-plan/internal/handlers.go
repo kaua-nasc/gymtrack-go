@@ -37,6 +37,8 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("/subscriptions/:userId", h.ListSubscription)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
+		plans.POST("/:id/days", h.CreateDay)
+		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
 		plans.POST("/:id/feedback", h.AddFeedback)
 	}
@@ -381,4 +383,30 @@ func (h *TrainingPlanHandler) RemovePlanComment(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
+}
+
+func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {
+	var day Day
+	if err := ctx.ShouldBindJSON(&day); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.CreateDay(ctx.Request.Context(), day); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusCreated)
+}
+
+func (h *TrainingPlanHandler) DeleteDay(ctx *gin.Context) {
+	dayId := ctx.Param("dayId")
+
+	if err := h.srv.DeleteDay(ctx.Request.Context(), dayId); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }

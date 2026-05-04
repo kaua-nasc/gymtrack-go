@@ -104,6 +104,33 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	return &plan, nil
 }
 
+func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	day.Id = id.String()
+	day.CreatedAt = time.Now()
+	day.UpdatedAt = time.Now()
+	if err := s.repo.CreateDay(ctx, &day); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.String("day_id", day.Id), slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
+}
+
+func (s *TrainingPlanService) DeleteDay(ctx context.Context, id string) error {
+	if err := s.repo.DeleteDay(ctx, id); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
+}
+
 func (s *TrainingPlanService) UpdatePlan(ctx context.Context, id string, data TrainingPlan) (*TrainingPlan, error) {
 	slog.InfoContext(ctx, "updating training plan", slog.String("plan_id", id))
 

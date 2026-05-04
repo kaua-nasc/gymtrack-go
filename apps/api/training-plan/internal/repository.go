@@ -220,6 +220,15 @@ func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 	return nil
 }
 
+func (r *TrainingPlanRepository) DeleteDay(ctx context.Context, id string) error {
+	query := `delete from days where id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("could not delete day: %w", err)
+	}
+	return nil
+}
+
 func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
 	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 ORDER BY "createdAt" ASC`
 	rows, err := r.db.QueryContext(ctx, query, planID)
