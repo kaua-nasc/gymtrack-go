@@ -29,19 +29,26 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.PUT("/:id", h.UpdatePlan)
 		plans.DELETE("/:id", h.DeletePlan)
 		plans.GET("/exists/:id", h.ExistsPlan)
+
 		plans.POST("/:id/like", h.LikePlan)
 		plans.DELETE("/:id/like", h.UnlikePlan)
+
 		plans.GET("/:id/comments", h.ListPlanComment)
 		plans.POST("/:id/comments", h.AddPlanComment)
 		plans.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
+
 		plans.GET("/subscriptions", h.ListSubscription)
 		plans.GET("/subscriptions/:userId", h.ListSubscription)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
+
+		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
+
 		plans.POST("/:id/days/batch", h.CreateDays)
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
+
 		plans.POST("/:id/feedback", h.AddFeedback)
 	}
 
@@ -143,6 +150,32 @@ func (h *TrainingPlanHandler) Subscribe(ctx *gin.Context) {
 	}
 
 	if err := h.srv.Subscribe(ctx.Request.Context(), id, user.ID, body.Type); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (h *TrainingPlanHandler) ChangeSubscriptionStatus(ctx *gin.Context) {
+	planId := ctx.Param("id")
+
+	var body struct {
+		Status PlanSubscriptionStatus `json:"status" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.ChangeSubscriptionStatus(ctx.Request.Context(), planId, user.ID, body.Status); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

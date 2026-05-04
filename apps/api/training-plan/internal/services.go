@@ -564,6 +564,35 @@ func (s *TrainingPlanService) Unsubscribe(ctx context.Context, planId, userId st
 	return nil
 }
 
+func (s *TrainingPlanService) ChangeSubscriptionStatus(ctx context.Context, planId, userId string, status PlanSubscriptionStatus) error {
+	subscription, err := s.repo.FindSubscription(ctx, planId, userId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find subscription for unsubscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+		return err
+	}
+
+	switch status {
+	case NotStarted:
+		if subscription.Status != Canceled {
+			return fmt.Errorf("o status deve ser cancelado")
+		}
+	case InProgress:
+		if subscription.Status != NotStarted {
+			return fmt.Errorf("o status deve ser cancelado")
+		}
+	case Completed:
+		if subscription.Status != InProgress {
+			return fmt.Errorf("o status deve ser cancelado")
+		}
+	case Canceled:
+		if subscription.Status != InProgress {
+			return fmt.Errorf("o status deve ser cancelado")
+		}
+	}
+
+	return s.repo.UpdateSubscriptionStatus(ctx, *subscription, status)
+}
+
 func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, dayId string) error {
 	slog.InfoContext(ctx, "completing plan day", slog.String("plan_id", planId), slog.String("user_id", userId), slog.String("day_id", dayId))
 

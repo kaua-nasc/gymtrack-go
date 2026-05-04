@@ -463,9 +463,9 @@ func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, u
 	return &s, nil
 }
 
-func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, planId, userId string, status PlanSubscriptionStatus) error {
-	query := `UPDATE plan_subscriptions SET status = $1, "updatedAt" = NOW() WHERE "trainingPlanId" = $2 AND user_id = $3`
-	_, err := r.db.ExecContext(ctx, query, status, planId, userId)
+func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error {
+	query := `UPDATE plan_subscriptions SET status = $1, "updatedAt" = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, status, s.Id)
 	if err != nil {
 		return fmt.Errorf("could not update subscription status: %w", err)
 	}
