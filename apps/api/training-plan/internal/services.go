@@ -124,6 +124,25 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 	return nil
 }
 
+func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) error {
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	now := time.Now().UTC()
+	e.Id = id.String()
+	e.CreatedAt = now
+	e.UpdatedAt = now
+	if err := s.repo.CreateExercise(ctx, &e); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
+}
+
 func (s *TrainingPlanService) CreateDays(ctx context.Context, days []Day) error {
 	now := time.Now().UTC()
 	for i := range days {
@@ -148,6 +167,15 @@ func (s *TrainingPlanService) CreateDays(ctx context.Context, days []Day) error 
 
 func (s *TrainingPlanService) DeleteDay(ctx context.Context, id string) error {
 	if err := s.repo.DeleteDay(ctx, id); err != nil {
+		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
+		return fmt.Errorf("could not save plan day: %w", err)
+	}
+
+	return nil
+}
+
+func (s *TrainingPlanService) DeleteExercise(ctx context.Context, id string) error {
+	if err := s.repo.DeleteExercise(ctx, id); err != nil {
 		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
 		return fmt.Errorf("could not save plan day: %w", err)
 	}
@@ -591,6 +619,16 @@ func (s *TrainingPlanService) ChangeSubscriptionStatus(ctx context.Context, plan
 	}
 
 	return s.repo.UpdateSubscriptionStatus(ctx, *subscription, status)
+}
+
+func (s *TrainingPlanService) ChangeSubscriptionPrivacy(ctx context.Context, planId, userId string, subsType PlanSubscriptionType) error {
+	subscription, err := s.repo.FindSubscription(ctx, planId, userId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find subscription for unsubscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+		return err
+	}
+
+	return s.repo.UpdateSubscriptionPrivacy(ctx, *subscription, subsType)
 }
 
 func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, dayId string) error {

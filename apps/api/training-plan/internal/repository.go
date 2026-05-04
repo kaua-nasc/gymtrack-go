@@ -263,6 +263,15 @@ func (r *TrainingPlanRepository) DeleteDay(ctx context.Context, id string) error
 	return nil
 }
 
+func (r *TrainingPlanRepository) DeleteExercise(ctx context.Context, id string) error {
+	query := `delete from exercises where id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("could not delete day: %w", err)
+	}
+	return nil
+}
+
 func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
 	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 ORDER BY "createdAt" ASC`
 	rows, err := r.db.QueryContext(ctx, query, planID)
@@ -465,6 +474,15 @@ func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, u
 
 func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error {
 	query := `UPDATE plan_subscriptions SET status = $1, "updatedAt" = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, status, s.Id)
+	if err != nil {
+		return fmt.Errorf("could not update subscription status: %w", err)
+	}
+	return nil
+}
+
+func (r *TrainingPlanRepository) UpdateSubscriptionPrivacy(ctx context.Context, s PlanSubscription, status PlanSubscriptionType) error {
+	query := `UPDATE plan_subscriptions SET type = $1, "updatedAt" = NOW() WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, status, s.Id)
 	if err != nil {
 		return fmt.Errorf("could not update subscription status: %w", err)

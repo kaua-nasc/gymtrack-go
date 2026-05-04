@@ -43,19 +43,18 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
 
 		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
+		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 
 		plans.POST("/:id/days/batch", h.CreateDays)
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
 
-		plans.POST("/:id/feedback", h.AddFeedback)
-	}
+		plans.POST("/:planId/days/:dayId/exercises", h.CreateExercise)
+		plans.DELETE("/:planId/days/:dayId/exercises/:id", h.DeleteExercise)
+		plans.POST("/:planId/days/:dayId/exercises/:id/logs", h.LogExercise)
 
-	exercises := r.Group("/exercises")
-	exercises.Use(auth.AuthMiddleware())
-	{
-		exercises.POST("/:id/log", h.LogExercise)
+		plans.POST("/:id/feedback", h.AddFeedback)
 	}
 }
 
@@ -181,6 +180,32 @@ func (h *TrainingPlanHandler) ChangeSubscriptionStatus(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
+}
+
+func (h *TrainingPlanHandler) ChangeSubscriptionPrivacy(ctx *gin.Context) {
+	planId := ctx.Param("id")
+
+	var body struct {
+		SubscriptionType PlanSubscriptionType `json:"type" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.ChangeSubscriptionPrivacy(ctx.Request.Context(), planId, user.ID, body.SubscriptionType); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *TrainingPlanHandler) Unsubscribe(ctx *gin.Context) {
@@ -461,10 +486,36 @@ func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {
 	ctx.Status(http.StatusCreated)
 }
 
+func (h *TrainingPlanHandler) CreateExercise(ctx *gin.Context) {
+	var exercise Exercise
+	if err := ctx.ShouldBindJSON(&exercise); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.CreateExercise(ctx.Request.Context(), exercise); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusCreated)
+}
+
 func (h *TrainingPlanHandler) DeleteDay(ctx *gin.Context) {
 	dayId := ctx.Param("dayId")
 
 	if err := h.srv.DeleteDay(ctx.Request.Context(), dayId); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	if err := h.srv.DeleteExercise(ctx.Request.Context(), id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
