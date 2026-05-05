@@ -205,11 +205,57 @@ func (s *UserService) FollowUser(ctx context.Context, followerId, followingId st
 		FollowingId: following.ID,
 	}
 
-	s.repo.FollowUser(ctx, *follow)
-
-	return nil
+	return s.repo.FollowUser(ctx, *follow)
 }
 
 func (s *UserService) UnfollowUser(ctx context.Context, followerId, followingId string) error {
 	return s.repo.UnfollowUser(ctx, followerId, followingId)
+}
+
+func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) error {
+	user, err := s.repo.FindByID(ctx, code)
+	if err != nil {
+		return fmt.Errorf("erro")
+	}
+	if user == nil {
+		return fmt.Errorf("trainer not found")
+	}
+
+	return s.repo.CreateTrainerCode(ctx, id, code)
+}
+
+func (s *UserService) LinkTrainer(ctx context.Context, id, code string) error {
+	trainer, err := s.repo.FindByTrainerCode(ctx, code)
+	if err != nil {
+		return fmt.Errorf("erro")
+	}
+	if trainer == nil {
+		return fmt.Errorf("trainer not found")
+	}
+
+	now := time.Now().UTC()
+	createdId, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	relation := &TrainerStudentRelation{
+		ID:        createdId.String(),
+		CreatedAt: now,
+		UpdatedAt: now,
+		TrainerId: trainer.ID,
+		StudentId: id,
+		LinkedAt:  now,
+	}
+
+	return s.repo.LinkTrainer(ctx, *relation)
+}
+
+func (s *UserService) UnlinkTrainer(ctx context.Context, studentId string) error {
+	return s.repo.UnlinkTrainer(ctx, studentId)
+}
+
+func (s *UserService) UnlinkStudant(ctx context.Context, studentId string) error {
+	return s.repo.UnlinkTrainer(ctx, studentId)
 }

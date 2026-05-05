@@ -29,11 +29,16 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 
 		protected.POST("/:id/follows", h.FollowUser)
 		protected.POST("/:id/unfollows", h.UnfollowUser)
+
+		protected.PATCH("/profile/trainers/code", h.CreateTrainerCode)
+		protected.POST("/profile/trainers/link", h.LinkTrainer)
+		protected.POST("/profile/trainers/unlink", h.UnlinkTrainer)
+
+		protected.POST("/profile/studants/:id/unlink", h.UnlinkStudant)
 	}
 }
 
 func (h *UserHandler) Login(ctx *gin.Context) {
-	// ... (implementation same, just ensure it uses body.Email etc)
 	var body struct {
 		Email    string `json:"email" binding:"required,email"`
 		Password string `json:"password" binding:"required"`
@@ -131,6 +136,80 @@ func (h *UserHandler) UnfollowUser(ctx *gin.Context) {
 	}
 
 	if err := h.srv.UnfollowUser(ctx.Request.Context(), user.ID, id); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) LinkTrainer(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var body struct {
+		Code string `json:"id" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.LinkTrainer(ctx.Request.Context(), user.ID, body.Code); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) CreateTrainerCode(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var body struct {
+		Code string `json:"id" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.CreateTrainerCode(ctx.Request.Context(), user.ID, body.Code); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) UnlinkTrainer(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.UnlinkTrainer(ctx.Request.Context(), user.ID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) UnlinkStudant(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	if err := h.srv.UnlinkStudant(ctx.Request.Context(), id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

@@ -131,3 +131,43 @@ func (r *UserRepository) ListFollower(ctx context.Context, id string) ([]*UserFo
 	}
 	return follows, nil
 }
+
+func (r *UserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
+	query := `SELECT id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt" FROM users WHERE "trainerInviteCode" = $1 LIMIT 1`
+	var u User
+	err := r.db.QueryRowContext(ctx, query, code).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (r *UserRepository) CreateTrainerCode(ctx context.Context, id, code string) error {
+	query := `UPDATE users SET trainerInviteCode = $2 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id, code)
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error {
+	query := `INSERT INTO trainer_student_relationships (id, "followerId", "followingId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
+	_, err := r.db.ExecContext(ctx, query, relation.ID, relation.CreatedAt, relation.UpdatedAt, relation.LinkedAt, relation.StudentId, relation.TrainerId)
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
+	query := `DELETE FROM trainer_student_relationships WHERE "studentId" = $1`
+	_, err := r.db.ExecContext(ctx, query, studentId)
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
