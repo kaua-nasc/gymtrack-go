@@ -1,0 +1,57 @@
+name: Deploy Training Plan
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'apps/api/training-plan/**'
+      - 'libs/**'
+      - '.github/workflows/deploy-training-plan.yml'
+  workflow_dispatch:
+
+jobs:
+  build-push:
+    name: Build & Push Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/training-plan/Dockerfile
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-training-plan:latest
+
+  deploy:
+    name: Deploy to Azure
+    needs: build-push
+    runs-on: ubuntu-latest
+    permissions: 
+      id-token: write
+      contents: read
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.GYMTRACKTRAININGPLAN_AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.GYMTRACKTRAININGPLAN_AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to Azure Container App
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          imageToDeploy: ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-training-plan:latest
+          containerAppName: ${{ vars.AZURE_TRAINING_PLAN_APP_NAME }}
+          resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
