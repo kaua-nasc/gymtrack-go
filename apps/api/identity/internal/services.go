@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
@@ -10,15 +11,13 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
-	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/crypto/scrypt"
+	"golang.org/x/crypto/argon2"
 )
 
 type UserService struct {
@@ -38,15 +37,24 @@ func (s *UserService) Register(ctx context.Context, u User) error {
 		return errors.New("user already exists")
 	}
 
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
+	hashedPassword, err := HashArgon2Password(u.Password)
 	if err != nil {
 		return err
 	}
-	u.Password = string(hashedPassword)
+	u.Password = hashedPassword
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
 	now := time.Now().UTC()
+	u.ID = id.String()
 	u.CreatedAt = now
 	u.UpdatedAt = now
+	u.Type = Client
+	u.WeightUnit = KG
+	u.HeightUnit = CM
 
 	if err := s.repo.Create(ctx, &u); err != nil {
 		return err
@@ -56,13 +64,37 @@ func (s *UserService) Register(ctx context.Context, u User) error {
 	return nil
 }
 
+func HashArgon2Password(password string) (string, error) {
+	memory := uint32(64 * 1024)
+	iterations := uint32(3)
+	parallelism := uint8(2)
+	saltLength := uint32(16)
+	keyLength := uint32(32)
+
+	salt := make([]byte, saltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+
+	hash := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, keyLength)
+
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+
+	encodedHash := fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+		argon2.Version, memory, iterations, parallelism, b64Salt, b64Hash)
+
+	return encodedHash, nil
+}
+
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	u, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || u == nil {
 		return "", errors.New("invalid credentials")
 	}
 
-	ok, err := VerifyScryptPassword(password, u.Password)
+	ok, err := VerifyArgon2Password(password, u.Password)
+
 	if err != nil || !ok {
 		return "", errors.New("invalid credentials")
 	}
@@ -118,55 +150,32 @@ func (s *UserService) ListUsers(ctx context.Context, ids []string) ([]*User, err
 	return users, nil
 }
 
-func VerifyScryptPassword(plainPassword, stored string) (bool, error) {
-	parts := strings.Split(stored, "$")
+func VerifyArgon2Password(password, encodedHash string) (bool, error) {
+	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 {
 		return false, errors.New("invalid hash format")
 	}
 
-	if parts[0] != "scrypt" {
-		return false, errors.New("unsupported hash type")
-	}
-
-	N, err := strconv.Atoi(parts[1])
+	var memory, iterations uint32
+	var parallelism uint8
+	_, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &memory, &iterations, &parallelism)
 	if err != nil {
 		return false, err
 	}
 
-	r, err := strconv.Atoi(parts[2])
+	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
 		return false, err
 	}
 
-	p, err := strconv.Atoi(parts[3])
+	decodedHash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return false, err
 	}
 
-	salt := []byte(parts[4])
+	comparisonHash := argon2.IDKey([]byte(password), salt, iterations, memory, parallelism, uint32(len(decodedHash)))
 
-	expectedHash, err := base64.RawURLEncoding.DecodeString(parts[5])
-	if err != nil {
-		return false, err
-	}
-
-	derivedKey, err := scrypt.Key(
-		[]byte(plainPassword),
-		salt,
-		N,
-		r,
-		p,
-		len(expectedHash),
-	)
-	if err != nil {
-		return false, err
-	}
-
-	if len(derivedKey) != len(expectedHash) {
-		return false, nil
-	}
-
-	return subtle.ConstantTimeCompare(derivedKey, expectedHash) == 1, nil
+	return subtle.ConstantTimeCompare(decodedHash, comparisonHash) == 1, nil
 }
 
 func (s *UserService) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
