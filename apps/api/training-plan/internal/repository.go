@@ -131,7 +131,7 @@ func (r *TrainingPlanRepository) List(ctx context.Context, authorId string, curs
 	}
 	defer rows.Close()
 
-	var plans []*TrainingPlan
+	plans := make([]*TrainingPlan, 0)
 	for rows.Next() {
 		p := &TrainingPlan{}
 		err := rows.Scan(&p.Id, &p.AuthorId, &p.Name, &p.Visibility, &p.CreatedAt, &p.ImageUrl)
@@ -281,7 +281,7 @@ func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID stri
 	}
 	defer rows.Close()
 
-	var days []*Day
+	days := make([]*Day, 0)
 	for rows.Next() {
 		d := &Day{}
 		if err := rows.Scan(&d.Id, &d.Name, &d.TrainingPlanId, &d.CreatedAt, &d.UpdatedAt); err != nil {
@@ -325,7 +325,7 @@ func (r *TrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID s
 	}
 	defer rows.Close()
 
-	var exercises []*Exercise
+	exercises := make([]*Exercise, 0)
 	for rows.Next() {
 		e := &Exercise{}
 		if err := rows.Scan(
@@ -408,7 +408,7 @@ func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId st
 	}
 	defer rows.Close()
 
-	var comments []*TrainingPlanComment
+	comments := make([]*TrainingPlanComment, 0)
 	for rows.Next() {
 		c := &TrainingPlanComment{}
 		err := rows.Scan(&c.Id, &c.Content, &c.AuthorId, &c.TrainingPlanId, &c.CreatedAt, &c.UpdatedAt)
@@ -444,7 +444,7 @@ func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId st
 	}
 	defer rows.Close()
 
-	var subscriptions []*PlanSubscription
+	subscriptions := make([]*PlanSubscription, 0)
 	for rows.Next() {
 		c := &PlanSubscription{TrainingPlan: &TrainingPlan{}}
 		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type, &c.TrainingPlan.Id,

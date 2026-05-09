@@ -329,6 +329,29 @@ func (s *UserService) FindLastBodyMeasurementNote(ctx context.Context, userId st
 	return s.repo.FindLastBodyMeasurementNote(ctx, userId)
 }
 
+func (s *UserService) ListBodyMeasurements(ctx context.Context, userId, cursor string, limit int) ([]*BodyMeasurement, string, error) {
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		}
+	}
+
+	measurements, rawNextCursor, err := s.repo.ListBodyMeasurements(ctx, userId, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return measurements, nextCursorStr, nil
+}
+
 func (s *UserService) AddWeightLogNote(ctx context.Context, id, note string) error {
 	return s.repo.AddWeightLogNote(ctx, id, note)
 }
@@ -357,13 +380,27 @@ func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
 	return s.repo.ChangeUserType(ctx, *user, Client)
 }
 
-func (s *UserService) ListGoalsMetric(ctx context.Context, userId string) ([]*MetricGoal, error) {
-	follows, err := s.repo.ListGoalsMetric(ctx, userId)
-	if err != nil {
-		return nil, err
+func (s *UserService) ListGoalsMetric(ctx context.Context, userId, cursor string, limit int) ([]*MetricGoal, string, error) {
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		}
 	}
 
-	return follows, nil
+	goals, rawNextCursor, err := s.repo.ListGoalsMetric(ctx, userId, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return goals, nextCursorStr, nil
 }
 
 func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error {
@@ -382,8 +419,8 @@ func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error
 	return s.repo.AddGoalMetric(ctx, *goal)
 }
 
-func (s *UserService) ListWeightHistory(ctx context.Context, userId, cursor string, limit int) ([]*WeightLog, string, error) {
-	slog.InfoContext(ctx, "listing weight history", slog.String("user_id", userId), slog.Int("limit", limit))
+func (s *UserService) ListWeightLogs(ctx context.Context, userId, cursor string, limit int) ([]*WeightLog, string, error) {
+	slog.InfoContext(ctx, "listing weight logs", slog.String("user_id", userId), slog.Int("limit", limit))
 
 	var decodedCursor *CursorData
 	if cursor != "" {
@@ -395,7 +432,7 @@ func (s *UserService) ListWeightHistory(ctx context.Context, userId, cursor stri
 		}
 	}
 
-	logs, rawNextCursor, err := s.repo.ListWeightHistory(ctx, userId, decodedCursor, limit)
+	logs, rawNextCursor, err := s.repo.ListWeightLogs(ctx, userId, decodedCursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list weight history", slog.String("user_id", userId), slog.Any("error", err))
 		return nil, "", err

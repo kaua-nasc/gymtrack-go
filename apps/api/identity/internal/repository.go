@@ -125,7 +125,7 @@ func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cur
 	args = append(args, trainerId)
 
 	if cursor != nil {
-		query += ` AND (u."createdAt", u.id) < ($2, $3)`
+		query += ` AND ("createdAt", id) < ($2, $3)`
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
@@ -300,6 +300,47 @@ func (r *UserRepository) AddBodyMeasurementNote(ctx context.Context, id, note st
 	return nil
 }
 
+func (r *UserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
+	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1`
+
+	var args []interface{}
+	args = append(args, userId)
+
+	if cursor != nil {
+		query += ` AND ("createdAt", id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	measurements := make([]*BodyMeasurement, 0)
+	for rows.Next() {
+		m := &BodyMeasurement{}
+		err := rows.Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
+		if err != nil {
+			return nil, nil, err
+		}
+		measurements = append(measurements, m)
+	}
+
+	var nextCursor *CursorData
+	if len(measurements) > limit {
+		nextCursor = &CursorData{
+			ID:        measurements[limit].ID,
+			CreatedAt: measurements[limit].CreatedAt,
+		}
+		measurements = measurements[:limit]
+	}
+
+	return measurements, nextCursor, nil
+}
 func (r *UserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 ORDER BY "measuredAt" DESC LIMIT 1`
 	var m BodyMeasurement
@@ -331,11 +372,23 @@ func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType Use
 	return nil
 }
 
-func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string) ([]*MetricGoal, error) {
+func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
-	rows, err := r.db.QueryContext(ctx, query, id)
+
+	var args []interface{}
+	args = append(args, id)
+
+	if cursor != nil {
+		query += ` AND ("createdAt", id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -344,11 +397,21 @@ func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string) ([]*Met
 		var g MetricGoal
 		err := rows.Scan(&g.ID, &g.CreatedAt, &g.UpdatedAt, &g.Type, &g.StartingValue, &g.TargetValue, &g.Deadline, &g.AchievedAt, &g.Status, &g.UserId)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		goals = append(goals, &g)
 	}
-	return goals, nil
+
+	var nextCursor *CursorData
+	if len(goals) > limit {
+		nextCursor = &CursorData{
+			ID:        goals[limit].ID,
+			CreatedAt: goals[limit].CreatedAt,
+		}
+		goals = goals[:limit]
+	}
+
+	return goals, nextCursor, nil
 }
 
 func (r *UserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error {
@@ -360,7 +423,7 @@ func (r *UserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error 
 	return nil
 }
 
-func (r *UserRepository) ListWeightHistory(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
+func (r *UserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1`
 
 	var args []interface{}

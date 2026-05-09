@@ -43,12 +43,16 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 
 		protected.PATCH("/trainers/body-measurements/:id/notes", h.AddBodyMeasurementNote)
 		protected.GET("/trainers/body-measurements/latest", h.FindLastBodyMeasurementNote)
+		protected.GET("/trainers/body-measurements", h.ListBodyMeasurements)
+		protected.GET("/trainers/students/:id/body-measurements", h.ListBodyMeasurements)
 
-		protected.PATCH("/trainers/weight-log/:id/notes", h.AddBodyMeasurementNote)
-		protected.GET("/trainers/weight-history", h.ListWeightHistory)
+		protected.PATCH("/trainers/weight-log/:id/notes", h.AddWeightLogNote)
+		protected.GET("/trainers/weight-logs", h.ListWeightLogs)
+		protected.GET("/trainers/students/:id/weight-logs", h.ListWeightLogs)
 
 		protected.POST("/trainers/goals", h.AddGoalMetric)
 		protected.GET("/trainers/goals", h.ListGoalsMetric)
+		protected.GET("/trainers/students/:id/goals", h.ListGoalsMetricById)
 
 		protected.GET("/students", h.ListStudents)
 		protected.POST("/students/:id/profile/unlink", h.UnlinkStudant)
@@ -326,6 +330,37 @@ func (h *UserHandler) FindLastBodyMeasurementNote(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, measurement)
 }
 
+func (h *UserHandler) ListBodyMeasurements(ctx *gin.Context) {
+	id := ctx.Param("id")
+	if id == "" {
+		user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+		if !ok {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		id = user.ID
+	}
+
+	cursor := ctx.Query("cursor")
+	limitStr := ctx.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 20
+	}
+
+	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), id, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       measurements,
+		"nextCursor": nextCursor,
+	})
+}
+
 func (h *UserHandler) AddGoalMetric(ctx *gin.Context) {
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if !ok {
@@ -364,13 +399,47 @@ func (h *UserHandler) ListGoalsMetric(ctx *gin.Context) {
 		return
 	}
 
-	goals, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID)
+	cursor := ctx.Query("cursor")
+	limitStr := ctx.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 20
+	}
+
+	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, goals)
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       goals,
+		"nextCursor": nextCursor,
+	})
+}
+
+func (h *UserHandler) ListGoalsMetricById(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	cursor := ctx.Query("cursor")
+	limitStr := ctx.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 20
+	}
+
+	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), id, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       goals,
+		"nextCursor": nextCursor,
+	})
 }
 
 func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
@@ -441,11 +510,15 @@ func (h *UserHandler) ChangeToClient(ctx *gin.Context) {
 	ctx.Status(http.StatusOK)
 }
 
-func (h *UserHandler) ListWeightHistory(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
+func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
+	id := ctx.Param("id")
+	if id == "" {
+		user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+		if !ok {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		id = user.ID
 	}
 
 	cursor := ctx.Query("cursor")
@@ -456,14 +529,14 @@ func (h *UserHandler) ListWeightHistory(ctx *gin.Context) {
 		limit = 20
 	}
 
-	history, nextCursor, err := h.srv.ListWeightHistory(ctx.Request.Context(), user.ID, cursor, limit)
+	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"data":       history,
+		"data":       logs,
 		"nextCursor": nextCursor,
 	})
 }
