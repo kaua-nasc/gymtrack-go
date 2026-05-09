@@ -55,6 +55,8 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/days/:dayId/exercises", h.CreateExercise)
 		plans.DELETE("/:id/days/:dayId/exercises/:exerciseId", h.DeleteExercise)
 		plans.POST("/:id/days/:dayId/exercises/:exerciseId/logs", h.LogExercise)
+
+		plans.GET("/activity/weekly", h.ListActivityWeekly)
 	}
 }
 
@@ -521,4 +523,20 @@ func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+func (h *TrainingPlanHandler) ListActivityWeekly(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	activity, err := h.srv.ListActivityWeekly(ctx.Request.Context(), user.ID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, activity)
 }

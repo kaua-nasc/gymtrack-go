@@ -62,7 +62,7 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 	}
 	defer rows.Close()
 
-	var users []*User
+	users := make([]*User, 0)
 	for rows.Next() {
 		var u User
 		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt)
@@ -100,7 +100,7 @@ func (r *UserRepository) ListFollowing(ctx context.Context, id string) ([]*UserF
 	}
 	defer rows.Close()
 
-	var follows []*UserFollows
+	follows := make([]*UserFollows, 0)
 	for rows.Next() {
 		var u UserFollows
 		err := rows.Scan(&u.ID, &u.FollowerId, &u.FollowingId, &u.CreatedAt, &u.UpdatedAt)
@@ -120,7 +120,7 @@ func (r *UserRepository) ListFollower(ctx context.Context, id string) ([]*UserFo
 	}
 	defer rows.Close()
 
-	var follows []*UserFollows
+	follows := make([]*UserFollows, 0)
 	for rows.Next() {
 		var u UserFollows
 		err := rows.Scan(&u.ID, &u.FollowerId, &u.FollowingId, &u.CreatedAt, &u.UpdatedAt)
@@ -220,7 +220,7 @@ func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string) ([]*Met
 	}
 	defer rows.Close()
 
-	var goals []*MetricGoal
+	goals := make([]*MetricGoal, 0)
 	for rows.Next() {
 		var g MetricGoal
 		err := rows.Scan(&g.ID, &g.CreatedAt, &g.UpdatedAt, &g.Type, &g.StartingValue, &g.TargetValue, &g.Deadline, &g.AchievedAt, &g.Status, &g.UserId)
@@ -261,7 +261,7 @@ func (r *UserRepository) ListWeightHistory(ctx context.Context, userId string, c
 	}
 	defer rows.Close()
 
-	var logs []*WeightLog
+	logs := make([]*WeightLog, 0)
 	for rows.Next() {
 		l := &WeightLog{}
 		err := rows.Scan(&l.ID, &l.CreatedAt, &l.UpdatedAt, &l.Weight, &l.MeasuredAt, &l.UserId, &l.TrainerNote, &l.TrainerNoteAt)

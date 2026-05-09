@@ -305,12 +305,13 @@ func (h *UserHandler) ListGoalsMetric(ctx *gin.Context) {
 		return
 	}
 
-	if _, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID); err != nil {
+	goals, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID)
+	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.JSON(http.StatusOK, goals)
 }
 
 func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {

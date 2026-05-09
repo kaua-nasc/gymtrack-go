@@ -384,9 +384,14 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 func (s *TrainingPlanService) LikePlan(ctx context.Context, planId string, userId string) error {
 	slog.InfoContext(ctx, "liking training plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
 	now := time.Now().UTC()
 	like := &TrainingPlanLike{
-		Id:             fmt.Sprintf("%s:%s", planId, userId),
+		Id:             id.String(),
 		LikedBy:        userId,
 		TrainingPlanId: planId,
 		CreatedAt:      now,
@@ -553,9 +558,14 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		return errors.New("already subscribed")
 	}
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
 	now := time.Now().UTC()
 	sub := &PlanSubscription{
-		Id:             fmt.Sprintf("%s:%s", planId, userId),
+		Id:             id.String(),
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Status:         InProgress,
@@ -664,9 +674,14 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId string, rating float64, message *string) error {
 	slog.InfoContext(ctx, "adding feedback to plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Float64("rating", rating))
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
 	now := time.Now().UTC()
 	feedback := &TrainingPlanFeedback{
-		Id:             fmt.Sprintf("%s:%s", planId, userId),
+		Id:             id.String(),
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Rating:         rating,
@@ -706,4 +721,37 @@ func (s *TrainingPlanService) LogExercise(ctx context.Context, exerciseId, userI
 		return err
 	}
 	return nil
+}
+
+func (s *TrainingPlanService) ListActivityWeekly(ctx context.Context, userId string) (*WeeklyActivity, error) {
+	slog.InfoContext(ctx, "listing weekly activity", slog.String("user_id", userId))
+
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	weekday := int(today.Weekday()) // Sun=0, Mon=1, ...
+	daysSinceMonday := (weekday + 6) % 7
+	startOfWeek := today.AddDate(0, 0, -daysSinceMonday)
+	endOfWeek := startOfWeek.AddDate(0, 0, 7).Add(-time.Nanosecond)
+
+	dates, err := s.repo.ListActivityWeekly(ctx, userId, startOfWeek, endOfWeek)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list weekly activity", slog.String("user_id", userId), slog.Any("error", err))
+		return nil, err
+	}
+
+	activity := &WeeklyActivity{}
+	trainedDates := make(map[string]bool)
+	for _, d := range dates {
+		trainedDates[d.Format("2006-01-02")] = true
+	}
+
+	activity.Mon = trainedDates[startOfWeek.Format("2006-01-02")]
+	activity.Tue = trainedDates[startOfWeek.AddDate(0, 0, 1).Format("2006-01-02")]
+	activity.Wed = trainedDates[startOfWeek.AddDate(0, 0, 2).Format("2006-01-02")]
+	activity.Thu = trainedDates[startOfWeek.AddDate(0, 0, 3).Format("2006-01-02")]
+	activity.Fri = trainedDates[startOfWeek.AddDate(0, 0, 4).Format("2006-01-02")]
+	activity.Sat = trainedDates[startOfWeek.AddDate(0, 0, 5).Format("2006-01-02")]
+	activity.Sun = trainedDates[startOfWeek.AddDate(0, 0, 6).Format("2006-01-02")]
+
+	return activity, nil
 }

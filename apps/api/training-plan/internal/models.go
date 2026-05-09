@@ -84,6 +84,16 @@ const (
 	DaySkipped    PlanDayProgressStatus = "SKIPPED"
 )
 
+type WeeklyActivity struct {
+	Mon bool `json:"mon"`
+	Tue bool `json:"tue"`
+	Wed bool `json:"wed"`
+	Thu bool `json:"thu"`
+	Fri bool `json:"fri"`
+	Sat bool `json:"sat"`
+	Sun bool `json:"sun"`
+}
+
 // TrainingPlan Entity
 type TrainingPlan struct {
 	Id               string                 `json:"id" validate:"required,uuid4"`
