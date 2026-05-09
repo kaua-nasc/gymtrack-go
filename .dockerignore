@@ -1,0 +1,12 @@
+.git
+.gitignore
+**/node_modules
+**/vendor
+**/*.test
+**/dist
+.dockerignore
+Dockerfile
+**/Dockerfile
+docker-compose.yml
+.env
+.env.*

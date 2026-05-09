@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -14,8 +15,14 @@ type IdentityService struct {
 }
 
 func NewIdentityService() *IdentityService {
+	identityAPI := os.Getenv("IDENTITY_API_URL")
+
+	if identityAPI == "" {
+		panic("IDENTITY_API_URL environment variable cannot be empty")
+	}
+
 	return &IdentityService{
-		baseURL:    "http://localhost:3334",
+		baseURL:    identityAPI,
 		httpClient: &http.Client{},
 	}
 }

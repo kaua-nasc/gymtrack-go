@@ -19,6 +19,9 @@ func NewTrainingPlanHandler(srv *TrainingPlanService) *TrainingPlanHandler {
 }
 
 func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "training-plan"})
+	})
 	plans := r.Group("/training-plans")
 	plans.Use(auth.AuthMiddleware())
 	{

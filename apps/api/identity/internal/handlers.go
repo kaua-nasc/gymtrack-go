@@ -19,6 +19,9 @@ func NewUserHandler(srv *UserService) *UserHandler {
 }
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
+	})
 	r.POST("/identity/auth/register", h.Register)
 	r.POST("/identity/auth/login", h.Login)
 

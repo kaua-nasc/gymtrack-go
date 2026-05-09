@@ -26,17 +26,17 @@ func NewDatabase() (*sql.DB, error) {
 }
 
 func NewHTTPServer(lc fx.Lifecycle, handler *internal.TrainingPlanHandler) *gin.Engine {
-	port := os.Getenv("PORT")
+	port := os.Getenv("TRAINING_PLAN_PORT")
 	if port == "" {
-		panic("PORT not found")
+		panic("TRAINING_PLAN_PORT not found")
 	}
 
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4200"},
+		AllowAllOrigins:  true,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,

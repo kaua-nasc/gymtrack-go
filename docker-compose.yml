@@ -1,0 +1,24 @@
+services:
+  identity:
+    build:
+      context: .
+      dockerfile: apps/api/identity/Dockerfile
+    container_name: gymtrack-identity
+    restart: always
+    ports:
+      - "80:80"
+    env_file:
+      - .env
+    image: kaiannn/gymtrack-identity:latest
+
+  training-plan:
+    build:
+      context: .
+      dockerfile: apps/api/training-plan/Dockerfile
+    container_name: gymtrack-training-plan
+    restart: always
+    ports:
+      - "80:80"
+    env_file:
+      - .env
+    image: kaiannn/gymtrack-training-plan:latest
