@@ -216,7 +216,7 @@ func (h *UserHandler) CreateTrainerCode(ctx *gin.Context) {
 	}
 
 	var body struct {
-		Code string `json:"id" validate:"required"`
+		Code string `json:"code" validate:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {

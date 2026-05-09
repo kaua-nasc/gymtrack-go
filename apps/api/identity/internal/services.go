@@ -92,6 +92,11 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 		return u, err
 	}
 	u.Password = ""
+	if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
+		uri := os.Getenv("AZURE_STORAGE_URL")
+		fullUrl := uri + "/" + *u.ProfilePictureUrl
+		u.ProfilePictureUrl = &fullUrl
+	}
 	return u, nil
 }
 
@@ -102,6 +107,11 @@ func (s *UserService) ListUsers(ctx context.Context, ids []string) ([]*User, err
 	}
 	for _, u := range users {
 		u.Password = ""
+		if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
+			uri := os.Getenv("AZURE_STORAGE_URL")
+			fullUrl := uri + "/" + *u.ProfilePictureUrl
+			u.ProfilePictureUrl = &fullUrl
+		}
 	}
 	return users, nil
 }
@@ -232,9 +242,9 @@ func (s *UserService) UnfollowUser(ctx context.Context, followerId, followingId 
 }
 
 func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) error {
-	user, err := s.repo.Find(ctx, code)
+	user, err := s.repo.Find(ctx, id)
 	if err != nil {
-		return fmt.Errorf("erro")
+		return err
 	}
 	if user == nil {
 		return fmt.Errorf("trainer not found")
@@ -294,6 +304,11 @@ func (s *UserService) ListStudents(ctx context.Context, trainerId, cursor string
 	}
 
 	for _, u := range users {
+		if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
+			uri := os.Getenv("AZURE_STORAGE_URL")
+			fullUrl := uri + "/" + *u.ProfilePictureUrl
+			u.ProfilePictureUrl = &fullUrl
+		}
 		u.Password = ""
 	}
 

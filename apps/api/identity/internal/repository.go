@@ -20,8 +20,17 @@ func NewUserRepository(database *sql.DB) *UserRepository {
 }
 
 func (r *UserRepository) Create(ctx context.Context, u *User) error {
-	query := `INSERT INTO users (id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := r.db.ExecContext(ctx, query, u.ID, u.FirstName, u.LastName, u.Email, u.Password, u.Type, u.CreatedAt, u.UpdatedAt)
+	query := `
+		INSERT INTO users (
+			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
+			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
+			"trainerInviteCode", cref, "isVerified"
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`
+	_, err := r.db.ExecContext(ctx, query,
+		u.ID, u.FirstName, u.LastName, u.Email, u.Password, u.Type, u.CreatedAt, u.UpdatedAt,
+		u.Bio, u.ProfilePictureUrl, u.Height, u.CurrentWeight, u.WeightUnit, u.HeightUnit,
+		u.TrainerInviteCode, u.Cref, u.IsVerified,
+	)
 	if err != nil {
 		return fmt.Errorf("could not create user: %w", err)
 	}
@@ -29,9 +38,18 @@ func (r *UserRepository) Create(ctx context.Context, u *User) error {
 }
 
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
-	query := `SELECT id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt" FROM users WHERE email = $1 LIMIT 1`
+	query := `
+		SELECT 
+			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
+			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
+			"trainerInviteCode", cref, "isVerified"
+		FROM users WHERE email = $1 LIMIT 1`
 	var u User
-	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, email).Scan(
+		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -42,9 +60,18 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 }
 
 func (r *UserRepository) Find(ctx context.Context, id string) (*User, error) {
-	query := `SELECT id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt" FROM users WHERE id = $1 LIMIT 1`
+	query := `
+		SELECT 
+			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
+			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
+			"trainerInviteCode", cref, "isVerified"
+		FROM users WHERE id = $1 LIMIT 1`
 	var u User
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -55,7 +82,12 @@ func (r *UserRepository) Find(ctx context.Context, id string) (*User, error) {
 }
 
 func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
-	query := `SELECT id, "firstName", "lastName", email, type, "createdAt", "updatedAt" FROM users WHERE id = ANY($1)`
+	query := `
+		SELECT 
+			id, "firstName", "lastName", email, type, "createdAt", "updatedAt",
+			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
+			"trainerInviteCode", cref, "isVerified"
+		FROM users WHERE id = ANY($1)`
 	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -65,7 +97,11 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 	users := make([]*User, 0)
 	for rows.Next() {
 		var u User
-		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+		err := rows.Scan(
+			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+			&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+			&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +112,10 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 
 func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
 	query := `
-		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt"
+		SELECT 
+			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified"
 		FROM users u
 		INNER JOIN trainer_student_relationships tsr ON tsr."studentId" = u.id
 		WHERE tsr."trainerId" = $1 AND tsr."deletedAt" IS NULL
@@ -102,7 +141,11 @@ func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cur
 	users := make([]*User, 0)
 	for rows.Next() {
 		var u User
-		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+		err := rows.Scan(
+			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+			&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+			&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+		)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -200,9 +243,18 @@ func (r *UserRepository) ListFollower(ctx context.Context, id string) ([]*UserFo
 }
 
 func (r *UserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
-	query := `SELECT id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt" FROM users WHERE "trainerInviteCode" = $1 LIMIT 1`
+	query := `
+		SELECT 
+			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
+			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
+			"trainerInviteCode", cref, "isVerified"
+		FROM users WHERE "trainerInviteCode" = $1 LIMIT 1`
 	var u User
-	err := r.db.QueryRowContext(ctx, query, code).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+	err := r.db.QueryRowContext(ctx, query, code).Scan(
+		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -213,7 +265,7 @@ func (r *UserRepository) FindByTrainerCode(ctx context.Context, code string) (*U
 }
 
 func (r *UserRepository) CreateTrainerCode(ctx context.Context, id, code string) error {
-	query := `UPDATE users SET trainerInviteCode = $2 WHERE id = $1`
+	query := `UPDATE users SET "trainerInviteCode" = $2 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, code)
 	if err != nil {
 		return fmt.Errorf("could not create user: %w", err)
