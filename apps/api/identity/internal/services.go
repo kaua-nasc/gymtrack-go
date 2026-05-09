@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strconv"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/scrypt"
 )
@@ -378,6 +380,36 @@ func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
 	}
 
 	return s.repo.ChangeUserType(ctx, *user, Client)
+}
+
+func (s *UserService) RemoveProfilePicture(ctx context.Context, id string) error {
+	return s.repo.RemoveProfilePicture(ctx, id)
+}
+
+func (s *UserService) UploadProfilePicture(ctx context.Context, id string, file io.Reader) error {
+	user, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	bytes, err := io.ReadAll(file)
+	if err != nil {
+		return err
+	}
+
+	timestamp := strings.ReplaceAll(time.Now().UTC().String(), ":", "-")
+	timestamp = strings.ReplaceAll(timestamp, ".", "-")
+	filename := `identity/user/profile/user-` + id + `_` + timestamp + `.png`
+
+	if err := storage.UploadBuffer(ctx, filename, bytes); err != nil {
+		return fmt.Errorf("falha no upload: %w", err)
+	}
+
+	return s.repo.ChangeProfileImage(ctx, *user, filename)
 }
 
 func (s *UserService) ListGoalsMetric(ctx context.Context, userId, cursor string, limit int) ([]*MetricGoal, string, error) {

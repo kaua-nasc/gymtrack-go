@@ -34,6 +34,9 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.POST("/:id/follows", h.FollowUser)
 		protected.POST("/:id/unfollows", h.UnfollowUser)
 
+		protected.PUT("/profile/picture", h.UploadProfilePicture)
+		protected.DELETE("/profile/picture", h.RemoveProfilePicture)
+
 		protected.POST("/profile/upgrade", h.ChangeToTrainer)
 		protected.POST("/profile/downgrade", h.ChangeToClient)
 
@@ -493,21 +496,27 @@ func (h *UserHandler) ChangeToClient(ctx *gin.Context) {
 		return
 	}
 
-	var body struct {
-		Cref string `json:"cref" validate:"required"`
-	}
-
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	if err := h.srv.ChangeToClient(ctx.Request.Context(), user.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) RemoveProfilePicture(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if err := h.srv.RemoveProfilePicture(ctx.Request.Context(), user.ID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
@@ -539,4 +548,30 @@ func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
 		"data":       logs,
 		"nextCursor": nextCursor,
 	})
+}
+
+func (h *UserHandler) UploadProfilePicture(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+	}
+
+	openedFile, err := file.Open()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})
+	}
+	defer openedFile.Close()
+
+	if err := h.srv.UploadProfilePicture(ctx.Request.Context(), user.ID, openedFile); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }

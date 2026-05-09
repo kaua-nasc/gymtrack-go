@@ -372,6 +372,24 @@ func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType Use
 	return nil
 }
 
+func (r *UserRepository) RemoveProfilePicture(ctx context.Context, userId string) error {
+	query := `UPDATE users SET "profilePictureUrl" = NULL WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, userId)
+	if err != nil {
+		return fmt.Errorf("could not remove profile picture: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) ChangeProfileImage(ctx context.Context, u User, pictureUrl string) error {
+	query := `UPDATE users SET "profilePictureUrl" = $2 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, u.ID, pictureUrl)
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
 func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
 

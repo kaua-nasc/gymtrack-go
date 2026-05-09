@@ -1,10 +1,8 @@
-module github.com/kaua-nasc/gymtrack-go/apps/api/identity
+module github.com/kaua-nasc/gymtrack-go/libs/storage
 
 go 1.26.2
 
-require (
-	github.com/golang-jwt/jwt/v5 v5.3.1
-)
+require github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.6.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect

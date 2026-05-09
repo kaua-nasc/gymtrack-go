@@ -6,4 +6,5 @@ use (
 	./libs/auth
 	./libs/db
 	./libs/config
+	./libs/storage
 )
