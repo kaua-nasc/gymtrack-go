@@ -1,18 +1,18 @@
 name: Deploy Training Plan
 
 on:
-  push:
-    branches: [ master ]
-    paths:
-      - 'apps/api/training-plan/**'
-      - 'libs/**'
-      - '.github/workflows/deploy-training-plan.yml'
+  workflow_run:
+    workflows: ["CI Quality Check"]
+    branches: [master]
+    types:
+      - completed
   workflow_dispatch:
 
 jobs:
   build-push:
     name: Build & Push Docker
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
