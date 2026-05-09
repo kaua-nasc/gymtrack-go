@@ -9,10 +9,31 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-push:
-    name: Build & Push Docker
+  check-paths:
+    name: Check Modified Paths
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    outputs:
+      should_deploy: ${{ steps.filter.outputs.identity }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Filter Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            identity:
+              - 'apps/api/identity/**'
+              - 'libs/**'
+              - '.github/workflows/deploy-identity.yml'
+
+  build-push:
+    name: Build & Push Docker
+    needs: check-paths
+    if: ${{ needs.check-paths.outputs.should_deploy == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
