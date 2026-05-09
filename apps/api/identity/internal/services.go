@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -264,6 +265,10 @@ func (s *UserService) AddBodyMeasurementNote(ctx context.Context, id, note strin
 	return s.repo.AddBodyMeasurementNote(ctx, id, note)
 }
 
+func (s *UserService) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
+	return s.repo.FindLastBodyMeasurementNote(ctx, userId)
+}
+
 func (s *UserService) AddWeightLogNote(ctx context.Context, id, note string) error {
 	return s.repo.AddWeightLogNote(ctx, id, note)
 }
@@ -290,4 +295,58 @@ func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
 	}
 
 	return s.repo.ChangeUserType(ctx, *user, Client)
+}
+
+func (s *UserService) ListGoalsMetric(ctx context.Context, userId string) ([]*MetricGoal, error) {
+	follows, err := s.repo.ListGoalsMetric(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	return follows, nil
+}
+
+func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error {
+	now := time.Now().UTC()
+	createdId, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return fmt.Errorf("error on generate uuid")
+	}
+
+	goal.ID = createdId.String()
+	goal.CreatedAt = now
+	goal.UpdatedAt = now
+	goal.Status = MetricGoalActive
+
+	return s.repo.AddGoalMetric(ctx, *goal)
+}
+
+func (s *UserService) ListWeightHistory(ctx context.Context, userId, cursor string, limit int) ([]*WeightLog, string, error) {
+	slog.InfoContext(ctx, "listing weight history", slog.String("user_id", userId), slog.Int("limit", limit))
+
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		} else {
+			slog.WarnContext(ctx, "failed to decode cursor for weight history", slog.String("cursor", cursor), slog.Any("error", err))
+		}
+	}
+
+	logs, rawNextCursor, err := s.repo.ListWeightHistory(ctx, userId, decodedCursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list weight history", slog.String("user_id", userId), slog.Any("error", err))
+		return nil, "", err
+	}
+
+	// Encode cursor
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return logs, nextCursorStr, nil
 }

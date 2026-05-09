@@ -155,10 +155,10 @@ func (r *UserRepository) CreateTrainerCode(ctx context.Context, id, code string)
 }
 
 func (r *UserRepository) LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error {
-	query := `INSERT INTO trainer_student_relationships (id, "followerId", "followingId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.db.ExecContext(ctx, query, relation.ID, relation.CreatedAt, relation.UpdatedAt, relation.LinkedAt, relation.StudentId, relation.TrainerId)
+	query := `INSERT INTO trainer_student_relationships (id, "createdAt", "updatedAt", "trainerId", "studentId", "linkedAt") VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.db.ExecContext(ctx, query, relation.ID, relation.CreatedAt, relation.UpdatedAt, relation.TrainerId, relation.StudentId, relation.LinkedAt)
 	if err != nil {
-		return fmt.Errorf("could not create user: %w", err)
+		return fmt.Errorf("could not link trainer: %w", err)
 	}
 	return nil
 }
@@ -167,25 +167,38 @@ func (r *UserRepository) UnlinkTrainer(ctx context.Context, studentId string) er
 	query := `DELETE FROM trainer_student_relationships WHERE "studentId" = $1`
 	_, err := r.db.ExecContext(ctx, query, studentId)
 	if err != nil {
-		return fmt.Errorf("could not create user: %w", err)
+		return fmt.Errorf("could not unlink trainer: %w", err)
 	}
 	return nil
 }
 
 func (r *UserRepository) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
-	query := `UPDATE a SET trainerNote = $2, TrainerNoteAt = $3 WHERE id = $1`
+	query := `UPDATE body_measurements SET "trainerNote" = $2, "trainerNoteAt" = $3 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("could not create user: %w", err)
+		return fmt.Errorf("could not add body measurement note: %w", err)
 	}
 	return nil
 }
 
+func (r *UserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
+	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 ORDER BY "measuredAt" DESC LIMIT 1`
+	var m BodyMeasurement
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find last body measurement: %w", err)
+	}
+	return &m, nil
+}
+
 func (r *UserRepository) AddWeightLogNote(ctx context.Context, id, note string) error {
-	query := `UPDATE a SET trainerNote = $2, TrainerNoteAt = $3 WHERE id = $1`
+	query := `UPDATE weight_logs SET "trainerNote" = $2, "trainerNoteAt" = $3 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("could not create user: %w", err)
+		return fmt.Errorf("could not add weight log note: %w", err)
 	}
 	return nil
 }
@@ -197,4 +210,75 @@ func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType Use
 		return fmt.Errorf("could not create user: %w", err)
 	}
 	return nil
+}
+
+func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string) ([]*MetricGoal, error) {
+	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
+	rows, err := r.db.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var goals []*MetricGoal
+	for rows.Next() {
+		var g MetricGoal
+		err := rows.Scan(&g.ID, &g.CreatedAt, &g.UpdatedAt, &g.Type, &g.StartingValue, &g.TargetValue, &g.Deadline, &g.AchievedAt, &g.Status, &g.UserId)
+		if err != nil {
+			return nil, err
+		}
+		goals = append(goals, &g)
+	}
+	return goals, nil
+}
+
+func (r *UserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error {
+	query := `INSERT INTO metric_goals (id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
+	_, err := r.db.ExecContext(ctx, query, g.ID, g.CreatedAt, g.UpdatedAt, g.Type, g.StartingValue, g.TargetValue, g.Deadline, g.AchievedAt, g.Status, g.UserId)
+	if err != nil {
+		return fmt.Errorf("could not add goal metric: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) ListWeightHistory(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
+	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1`
+
+	var args []interface{}
+	args = append(args, userId)
+
+	if cursor != nil {
+		query += ` AND ("createdAt", id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var logs []*WeightLog
+	for rows.Next() {
+		l := &WeightLog{}
+		err := rows.Scan(&l.ID, &l.CreatedAt, &l.UpdatedAt, &l.Weight, &l.MeasuredAt, &l.UserId, &l.TrainerNote, &l.TrainerNoteAt)
+		if err != nil {
+			return nil, nil, err
+		}
+		logs = append(logs, l)
+	}
+
+	var nextCursor *CursorData
+	if len(logs) > limit {
+		nextCursor = &CursorData{
+			ID:        logs[limit].ID,
+			CreatedAt: logs[limit].CreatedAt,
+		}
+		logs = logs[:limit]
+	}
+
+	return logs, nextCursor, nil
 }
