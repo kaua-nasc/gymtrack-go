@@ -29,6 +29,8 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.GET("", h.ListUsers)
 		protected.GET("/:id", h.GetUser)
 
+		protected.GET("/:id/followers/count", h.CountFollowers)
+		protected.GET("/:id/following/count", h.CountFollowing)
 		protected.POST("/:id/follows", h.FollowUser)
 		protected.POST("/:id/unfollows", h.UnfollowUser)
 
@@ -121,6 +123,30 @@ func (h *UserHandler) GetUser(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, res)
+}
+
+func (h *UserHandler) CountFollowers(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	count, err := h.srv.CountFollowers(ctx.Request.Context(), id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"count": count})
+}
+
+func (h *UserHandler) CountFollowing(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	count, err := h.srv.CountFollowing(ctx.Request.Context(), id)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"count": count})
 }
 
 func (h *UserHandler) FollowUser(ctx *gin.Context) {

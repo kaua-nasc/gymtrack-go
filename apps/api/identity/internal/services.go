@@ -175,6 +175,24 @@ func (s *UserService) ListFollower(ctx context.Context, id string) ([]*UserFollo
 	return follows, nil
 }
 
+func (s *UserService) CountFollowers(ctx context.Context, id string) (int, error) {
+	count, err := s.repo.CountFollowers(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
+func (s *UserService) CountFollowing(ctx context.Context, id string) (int, error) {
+	count, err := s.repo.CountFollowing(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (s *UserService) FollowUser(ctx context.Context, followerId, followingId string) error {
 	users, err := s.repo.ListByIDs(ctx, []string{followerId, followingId})
 

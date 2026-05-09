@@ -74,6 +74,26 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 	return users, nil
 }
 
+func (r *UserRepository) CountFollowers(ctx context.Context, userId string) (int, error) {
+	query := `SELECT count(*) FROM user_follows WHERE "followingId" = $1 AND "deletedAt" IS NULL`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("could not count followers: %w", err)
+	}
+	return count, nil
+}
+
+func (r *UserRepository) CountFollowing(ctx context.Context, userId string) (int, error) {
+	query := `SELECT count(*) FROM user_follows WHERE "followerId" = $1 AND "deletedAt" IS NULL`
+	var count int
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("could not count following: %w", err)
+	}
+	return count, nil
+}
+
 func (r *UserRepository) FollowUser(ctx context.Context, f UserFollows) error {
 	query := `INSERT INTO user_follows (id, "followerId", "followingId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, f.ID, f.FollowerId, f.FollowingId, f.CreatedAt, f.UpdatedAt)
