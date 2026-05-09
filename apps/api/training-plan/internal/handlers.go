@@ -50,11 +50,11 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
 
-		plans.POST("/:planId/days/:dayId/exercises", h.CreateExercise)
-		plans.DELETE("/:planId/days/:dayId/exercises/:id", h.DeleteExercise)
-		plans.POST("/:planId/days/:dayId/exercises/:id/logs", h.LogExercise)
-
 		plans.POST("/:id/feedback", h.AddFeedback)
+
+		plans.POST("/:id/days/:dayId/exercises", h.CreateExercise)
+		plans.DELETE("/:id/days/:dayId/exercises/:exerciseId", h.DeleteExercise)
+		plans.POST("/:id/days/:dayId/exercises/:exerciseId/logs", h.LogExercise)
 	}
 }
 
@@ -85,7 +85,7 @@ func (h *TrainingPlanHandler) AddFeedback(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) LogExercise(ctx *gin.Context) {
-	id := ctx.Param("id")
+	id := ctx.Param("exerciseId")
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
@@ -513,7 +513,7 @@ func (h *TrainingPlanHandler) DeleteDay(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
-	id := ctx.Param("id")
+	id := ctx.Param("exerciseId")
 
 	if err := h.srv.DeleteExercise(ctx.Request.Context(), id); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
