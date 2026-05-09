@@ -41,7 +41,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 	return &u, nil
 }
 
-func (r *UserRepository) FindByID(ctx context.Context, id string) (*User, error) {
+func (r *UserRepository) Find(ctx context.Context, id string) (*User, error) {
 	query := `SELECT id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt" FROM users WHERE id = $1 LIMIT 1`
 	var u User
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt)
@@ -166,6 +166,33 @@ func (r *UserRepository) LinkTrainer(ctx context.Context, relation TrainerStuden
 func (r *UserRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
 	query := `DELETE FROM trainer_student_relationships WHERE "studentId" = $1`
 	_, err := r.db.ExecContext(ctx, query, studentId)
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
+	query := `UPDATE a SET trainerNote = $2, TrainerNoteAt = $3 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) AddWeightLogNote(ctx context.Context, id, note string) error {
+	query := `UPDATE a SET trainerNote = $2, TrainerNoteAt = $3 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("could not create user: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType UserType) error {
+	query := `UPDATE users SET type = $2 WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, u.ID, newType)
 	if err != nil {
 		return fmt.Errorf("could not create user: %w", err)
 	}

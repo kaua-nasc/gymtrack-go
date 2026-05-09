@@ -8,8 +8,7 @@ import (
 type UserType string
 
 const (
-	Admin   UserType = "ADMIN"
-	Trainer UserType = "TRAINER"
+	Trainer UserType = "PERSONAL_TRAINER"
 	Client  UserType = "CLIENT"
 )
 
@@ -51,7 +50,7 @@ const (
 
 // User Entity
 type User struct {
-	ID                string     `json:"id" validate:"required,uuid4"`
+	ID                string     `json:"id" validate:"uuid4"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 	FirstName         string     `json:"firstName" validate:"required,min=1,max=255"`
@@ -60,11 +59,11 @@ type User struct {
 	Bio               *string    `json:"bio,omitempty"`
 	ProfilePictureUrl *string    `json:"profilePictureUrl,omitempty"`
 	Password          string     `json:"password" validate:"required,min=8"`
-	Type              UserType   `json:"type" validate:"required"`
+	Type              UserType   `json:"type"`
 	Height            *float64   `json:"height,omitempty"`
 	CurrentWeight     *float64   `json:"currentWeight,omitempty"`
-	WeightUnit        WeightUnit `json:"weightUnit" validate:"required"`
-	HeightUnit        HeightUnit `json:"heightUnit" validate:"required"`
+	WeightUnit        WeightUnit `json:"weightUnit"`
+	HeightUnit        HeightUnit `json:"heightUnit"`
 	TrainerInviteCode *string    `json:"trainerInviteCode,omitempty"`
 	Cref              *string    `json:"cref,omitempty"`
 	IsVerified        bool       `json:"isVerified"`

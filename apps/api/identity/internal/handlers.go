@@ -17,7 +17,7 @@ func NewUserHandler(srv *UserService) *UserHandler {
 }
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
-	r.POST("/users/register", h.Register)
+	r.POST("/identity/auth/register", h.Register)
 	r.POST("/identity/auth/login", h.Login)
 
 	// Protected routes
@@ -30,11 +30,20 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.POST("/:id/follows", h.FollowUser)
 		protected.POST("/:id/unfollows", h.UnfollowUser)
 
-		protected.PATCH("/profile/trainers/code", h.CreateTrainerCode)
-		protected.POST("/profile/trainers/link", h.LinkTrainer)
-		protected.POST("/profile/trainers/unlink", h.UnlinkTrainer)
+		protected.POST("/profile/upgrade", h.ChangeToTrainer)
+		protected.POST("/profile/downgrade", h.ChangeToClient)
 
-		protected.POST("/profile/studants/:id/unlink", h.UnlinkStudant)
+		protected.PATCH("/trainers/profile/code", h.CreateTrainerCode)
+		protected.POST("/trainers/profile/link", h.LinkTrainer)
+		protected.POST("/trainers/profile/unlink", h.UnlinkTrainer)
+
+		protected.PATCH("/trainers/body-measurement/:id/notes", h.AddBodyMeasurementNote)
+
+		protected.PATCH("/trainers/weight-log/:id/notes", h.AddBodyMeasurementNote)
+
+		protected.PATCH("/trainers/goals/:id/status", h.AddBodyMeasurementNote)
+
+		protected.POST("/students/:id/profile/unlink", h.UnlinkStudant)
 	}
 }
 
@@ -84,13 +93,13 @@ func (h *UserHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-	res, err := h.srv.Register(ctx.Request.Context(), u)
+	err := h.srv.Register(ctx.Request.Context(), u)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, res)
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *UserHandler) GetUser(ctx *gin.Context) {
@@ -210,6 +219,94 @@ func (h *UserHandler) UnlinkStudant(ctx *gin.Context) {
 	id := ctx.Param("id")
 
 	if err := h.srv.UnlinkStudant(ctx.Request.Context(), id); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) AddBodyMeasurementNote(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	var body struct {
+		Note string `json:"note" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.AddBodyMeasurementNote(ctx.Request.Context(), id, body.Note); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	var body struct {
+		Note string `json:"note" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.AddWeightLogNote(ctx.Request.Context(), id, body.Note); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) ChangeToTrainer(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var body struct {
+		Cref string `json:"cref" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.ChangeToTrainer(ctx.Request.Context(), user.ID, body.Cref); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) ChangeToClient(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var body struct {
+		Cref string `json:"cref" validate:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.ChangeToClient(ctx.Request.Context(), user.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

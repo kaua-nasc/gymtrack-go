@@ -26,18 +26,18 @@ func NewUserService(repo *UserRepository) *UserService {
 	return &UserService{repo: repo}
 }
 
-func (s *UserService) Register(ctx context.Context, u User) (*User, error) {
+func (s *UserService) Register(ctx context.Context, u User) error {
 	existing, err := s.repo.FindByEmail(ctx, u.Email)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if existing != nil {
-		return nil, errors.New("user already exists")
+		return errors.New("user already exists")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(u.Password), bcrypt.DefaultCost)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	u.Password = string(hashedPassword)
 
@@ -46,11 +46,11 @@ func (s *UserService) Register(ctx context.Context, u User) (*User, error) {
 	u.UpdatedAt = now
 
 	if err := s.repo.Create(ctx, &u); err != nil {
-		return nil, err
+		return err
 	}
 
-	u.Password = "" // Clear password before returning
-	return &u, nil
+	u.Password = ""
+	return nil
 }
 
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
@@ -86,7 +86,7 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 }
 
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
-	u, err := s.repo.FindByID(ctx, id)
+	u, err := s.repo.Find(ctx, id)
 	if err != nil || u == nil {
 		return u, err
 	}
@@ -213,7 +213,7 @@ func (s *UserService) UnfollowUser(ctx context.Context, followerId, followingId 
 }
 
 func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) error {
-	user, err := s.repo.FindByID(ctx, code)
+	user, err := s.repo.Find(ctx, code)
 	if err != nil {
 		return fmt.Errorf("erro")
 	}
@@ -258,4 +258,36 @@ func (s *UserService) UnlinkTrainer(ctx context.Context, studentId string) error
 
 func (s *UserService) UnlinkStudant(ctx context.Context, studentId string) error {
 	return s.repo.UnlinkTrainer(ctx, studentId)
+}
+
+func (s *UserService) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
+	return s.repo.AddBodyMeasurementNote(ctx, id, note)
+}
+
+func (s *UserService) AddWeightLogNote(ctx context.Context, id, note string) error {
+	return s.repo.AddWeightLogNote(ctx, id, note)
+}
+
+func (s *UserService) ChangeToTrainer(ctx context.Context, id, cref string) error {
+	user, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return fmt.Errorf("erro")
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	return s.repo.ChangeUserType(ctx, *user, Trainer)
+}
+
+func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
+	user, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return fmt.Errorf("erro")
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	return s.repo.ChangeUserType(ctx, *user, Client)
 }
