@@ -50,6 +50,7 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.POST("/trainers/goals", h.AddGoalMetric)
 		protected.GET("/trainers/goals", h.ListGoalsMetric)
 
+		protected.GET("/students", h.ListStudents)
 		protected.POST("/students/:id/profile/unlink", h.UnlinkStudant)
 	}
 }
@@ -244,6 +245,38 @@ func (h *UserHandler) UnlinkTrainer(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) ListStudents(ctx *gin.Context) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	if user.Type != "PERSONAL_TRAINER" {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "nao eh o personal, nao consegue ver alunos"})
+		return
+	}
+
+	cursor := ctx.Query("cursor")
+	limitStr := ctx.DefaultQuery("limit", "20")
+
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		limit = 20
+	}
+
+	users, nextCursor, err := h.srv.ListStudents(ctx.Request.Context(), user.ID, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       users,
+		"nextCursor": nextCursor,
+	})
 }
 
 func (h *UserHandler) UnlinkStudant(ctx *gin.Context) {

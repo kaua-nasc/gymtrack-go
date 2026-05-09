@@ -74,6 +74,53 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 	return users, nil
 }
 
+func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+	query := `
+		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt"
+		FROM users u
+		INNER JOIN trainer_student_relationships tsr ON tsr."studentId" = u.id
+		WHERE tsr."trainerId" = $1 AND tsr."deletedAt" IS NULL
+	`
+
+	var args []interface{}
+	args = append(args, trainerId)
+
+	if cursor != nil {
+		query += ` AND (u."createdAt", u.id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY u."createdAt" DESC, u.id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	users := make([]*User, 0)
+	for rows.Next() {
+		var u User
+		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			return nil, nil, err
+		}
+		users = append(users, &u)
+	}
+
+	var nextCursor *CursorData
+	if len(users) > limit {
+		nextCursor = &CursorData{
+			ID:        users[limit].ID,
+			CreatedAt: users[limit].CreatedAt,
+		}
+		users = users[:limit]
+	}
+
+	return users, nextCursor, nil
+}
+
 func (r *UserRepository) CountFollowers(ctx context.Context, userId string) (int, error) {
 	query := `SELECT count(*) FROM user_follows WHERE "followingId" = $1 AND "deletedAt" IS NULL`
 	var count int

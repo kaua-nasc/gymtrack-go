@@ -279,6 +279,33 @@ func (s *UserService) UnlinkStudant(ctx context.Context, studentId string) error
 	return s.repo.UnlinkTrainer(ctx, studentId)
 }
 
+func (s *UserService) ListStudents(ctx context.Context, trainerId, cursor string, limit int) ([]*User, string, error) {
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		}
+	}
+
+	users, rawNextCursor, err := s.repo.ListStudents(ctx, trainerId, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, u := range users {
+		u.Password = ""
+	}
+
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return users, nextCursorStr, nil
+}
+
 func (s *UserService) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
 	return s.repo.AddBodyMeasurementNote(ctx, id, note)
 }
