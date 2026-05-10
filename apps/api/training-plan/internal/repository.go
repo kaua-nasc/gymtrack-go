@@ -10,17 +10,51 @@ import (
 	"github.com/lib/pq"
 )
 
-type TrainingPlanRepository struct {
+type TrainingPlanRepository interface {
+	Create(ctx context.Context, p *TrainingPlan) error
+	CountByAuthor(ctx context.Context, authorId string) (int, error)
+	CreateDay(ctx context.Context, d *Day) error
+	CreateExercise(ctx context.Context, e *Exercise) error
+	CreateDays(ctx context.Context, days []Day) error
+	DeleteDay(ctx context.Context, id string) error
+	DeleteExercise(ctx context.Context, id string) error
+	Find(ctx context.Context, id string) (*TrainingPlan, error)
+	Update(ctx context.Context, p *TrainingPlan) error
+	DeletePlan(ctx context.Context, id string) error
+	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
+	ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error)
+	List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error)
+	LikesCount(ctx context.Context, ids *[]string) (map[string]int, error)
+	LikesByUser(ctx context.Context, ids *[]string, userId *string) (map[string]bool, error)
+	LikePlan(ctx context.Context, like *TrainingPlanLike) error
+	UnlikePlan(ctx context.Context, planId, userId string) error
+	AddPlanComment(ctx context.Context, c *TrainingPlanComment) error
+	FindComment(ctx context.Context, id string) (*TrainingPlanComment, error)
+	RemovePlanComment(ctx context.Context, commentId string) error
+	ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error)
+	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
+	FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error)
+	CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error
+	DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error
+	UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error
+	UpdateSubscriptionPrivacy(ctx context.Context, s PlanSubscription, status PlanSubscriptionType) error
+	CreateSubscriptionProgress(ctx context.Context, p *PlanDayProgress) error
+	AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error
+	LogExercise(ctx context.Context, l *ExerciseLog) error
+	ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error)
+}
+
+type PostgresTrainingPlanRepository struct {
 	db *sql.DB
 }
 
-func NewTrainingPlanRepository(database *sql.DB) *TrainingPlanRepository {
-	return &TrainingPlanRepository{
+func NewTrainingPlanRepository(database *sql.DB) TrainingPlanRepository {
+	return &PostgresTrainingPlanRepository{
 		db: database,
 	}
 }
 
-func (r *TrainingPlanRepository) Create(ctx context.Context, p *TrainingPlan) error {
+func (r *PostgresTrainingPlanRepository) Create(ctx context.Context, p *TrainingPlan) error {
 	query := `
 		INSERT INTO training_plans (
 			id, name, "authorId", "timeInDays", type, visibility, 
@@ -40,7 +74,7 @@ func (r *TrainingPlanRepository) Create(ctx context.Context, p *TrainingPlan) er
 	return nil
 }
 
-func (r *TrainingPlanRepository) Update(ctx context.Context, p *TrainingPlan) error {
+func (r *PostgresTrainingPlanRepository) Update(ctx context.Context, p *TrainingPlan) error {
 	query := `
 		UPDATE training_plans SET 
 			name = $1, "timeInDays" = $2, type = $3, visibility = $4, 
@@ -62,7 +96,7 @@ func (r *TrainingPlanRepository) Update(ctx context.Context, p *TrainingPlan) er
 	return nil
 }
 
-func (r *TrainingPlanRepository) CountByAuthor(ctx context.Context, authorId string) (int, error) {
+func (r *PostgresTrainingPlanRepository) CountByAuthor(ctx context.Context, authorId string) (int, error) {
 	query := `SELECT COUNT(*) FROM training_plans WHERE "authorId" = $1`
 
 	var count int
@@ -74,7 +108,7 @@ func (r *TrainingPlanRepository) CountByAuthor(ctx context.Context, authorId str
 	return count, nil
 }
 
-func (r *TrainingPlanRepository) Find(ctx context.Context, id string) (*TrainingPlan, error) {
+func (r *PostgresTrainingPlanRepository) Find(ctx context.Context, id string) (*TrainingPlan, error) {
 	query := `
 		SELECT 
 			id, name, "authorId", "timeInDays", type, visibility, 
@@ -101,7 +135,7 @@ func (r *TrainingPlanRepository) Find(ctx context.Context, id string) (*Training
 	return &p, nil
 }
 
-func (r *TrainingPlanRepository) List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error) {
+func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error) {
 	// sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", image_url FROM training_plans WHERE 1=1`
 	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl" FROM training_plans WHERE 1=1`
 
@@ -154,7 +188,7 @@ func (r *TrainingPlanRepository) List(ctx context.Context, authorId string, curs
 	return plans, nextCursor, nil
 }
 
-func (r *TrainingPlanRepository) LikesCount(ctx context.Context, ids *[]string) (map[string]int, error) {
+func (r *PostgresTrainingPlanRepository) LikesCount(ctx context.Context, ids *[]string) (map[string]int, error) {
 	if ids == nil || len(*ids) == 0 {
 		return map[string]int{}, nil
 	}
@@ -184,7 +218,7 @@ func (r *TrainingPlanRepository) LikesCount(ctx context.Context, ids *[]string) 
 	return counts, nil
 }
 
-func (r *TrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string, userId *string) (map[string]bool, error) {
+func (r *PostgresTrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string, userId *string) (map[string]bool, error) {
 	if ids == nil || len(*ids) == 0 || userId == nil || *userId == "" {
 		return map[string]bool{}, nil
 	}
@@ -213,7 +247,7 @@ func (r *TrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string,
 }
 
 // Day Methods
-func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
+func (r *PostgresTrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 	query := `INSERT INTO days (id, name, "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, d.Id, d.Name, d.TrainingPlanId, d.CreatedAt, d.UpdatedAt)
 	if err != nil {
@@ -222,7 +256,7 @@ func (r *TrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 	return nil
 }
 
-func (r *TrainingPlanRepository) CreateDays(ctx context.Context, days []Day) error {
+func (r *PostgresTrainingPlanRepository) CreateDays(ctx context.Context, days []Day) error {
 	if len(days) == 0 {
 		return nil
 	}
@@ -255,7 +289,7 @@ func (r *TrainingPlanRepository) CreateDays(ctx context.Context, days []Day) err
 	return nil
 }
 
-func (r *TrainingPlanRepository) DeleteDay(ctx context.Context, id string) error {
+func (r *PostgresTrainingPlanRepository) DeleteDay(ctx context.Context, id string) error {
 	query := `delete from days where id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -264,7 +298,7 @@ func (r *TrainingPlanRepository) DeleteDay(ctx context.Context, id string) error
 	return nil
 }
 
-func (r *TrainingPlanRepository) DeleteExercise(ctx context.Context, id string) error {
+func (r *PostgresTrainingPlanRepository) DeleteExercise(ctx context.Context, id string) error {
 	query := `delete from exercises where id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -273,7 +307,7 @@ func (r *TrainingPlanRepository) DeleteExercise(ctx context.Context, id string) 
 	return nil
 }
 
-func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
+func (r *PostgresTrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
 	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 ORDER BY "createdAt" ASC`
 	rows, err := r.db.QueryContext(ctx, query, planID)
 	if err != nil {
@@ -293,7 +327,7 @@ func (r *TrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID stri
 }
 
 // Exercise Methods
-func (r *TrainingPlanRepository) CreateExercise(ctx context.Context, e *Exercise) error {
+func (r *PostgresTrainingPlanRepository) CreateExercise(ctx context.Context, e *Exercise) error {
 	query := `
 		INSERT INTO exercises (
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
@@ -310,7 +344,7 @@ func (r *TrainingPlanRepository) CreateExercise(ctx context.Context, e *Exercise
 	return nil
 }
 
-func (r *TrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error) {
+func (r *PostgresTrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error) {
 	query := `
 		SELECT 
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
@@ -339,7 +373,7 @@ func (r *TrainingPlanRepository) ListExercisesByDay(ctx context.Context, dayID s
 	return exercises, nil
 }
 
-func (r *TrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPlanLike) error {
+func (r *PostgresTrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPlanLike) error {
 	query := `INSERT INTO training_plan_likes (id, "likedBy", "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, like.Id, like.LikedBy, like.TrainingPlanId, like.CreatedAt, like.UpdatedAt)
 	if err != nil {
@@ -348,7 +382,7 @@ func (r *TrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPla
 	return nil
 }
 
-func (r *TrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId string) error {
+func (r *PostgresTrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId string) error {
 	query := `DELETE FROM training_plan_likes WHERE "trainingPlanId" = $1 AND "likedBy" = $2`
 	_, err := r.db.ExecContext(ctx, query, planId, userId)
 	if err != nil {
@@ -357,7 +391,7 @@ func (r *TrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId 
 	return nil
 }
 
-func (r *TrainingPlanRepository) AddPlanComment(ctx context.Context, c *TrainingPlanComment) error {
+func (r *PostgresTrainingPlanRepository) AddPlanComment(ctx context.Context, c *TrainingPlanComment) error {
 	query := `INSERT INTO training_plan_comments (id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, c.Id, c.Content, c.AuthorId, c.TrainingPlanId, c.CreatedAt, c.UpdatedAt)
 	if err != nil {
@@ -366,7 +400,7 @@ func (r *TrainingPlanRepository) AddPlanComment(ctx context.Context, c *Training
 	return nil
 }
 
-func (r *TrainingPlanRepository) RemovePlanComment(ctx context.Context, commentId string) error {
+func (r *PostgresTrainingPlanRepository) RemovePlanComment(ctx context.Context, commentId string) error {
 	query := `DELETE FROM training_plan_comments WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, commentId)
 	if err != nil {
@@ -375,7 +409,7 @@ func (r *TrainingPlanRepository) RemovePlanComment(ctx context.Context, commentI
 	return nil
 }
 
-func (r *TrainingPlanRepository) FindComment(ctx context.Context, id string) (*TrainingPlanComment, error) {
+func (r *PostgresTrainingPlanRepository) FindComment(ctx context.Context, id string) (*TrainingPlanComment, error) {
 	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE id = $1 LIMIT 1`
 	var c TrainingPlanComment
 	err := r.db.QueryRowContext(ctx, query, id).Scan(&c.Id, &c.Content, &c.AuthorId, &c.TrainingPlanId, &c.CreatedAt, &c.UpdatedAt)
@@ -388,7 +422,7 @@ func (r *TrainingPlanRepository) FindComment(ctx context.Context, id string) (*T
 	return &c, nil
 }
 
-func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error) {
+func (r *PostgresTrainingPlanRepository) ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error) {
 	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE "trainingPlanId" = $1`
 
 	var args []interface{}
@@ -431,7 +465,7 @@ func (r *TrainingPlanRepository) ListPlanComments(ctx context.Context, planId st
 	return comments, nextCursor, nil
 }
 
-func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
+func (r *PostgresTrainingPlanRepository) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
 	query := `
 		SELECT 
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
@@ -460,7 +494,7 @@ func (r *TrainingPlanRepository) ListSubscription(ctx context.Context, userId st
 	return subscriptions, nil
 }
 
-func (r *TrainingPlanRepository) ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error) {
+func (r *PostgresTrainingPlanRepository) ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error) {
 	query := `
 		SELECT progress."updatedAt" 
 		FROM plan_day_progress progress
@@ -487,7 +521,7 @@ func (r *TrainingPlanRepository) ListActivityWeekly(ctx context.Context, userId 
 	return dates, nil
 }
 
-func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
+func (r *PostgresTrainingPlanRepository) FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
 	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 LIMIT 1`
 	var s PlanSubscription
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
@@ -500,7 +534,7 @@ func (r *TrainingPlanRepository) FindSubscription(ctx context.Context, planId, u
 	return &s, nil
 }
 
-func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error {
+func (r *PostgresTrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error {
 	query := `UPDATE plan_subscription SET status = $1, "updatedAt" = NOW() WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, status, s.Id)
 	if err != nil {
@@ -509,7 +543,7 @@ func (r *TrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s
 	return nil
 }
 
-func (r *TrainingPlanRepository) UpdateSubscriptionPrivacy(ctx context.Context, s PlanSubscription, status PlanSubscriptionType) error {
+func (r *PostgresTrainingPlanRepository) UpdateSubscriptionPrivacy(ctx context.Context, s PlanSubscription, status PlanSubscriptionType) error {
 	query := `UPDATE plan_subscription SET type = $1, "updatedAt" = NOW() WHERE id = $2`
 	_, err := r.db.ExecContext(ctx, query, status, s.Id)
 	if err != nil {
@@ -518,7 +552,7 @@ func (r *TrainingPlanRepository) UpdateSubscriptionPrivacy(ctx context.Context, 
 	return nil
 }
 
-func (r *TrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error {
+func (r *PostgresTrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error {
 	query := `INSERT INTO plan_subscription (id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, s.Id, s.TrainingPlanId, s.UserId, s.Status, s.Type, s.CreatedAt, s.UpdatedAt)
 	if err != nil {
@@ -527,7 +561,7 @@ func (r *TrainingPlanRepository) CreatePlanSubscription(ctx context.Context, s *
 	return nil
 }
 
-func (r *TrainingPlanRepository) DeletePlan(ctx context.Context, id string) error {
+func (r *PostgresTrainingPlanRepository) DeletePlan(ctx context.Context, id string) error {
 	query := `delete from training_plans where id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
@@ -536,7 +570,7 @@ func (r *TrainingPlanRepository) DeletePlan(ctx context.Context, id string) erro
 	return nil
 }
 
-func (r *TrainingPlanRepository) DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error {
+func (r *PostgresTrainingPlanRepository) DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error {
 	query := `DELETE FROM plan_subscription WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, s.Id)
 	if err != nil {
@@ -545,7 +579,7 @@ func (r *TrainingPlanRepository) DeletePlanSubscription(ctx context.Context, s *
 	return nil
 }
 
-func (r *TrainingPlanRepository) CreateSubscriptionProgress(ctx context.Context, p *PlanDayProgress) error {
+func (r *PostgresTrainingPlanRepository) CreateSubscriptionProgress(ctx context.Context, p *PlanDayProgress) error {
 	query := `INSERT INTO plan_day_progress (id, "dayId", "planSubscriptionId", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, p.Id, p.DayId, p.PlanSubscriptionId, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
@@ -555,7 +589,7 @@ func (r *TrainingPlanRepository) CreateSubscriptionProgress(ctx context.Context,
 }
 
 // Access and Invite Methods
-func (r *TrainingPlanRepository) CreateAccessRequest(ctx context.Context, req *PlanAccessRequest) error {
+func (r *PostgresTrainingPlanRepository) CreateAccessRequest(ctx context.Context, req *PlanAccessRequest) error {
 	query := `INSERT INTO plan_access_request (id, "userId", "trainingPlanId", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, req.Id, req.UserId, req.TrainingPlanId, req.Status, req.CreatedAt, req.UpdatedAt)
 	if err != nil {
@@ -564,7 +598,7 @@ func (r *TrainingPlanRepository) CreateAccessRequest(ctx context.Context, req *P
 	return nil
 }
 
-func (r *TrainingPlanRepository) CreateInvite(ctx context.Context, i *PlanInvite) error {
+func (r *PostgresTrainingPlanRepository) CreateInvite(ctx context.Context, i *PlanInvite) error {
 	query := `INSERT INTO plan_invites (id, "planId", "senderId", "recipientId", "recipientEmail", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err := r.db.ExecContext(ctx, query, i.Id, i.PlanId, i.SenderId, i.RecipientId, i.RecipientEmail, i.Status, i.CreatedAt, i.UpdatedAt)
 	if err != nil {
@@ -574,7 +608,7 @@ func (r *TrainingPlanRepository) CreateInvite(ctx context.Context, i *PlanInvite
 }
 
 // Participant Methods
-func (r *TrainingPlanRepository) AddParticipant(ctx context.Context, p *PlanParticipant) error {
+func (r *PostgresTrainingPlanRepository) AddParticipant(ctx context.Context, p *PlanParticipant) error {
 	query := `INSERT INTO plan_participant (id, "userId", "trainingPlanId", expiration_date, approved_at, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, p.Id, p.UserId, p.TrainingPlanId, p.ExpirationDate, p.ApprovedAt, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
@@ -583,7 +617,7 @@ func (r *TrainingPlanRepository) AddParticipant(ctx context.Context, p *PlanPart
 	return nil
 }
 
-func (r *TrainingPlanRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {
+func (r *PostgresTrainingPlanRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {
 	query := `SELECT EXISTS(SELECT 1 FROM plan_participant WHERE "trainingPlanId" = $1 AND "userId" = $2)`
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&exists)
@@ -594,7 +628,7 @@ func (r *TrainingPlanRepository) IsParticipant(ctx context.Context, planId, user
 }
 
 // Feedback and Log Methods
-func (r *TrainingPlanRepository) AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error {
+func (r *PostgresTrainingPlanRepository) AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error {
 	query := `INSERT INTO training_plan_feedbacks (id, "trainingPlanId", "userId", rating, message, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
 	_, err := r.db.ExecContext(ctx, query, f.Id, f.TrainingPlanId, f.UserId, f.Rating, f.Message, f.CreatedAt, f.UpdatedAt)
 	if err != nil {
@@ -603,7 +637,7 @@ func (r *TrainingPlanRepository) AddFeedback(ctx context.Context, f *TrainingPla
 	return nil
 }
 
-func (r *TrainingPlanRepository) LogExercise(ctx context.Context, l *ExerciseLog) error {
+func (r *PostgresTrainingPlanRepository) LogExercise(ctx context.Context, l *ExerciseLog) error {
 	query := `INSERT INTO exercise_logs (id, "userId", "exerciseId", reps, weight, notes, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 	_, err := r.db.ExecContext(ctx, query, l.Id, l.UserId, l.ExerciseId, pq.Array(l.Reps), pq.Array(l.Weight), l.Notes, l.CreatedAt, l.UpdatedAt)
 	if err != nil {

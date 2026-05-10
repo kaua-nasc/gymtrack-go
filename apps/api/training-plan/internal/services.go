@@ -16,14 +16,14 @@ import (
 )
 
 type TrainingPlanService struct {
-	repo     *TrainingPlanRepository
+	repo     TrainingPlanRepository
 	identity *IdentityService
 	storage  StorageService
 	validate *validator.Validate
 }
 
 func NewTrainingPlanService(
-	repo *TrainingPlanRepository,
+	repo TrainingPlanRepository,
 	identity *IdentityService,
 	storage StorageService,
 ) *TrainingPlanService {
