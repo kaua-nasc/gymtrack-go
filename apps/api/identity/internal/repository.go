@@ -6,16 +6,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 	"github.com/lib/pq"
 )
 
 type UserRepository struct {
-	db *sql.DB
+	db    *sql.DB
+	cache cache.Cache
 }
 
-func NewUserRepository(database *sql.DB) *UserRepository {
+func NewUserRepository(database *sql.DB, cache cache.Cache) *UserRepository {
 	return &UserRepository{
-		db: database,
+		db:    database,
+		cache: cache,
 	}
 }
 
@@ -481,4 +484,32 @@ func (r *UserRepository) ListWeightLogs(ctx context.Context, userId string, curs
 	}
 
 	return logs, nextCursor, nil
+}
+
+func (r *UserRepository) SaveResetCode(ctx context.Context, code, email string) error {
+	return r.cache.Set(ctx, email, code, time.Minute*5)
+}
+
+func (r *UserRepository) GetResetCode(ctx context.Context, email string) (string, error) {
+	return r.cache.Get(ctx, email)
+}
+
+func (r *UserRepository) Update(ctx context.Context, u *User) error {
+	query := `
+		UPDATE users SET
+			"firstName" = $2, "lastName" = $3, email = $4, password = $5, type = $6,
+			"updatedAt" = $7, bio = $8, "profilePictureUrl" = $9, height = $10,
+			"currentWeight" = $11, "weightUnit" = $12, "heightUnit" = $13,
+			"trainerInviteCode" = $14, cref = $15, "isVerified" = $16
+		WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query,
+		u.ID, u.FirstName, u.LastName, u.Email, u.Password, u.Type,
+		u.UpdatedAt, u.Bio, u.ProfilePictureUrl, u.Height,
+		u.CurrentWeight, u.WeightUnit, u.HeightUnit,
+		u.TrainerInviteCode, u.Cref, u.IsVerified,
+	)
+	if err != nil {
+		return fmt.Errorf("could not update user: %w", err)
+	}
+	return nil
 }

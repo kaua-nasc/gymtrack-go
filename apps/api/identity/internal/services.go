@@ -10,12 +10,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/big"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/kaua-nasc/gymtrack-go/libs/email"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"golang.org/x/crypto/argon2"
 )
@@ -118,6 +120,177 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 	}
 
 	return tokenString, nil
+}
+
+func (s *UserService) ResetPasswordSendToken(ctx context.Context, userEmail string) error {
+	u, err := s.repo.FindByEmail(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return errors.New("email not found")
+	}
+
+	code, err := generateResetCode(6)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.SaveResetCode(ctx, code, u.Email); err != nil {
+		return err
+	}
+
+	return email.Send(u.Email, email.EmailRequestContent{
+		Subject:   "Redefinição de Senha - Gymtrack",
+		PlainText: fmt.Sprintf("Seu código de redefinição de senha é: %s", code),
+		HTML: fmt.Sprintf(`
+			<!DOCTYPE html>
+			<html lang="pt-BR">
+			<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Redefinição de Senha</title>
+			<style>
+				body {
+				font-family: Arial, sans-serif;
+				background-color: #f4f8fc;
+				color: #334155;
+				margin: 0;
+				padding: 0;
+				}
+
+				.container {
+				max-width: 600px;
+				margin: 40px auto;
+				background-color: #ffffff;
+				border-radius: 8px;
+				padding: 20px;
+				box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+				}
+
+				h1 {
+				color: #1d4ed8;
+				font-size: 24px;
+				margin-bottom: 10px;
+				}
+
+				p {
+				font-size: 16px;
+				line-height: 1.5;
+				}
+
+				.code-box {
+				margin: 20px 0;
+				padding: 15px;
+				font-size: 22px;
+				letter-spacing: 4px;
+				font-weight: bold;
+				text-align: center;
+				color: #ffffff;
+				background: linear-gradient(135deg, #2563eb, #0ea5e9);
+				border-radius: 6px;
+				}
+
+				.footer {
+				font-size: 12px;
+				color: #94a3b8;
+				text-align: center;
+				margin-top: 30px;
+				}
+
+				a {
+				color: #2563eb;
+				text-decoration: none;
+				}
+			</style>
+			</head>
+
+			<body>
+			<div class="container">
+				<h1>Redefinição de Senha</h1>
+
+				<p>Olá %s,</p>
+
+				<p>
+				Recebemos uma solicitação para redefinir sua senha.
+				Utilize o código abaixo para prosseguir com a redefinição:
+				</p>
+
+				<div class="code-box">%s</div>
+
+				<p>
+				Este código é válido por <strong>5 minutos</strong>.
+				Se você não solicitou a redefinição, por favor ignore este email.
+				</p>
+
+				<p>
+				Atenciosamente,<br>
+				Equipe GymTrack
+				</p>
+
+				<div class="footer">
+				© 2026 GymTrack. Todos os direitos reservados.
+				</div>
+			</div>
+			</body>
+			</html>`, u.FirstName, code),
+	})
+}
+
+func generateResetCode(length int) (string, error) {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	code := make([]byte, length)
+
+	for i := range length {
+		index, err := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		if err != nil {
+			return "", err
+		}
+		code[i] = chars[index.Int64()]
+	}
+
+	return string(code), nil
+}
+
+func (s *UserService) ResetPasswordVerifyToken(ctx context.Context, userEmail string, userCode string) (bool, error) {
+	code, err := s.repo.GetResetCode(ctx, userEmail)
+	if err != nil {
+		return false, err
+	}
+
+	if userCode != code {
+		return false, fmt.Errorf("invalid code")
+	}
+
+	return true, nil
+}
+
+func (s *UserService) ResetPassword(ctx context.Context, userEmail, userCode, newPassword string) error {
+	code, err := s.repo.GetResetCode(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+
+	if userCode != code {
+		return fmt.Errorf("invalid code")
+	}
+
+	user, err := s.repo.FindByEmail(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+
+	if user == nil {
+		return fmt.Errorf("user not found")
+	}
+
+	hashedPassword, err := HashArgon2Password(newPassword)
+	if err != nil {
+		return err
+	}
+	user.Password = hashedPassword
+
+	return s.repo.Update(ctx, user)
 }
 
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {

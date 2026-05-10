@@ -11,6 +11,8 @@ COPY apps/api/identity/go.mod* apps/api/identity/go.sum* ./apps/api/identity/
 COPY apps/api/training-plan/go.mod* apps/api/training-plan/go.sum* ./apps/api/training-plan/
 COPY libs/auth/go.mod* libs/auth/go.sum* ./libs/auth/
 COPY libs/db/go.mod* libs/db/go.sum* ./libs/db/
+COPY libs/email/go.mod* libs/email/go.sum* ./libs/email/
+COPY libs/cache/go.mod* libs/cache/go.sum* ./libs/cache/
 COPY libs/config/go.mod* libs/config/go.sum* ./libs/config/
 COPY libs/storage/go.mod* libs/storage/go.sum* ./libs/storage/
 

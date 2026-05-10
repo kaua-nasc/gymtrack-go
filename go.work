@@ -4,7 +4,9 @@ use (
 	./apps/api/identity
 	./apps/api/training-plan
 	./libs/auth
-	./libs/db
+	./libs/cache
 	./libs/config
+	./libs/db
+	./libs/email
 	./libs/storage
 )

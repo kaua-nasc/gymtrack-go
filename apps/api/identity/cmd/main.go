@@ -12,6 +12,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal"
+	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
 	"go.uber.org/fx"
@@ -71,6 +72,7 @@ func main() {
 	slog.SetDefault(logger)
 
 	fx.New(
+		cache.Module,
 		fx.Provide(
 			NewDatabase,
 			internal.NewUserRepository,

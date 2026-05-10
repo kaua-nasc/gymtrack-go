@@ -24,6 +24,9 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	})
 	r.POST("/identity/auth/register", h.Register)
 	r.POST("/identity/auth/login", h.Login)
+	r.POST("/identity/auth/reset-password/send-token", h.ResetPasswordSendToken)
+	r.POST("/identity/auth/reset-password/verify-token", h.ResetPasswordVerifyToken)
+	r.POST("/identity/auth/reset-password", h.ResetPassword)
 
 	// Protected routes
 	protected := r.Group("/identity/users")
@@ -83,6 +86,64 @@ func (h *UserHandler) Login(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"accessToken": token})
+}
+
+func (h *UserHandler) ResetPasswordSendToken(ctx *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.ResetPasswordSendToken(ctx.Request.Context(), body.Email); err != nil {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) ResetPasswordVerifyToken(ctx *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	res, err := h.srv.ResetPasswordVerifyToken(ctx.Request.Context(), body.Email, body.Code)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"valid": res})
+}
+
+func (h *UserHandler) ResetPassword(ctx *gin.Context) {
+	var body struct {
+		Email       string `json:"email" binding:"required,email"`
+		Code        string `json:"code" binding:"required"`
+		NewPassword string `json:"password" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.ResetPassword(ctx.Request.Context(), body.Email, body.Code, body.NewPassword); err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *UserHandler) ListUsers(ctx *gin.Context) {
