@@ -10,19 +10,50 @@ import (
 	"github.com/lib/pq"
 )
 
-type UserRepository struct {
+type UserRepository interface {
+	Create(ctx context.Context, u *User) error
+	Update(ctx context.Context, u *User) error
+	Find(ctx context.Context, id string) (*User, error)
+	FindByEmail(ctx context.Context, email string) (*User, error)
+	SaveResetCode(ctx context.Context, code, email string) error
+	GetResetCode(ctx context.Context, email string) (string, error)
+	ListByIDs(ctx context.Context, ids []string) ([]*User, error)
+	ListFollowing(ctx context.Context, id string) ([]*UserFollows, error)
+	ListFollower(ctx context.Context, id string) ([]*UserFollows, error)
+	CountFollowers(ctx context.Context, userId string) (int, error)
+	CountFollowing(ctx context.Context, userId string) (int, error)
+	FollowUser(ctx context.Context, f UserFollows) error
+	UnfollowUser(ctx context.Context, followerId, followingId string) error
+	CreateTrainerCode(ctx context.Context, id, code string) error
+	FindByTrainerCode(ctx context.Context, code string) (*User, error)
+	LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error
+	UnlinkTrainer(ctx context.Context, studentId string) error
+	ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
+	AddBodyMeasurementNote(ctx context.Context, id, note string) error
+	FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error)
+	ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error)
+	AddWeightLogNote(ctx context.Context, id, note string) error
+	ChangeUserType(ctx context.Context, u User, newType UserType) error
+	RemoveProfilePicture(ctx context.Context, userId string) error
+	ChangeProfileImage(ctx context.Context, u User, pictureUrl string) error
+	ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error)
+	ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error)
+	AddGoalMetric(ctx context.Context, g MetricGoal) error
+}
+
+type PostgresUserRepository struct {
 	db    *sql.DB
 	cache cache.Cache
 }
 
-func NewUserRepository(database *sql.DB, cache cache.Cache) *UserRepository {
-	return &UserRepository{
+func NewUserRepository(database *sql.DB, cache cache.Cache) UserRepository {
+	return &PostgresUserRepository{
 		db:    database,
 		cache: cache,
 	}
 }
 
-func (r *UserRepository) Create(ctx context.Context, u *User) error {
+func (r PostgresUserRepository) Create(ctx context.Context, u *User) error {
 	query := `
 		INSERT INTO users (
 			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
@@ -40,7 +71,7 @@ func (r *UserRepository) Create(ctx context.Context, u *User) error {
 	return nil
 }
 
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
+func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT 
 			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
@@ -62,7 +93,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*User, 
 	return &u, nil
 }
 
-func (r *UserRepository) Find(ctx context.Context, id string) (*User, error) {
+func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, error) {
 	query := `
 		SELECT 
 			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
@@ -84,7 +115,7 @@ func (r *UserRepository) Find(ctx context.Context, id string) (*User, error) {
 	return &u, nil
 }
 
-func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
+func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
 	query := `
 		SELECT 
 			id, "firstName", "lastName", email, type, "createdAt", "updatedAt",
@@ -113,7 +144,7 @@ func (r *UserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, 
 	return users, nil
 }
 
-func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
 	query := `
 		SELECT 
 			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
@@ -167,7 +198,7 @@ func (r *UserRepository) ListStudents(ctx context.Context, trainerId string, cur
 	return users, nextCursor, nil
 }
 
-func (r *UserRepository) CountFollowers(ctx context.Context, userId string) (int, error) {
+func (r *PostgresUserRepository) CountFollowers(ctx context.Context, userId string) (int, error) {
 	query := `SELECT count(*) FROM user_follows WHERE "followingId" = $1 AND "deletedAt" IS NULL`
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(&count)
@@ -177,7 +208,7 @@ func (r *UserRepository) CountFollowers(ctx context.Context, userId string) (int
 	return count, nil
 }
 
-func (r *UserRepository) CountFollowing(ctx context.Context, userId string) (int, error) {
+func (r *PostgresUserRepository) CountFollowing(ctx context.Context, userId string) (int, error) {
 	query := `SELECT count(*) FROM user_follows WHERE "followerId" = $1 AND "deletedAt" IS NULL`
 	var count int
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(&count)
@@ -187,7 +218,7 @@ func (r *UserRepository) CountFollowing(ctx context.Context, userId string) (int
 	return count, nil
 }
 
-func (r *UserRepository) FollowUser(ctx context.Context, f UserFollows) error {
+func (r *PostgresUserRepository) FollowUser(ctx context.Context, f UserFollows) error {
 	query := `INSERT INTO user_follows (id, "followerId", "followingId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
 	_, err := r.db.ExecContext(ctx, query, f.ID, f.FollowerId, f.FollowingId, f.CreatedAt, f.UpdatedAt)
 	if err != nil {
@@ -196,7 +227,7 @@ func (r *UserRepository) FollowUser(ctx context.Context, f UserFollows) error {
 	return nil
 }
 
-func (r *UserRepository) UnfollowUser(ctx context.Context, followerId, followingId string) error {
+func (r *PostgresUserRepository) UnfollowUser(ctx context.Context, followerId, followingId string) error {
 	query := `UPDATE user_follows SET "deletedAt" = $1 WHERE "followerId" = $2 AND "followingId" = $3`
 	_, err := r.db.ExecContext(ctx, query, time.Now().UTC(), followerId, followingId)
 	if err != nil {
@@ -205,7 +236,7 @@ func (r *UserRepository) UnfollowUser(ctx context.Context, followerId, following
 	return nil
 }
 
-func (r *UserRepository) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
+func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
 	query := `SELECT id, "followerId", "followingId", "createdAt", "updatedAt" FROM user_follows WHERE followerId = ANY($1)`
 	rows, err := r.db.QueryContext(ctx, query, id)
 	if err != nil {
@@ -225,7 +256,7 @@ func (r *UserRepository) ListFollowing(ctx context.Context, id string) ([]*UserF
 	return follows, nil
 }
 
-func (r *UserRepository) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
+func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
 	query := `SELECT id, "followerId", "followingId", "createdAt", "updatedAt" FROM user_follows WHERE followingId = ANY($1)`
 	rows, err := r.db.QueryContext(ctx, query, id)
 	if err != nil {
@@ -245,7 +276,7 @@ func (r *UserRepository) ListFollower(ctx context.Context, id string) ([]*UserFo
 	return follows, nil
 }
 
-func (r *UserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
+func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
 	query := `
 		SELECT 
 			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
@@ -267,7 +298,7 @@ func (r *UserRepository) FindByTrainerCode(ctx context.Context, code string) (*U
 	return &u, nil
 }
 
-func (r *UserRepository) CreateTrainerCode(ctx context.Context, id, code string) error {
+func (r *PostgresUserRepository) CreateTrainerCode(ctx context.Context, id, code string) error {
 	query := `UPDATE users SET "trainerInviteCode" = $2 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, code)
 	if err != nil {
@@ -276,7 +307,7 @@ func (r *UserRepository) CreateTrainerCode(ctx context.Context, id, code string)
 	return nil
 }
 
-func (r *UserRepository) LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error {
+func (r *PostgresUserRepository) LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error {
 	query := `INSERT INTO trainer_student_relationships (id, "createdAt", "updatedAt", "trainerId", "studentId", "linkedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, relation.ID, relation.CreatedAt, relation.UpdatedAt, relation.TrainerId, relation.StudentId, relation.LinkedAt)
 	if err != nil {
@@ -285,7 +316,7 @@ func (r *UserRepository) LinkTrainer(ctx context.Context, relation TrainerStuden
 	return nil
 }
 
-func (r *UserRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
+func (r *PostgresUserRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
 	query := `DELETE FROM trainer_student_relationships WHERE "studentId" = $1`
 	_, err := r.db.ExecContext(ctx, query, studentId)
 	if err != nil {
@@ -294,7 +325,7 @@ func (r *UserRepository) UnlinkTrainer(ctx context.Context, studentId string) er
 	return nil
 }
 
-func (r *UserRepository) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
+func (r *PostgresUserRepository) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
 	query := `UPDATE body_measurements SET "trainerNote" = $2, "trainerNoteAt" = $3 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
 	if err != nil {
@@ -303,7 +334,7 @@ func (r *UserRepository) AddBodyMeasurementNote(ctx context.Context, id, note st
 	return nil
 }
 
-func (r *UserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
+func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1`
 
 	var args []interface{}
@@ -344,7 +375,7 @@ func (r *UserRepository) ListBodyMeasurements(ctx context.Context, userId string
 
 	return measurements, nextCursor, nil
 }
-func (r *UserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
+func (r *PostgresUserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 ORDER BY "measuredAt" DESC LIMIT 1`
 	var m BodyMeasurement
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
@@ -357,7 +388,7 @@ func (r *UserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId
 	return &m, nil
 }
 
-func (r *UserRepository) AddWeightLogNote(ctx context.Context, id, note string) error {
+func (r *PostgresUserRepository) AddWeightLogNote(ctx context.Context, id, note string) error {
 	query := `UPDATE weight_logs SET "trainerNote" = $2, "trainerNoteAt" = $3 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
 	if err != nil {
@@ -366,7 +397,7 @@ func (r *UserRepository) AddWeightLogNote(ctx context.Context, id, note string) 
 	return nil
 }
 
-func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType UserType) error {
+func (r *PostgresUserRepository) ChangeUserType(ctx context.Context, u User, newType UserType) error {
 	query := `UPDATE users SET type = $2 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, u.ID, newType)
 	if err != nil {
@@ -375,7 +406,7 @@ func (r *UserRepository) ChangeUserType(ctx context.Context, u User, newType Use
 	return nil
 }
 
-func (r *UserRepository) RemoveProfilePicture(ctx context.Context, userId string) error {
+func (r *PostgresUserRepository) RemoveProfilePicture(ctx context.Context, userId string) error {
 	query := `UPDATE users SET "profilePictureUrl" = NULL WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, userId)
 	if err != nil {
@@ -384,7 +415,7 @@ func (r *UserRepository) RemoveProfilePicture(ctx context.Context, userId string
 	return nil
 }
 
-func (r *UserRepository) ChangeProfileImage(ctx context.Context, u User, pictureUrl string) error {
+func (r *PostgresUserRepository) ChangeProfileImage(ctx context.Context, u User, pictureUrl string) error {
 	query := `UPDATE users SET "profilePictureUrl" = $2 WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, u.ID, pictureUrl)
 	if err != nil {
@@ -393,7 +424,7 @@ func (r *UserRepository) ChangeProfileImage(ctx context.Context, u User, picture
 	return nil
 }
 
-func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
+func (r *PostgresUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
 
 	var args []interface{}
@@ -435,7 +466,7 @@ func (r *UserRepository) ListGoalsMetric(ctx context.Context, id string, cursor 
 	return goals, nextCursor, nil
 }
 
-func (r *UserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error {
+func (r *PostgresUserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error {
 	query := `INSERT INTO metric_goals (id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 	_, err := r.db.ExecContext(ctx, query, g.ID, g.CreatedAt, g.UpdatedAt, g.Type, g.StartingValue, g.TargetValue, g.Deadline, g.AchievedAt, g.Status, g.UserId)
 	if err != nil {
@@ -444,7 +475,7 @@ func (r *UserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) error 
 	return nil
 }
 
-func (r *UserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
+func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1`
 
 	var args []interface{}
@@ -486,15 +517,15 @@ func (r *UserRepository) ListWeightLogs(ctx context.Context, userId string, curs
 	return logs, nextCursor, nil
 }
 
-func (r *UserRepository) SaveResetCode(ctx context.Context, code, email string) error {
+func (r *PostgresUserRepository) SaveResetCode(ctx context.Context, code, email string) error {
 	return r.cache.Set(ctx, email, code, time.Minute*5)
 }
 
-func (r *UserRepository) GetResetCode(ctx context.Context, email string) (string, error) {
+func (r *PostgresUserRepository) GetResetCode(ctx context.Context, email string) (string, error) {
 	return r.cache.Get(ctx, email)
 }
 
-func (r *UserRepository) Update(ctx context.Context, u *User) error {
+func (r *PostgresUserRepository) Update(ctx context.Context, u *User) error {
 	query := `
 		UPDATE users SET
 			"firstName" = $2, "lastName" = $3, email = $4, password = $5, type = $6,
