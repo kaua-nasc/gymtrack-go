@@ -271,7 +271,7 @@ func (h *TrainingPlanHandler) CreatePlan(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
-	authorId := ctx.Query("authorId")
+	authorId := ctx.Param("authorId")
 	cursor := ctx.Query("cursor")
 	limitStr := ctx.DefaultQuery("limit", "20")
 

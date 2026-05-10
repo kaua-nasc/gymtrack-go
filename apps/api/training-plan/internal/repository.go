@@ -143,7 +143,7 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 
 	if authorId != "" {
 		// sqlStr += ` AND (visibility = 'public' OR "authorId" = $1 OR id IN (SELECT "trainingPlanId" FROM private_participants WHERE user_id = $1))`
-		sqlStr += ` AND (visibility = 'PUBLIC' OR "authorId" = $1 OR id IN (SELECT "trainingPlanId" FROM private_participants WHERE "userId" = $1))`
+		sqlStr += ` AND "authorId" = $1`
 		args = append(args, authorId)
 	} else {
 		sqlStr += ` AND visibility = 'PUBLIC'`

@@ -38,6 +38,7 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		protected.GET("", h.ListUsers)
 		protected.GET("/:id", h.GetUser)
+		protected.PUT("/:id", h.UpdateProfile)
 
 		protected.GET("/:id/followers/count", h.CountFollowers)
 		protected.GET("/:id/following/count", h.CountFollowing)
@@ -228,6 +229,41 @@ func (h *UserHandler) Register(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *UserHandler) UpdateProfile(ctx *gin.Context) {
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		FirstName     *string     `json:"firstName" binding:"omitempty,min=1,max=255"`
+		LastName      *string     `json:"lastName" binding:"omitempty,min=1,max=255"`
+		Bio           *string     `json:"bio"`
+		Height        *float64    `json:"height"`
+		WeightUnit    *WeightUnit `json:"weightUnit"`
+		HeightUnit    *HeightUnit `json:"heightUnit"`
+		CurrentWeight *float64    `json:"currentWeight"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.srv.UpdateProfile(ctx.Request.Context(), user.ID, body.FirstName, body.LastName, body.Bio, body.Height, body.WeightUnit, body.HeightUnit, body.CurrentWeight)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to update profile", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *UserHandler) GetUser(ctx *gin.Context) {

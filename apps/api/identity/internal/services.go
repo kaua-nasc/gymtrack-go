@@ -302,6 +302,50 @@ func (s *UserService) ResetPassword(ctx context.Context, userEmail, userCode, ne
 	return s.repo.Update(ctx, user)
 }
 
+func (s *UserService) UpdateProfile(
+	ctx context.Context,
+	id string,
+	firstName, lastName, bio *string,
+	height *float64,
+	weightUnit *WeightUnit,
+	heightUnit *HeightUnit,
+	currentWeight *float64,
+) error {
+	u, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	if firstName != nil {
+		u.FirstName = *firstName
+	}
+	if lastName != nil {
+		u.LastName = *lastName
+	}
+	if bio != nil {
+		u.Bio = bio
+	}
+	if height != nil {
+		u.Height = height
+	}
+	if weightUnit != nil {
+		u.WeightUnit = *weightUnit
+	}
+	if heightUnit != nil {
+		u.HeightUnit = *heightUnit
+	}
+	if currentWeight != nil {
+		u.CurrentWeight = currentWeight
+	}
+
+	u.UpdatedAt = time.Now().UTC()
+
+	return s.repo.Update(ctx, u)
+}
+
 func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	u, err := s.repo.Find(ctx, id)
 	if err != nil || u == nil {
