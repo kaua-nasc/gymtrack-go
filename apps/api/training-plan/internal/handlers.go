@@ -1,11 +1,13 @@
 package internal
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/log"
 )
 
 type TrainingPlanHandler struct {
@@ -19,6 +21,7 @@ func NewTrainingPlanHandler(srv *TrainingPlanService) *TrainingPlanHandler {
 }
 
 func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
+	r.Use(log.LoggerMiddleware())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "training-plan"})
 	})
@@ -65,9 +68,8 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 
 func (h *TrainingPlanHandler) AddFeedback(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -82,7 +84,8 @@ func (h *TrainingPlanHandler) AddFeedback(ctx *gin.Context) {
 	}
 
 	if err := h.srv.AddFeedback(ctx.Request.Context(), id, user.ID, body.Rating, body.Message); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to add feedback", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add feedback"})
 		return
 	}
 
@@ -91,9 +94,8 @@ func (h *TrainingPlanHandler) AddFeedback(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) LogExercise(ctx *gin.Context) {
 	id := ctx.Param("exerciseId")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -109,7 +111,8 @@ func (h *TrainingPlanHandler) LogExercise(ctx *gin.Context) {
 	}
 
 	if err := h.srv.LogExercise(ctx.Request.Context(), id, user.ID, body.Reps, body.Weight, body.Notes); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to log exercise", slog.Any("error", err), slog.String("exercise_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to log exercise"})
 		return
 	}
 
@@ -118,9 +121,8 @@ func (h *TrainingPlanHandler) LogExercise(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 	userId := ctx.Param("userId")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -129,7 +131,8 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 	}
 
 	if _, err := h.srv.ListSubscription(ctx.Request.Context(), userId); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list subscriptions"})
 		return
 	}
 
@@ -138,9 +141,8 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) Subscribe(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -154,7 +156,8 @@ func (h *TrainingPlanHandler) Subscribe(ctx *gin.Context) {
 	}
 
 	if err := h.srv.Subscribe(ctx.Request.Context(), id, user.ID, body.Type); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to subscribe", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to subscribe"})
 		return
 	}
 
@@ -173,14 +176,14 @@ func (h *TrainingPlanHandler) ChangeSubscriptionStatus(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.ChangeSubscriptionStatus(ctx.Request.Context(), planId, user.ID, body.Status); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to change subscription status", slog.Any("error", err), slog.String("plan_id", planId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change status"})
 		return
 	}
 
@@ -199,14 +202,14 @@ func (h *TrainingPlanHandler) ChangeSubscriptionPrivacy(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.ChangeSubscriptionPrivacy(ctx.Request.Context(), planId, user.ID, body.SubscriptionType); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to change subscription privacy", slog.Any("error", err), slog.String("plan_id", planId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change privacy"})
 		return
 	}
 
@@ -215,14 +218,14 @@ func (h *TrainingPlanHandler) ChangeSubscriptionPrivacy(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) Unsubscribe(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.Unsubscribe(ctx.Request.Context(), id, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to unsubscribe", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unsubscribe"})
 		return
 	}
 
@@ -232,14 +235,14 @@ func (h *TrainingPlanHandler) Unsubscribe(ctx *gin.Context) {
 func (h *TrainingPlanHandler) CompleteDay(ctx *gin.Context) {
 	planId := ctx.Param("id")
 	dayId := ctx.Param("dayId")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.CompleteDay(ctx.Request.Context(), planId, user.ID, dayId); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to complete day", slog.Any("error", err), slog.String("plan_id", planId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to complete day"})
 		return
 	}
 
@@ -253,14 +256,14 @@ func (h *TrainingPlanHandler) CreatePlan(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: user not found in context"})
 		return
 	}
 
 	if _, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("author_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create plan"})
 		return
 	}
 
@@ -279,7 +282,8 @@ func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
 
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list plans", slog.Any("error", err), slog.String("author_id", authorId))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list plans"})
 		return
 	}
 
@@ -310,7 +314,8 @@ func (h *TrainingPlanHandler) UpdatePlan(ctx *gin.Context) {
 
 	updatedPlan, err := h.srv.UpdatePlan(ctx.Request.Context(), id, plan)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to update plan", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update plan"})
 		return
 	}
 
@@ -321,7 +326,8 @@ func (h *TrainingPlanHandler) DeletePlan(ctx *gin.Context) {
 	id := ctx.Param("id")
 
 	if err := h.srv.DeletePlan(ctx.Request.Context(), id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to delete plan", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete plan"})
 		return
 	}
 
@@ -337,7 +343,8 @@ func (h *TrainingPlanHandler) ExistsPlan(ctx *gin.Context) {
 
 	exists, err := h.srv.ExistsPlan(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to check plan existence", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check plan existence"})
 		return
 	}
 
@@ -353,7 +360,8 @@ func (h *TrainingPlanHandler) GetPlan(ctx *gin.Context) {
 
 	plan, err := h.srv.GetPlan(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to get plan", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get plan"})
 		return
 	}
 
@@ -367,14 +375,14 @@ func (h *TrainingPlanHandler) GetPlan(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) LikePlan(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.LikePlan(ctx.Request.Context(), id, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to like plan", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to like plan"})
 		return
 	}
 
@@ -383,14 +391,14 @@ func (h *TrainingPlanHandler) LikePlan(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) UnlikePlan(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.UnlikePlan(ctx.Request.Context(), id, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to unlike plan", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unlike plan"})
 		return
 	}
 
@@ -409,7 +417,8 @@ func (h *TrainingPlanHandler) ListPlanComment(ctx *gin.Context) {
 
 	comments, nextCursor, err := h.srv.ListPlanComments(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list plan comments", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
 		return
 	}
 
@@ -421,9 +430,8 @@ func (h *TrainingPlanHandler) ListPlanComment(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
@@ -438,7 +446,8 @@ func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
 
 	comment, err := h.srv.AddPlanComment(ctx.Request.Context(), id, body.Message, user.ID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to add plan comment", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add comment"})
 		return
 	}
 
@@ -447,14 +456,14 @@ func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) RemovePlanComment(ctx *gin.Context) {
 	commentId := ctx.Param("commentId")
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.RemovePlanComment(ctx.Request.Context(), commentId, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to remove plan comment", slog.Any("error", err), slog.String("comment_id", commentId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove comment"})
 		return
 	}
 
@@ -469,7 +478,8 @@ func (h *TrainingPlanHandler) CreateDays(ctx *gin.Context) {
 	}
 
 	if err := h.srv.CreateDays(ctx.Request.Context(), days); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to create days", slog.Any("error", err))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create days"})
 		return
 	}
 
@@ -484,7 +494,8 @@ func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {
 	}
 
 	if err := h.srv.CreateDay(ctx.Request.Context(), day); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to create day", slog.Any("error", err))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create day"})
 		return
 	}
 
@@ -499,7 +510,8 @@ func (h *TrainingPlanHandler) CreateExercise(ctx *gin.Context) {
 	}
 
 	if err := h.srv.CreateExercise(ctx.Request.Context(), exercise); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to create exercise", slog.Any("error", err))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create exercise"})
 		return
 	}
 
@@ -510,7 +522,8 @@ func (h *TrainingPlanHandler) DeleteDay(ctx *gin.Context) {
 	dayId := ctx.Param("dayId")
 
 	if err := h.srv.DeleteDay(ctx.Request.Context(), dayId); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to delete day", slog.Any("error", err), slog.String("day_id", dayId))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete day"})
 		return
 	}
 
@@ -521,7 +534,8 @@ func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
 	id := ctx.Param("exerciseId")
 
 	if err := h.srv.DeleteExercise(ctx.Request.Context(), id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to delete exercise", slog.Any("error", err), slog.String("exercise_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete exercise"})
 		return
 	}
 
@@ -529,17 +543,27 @@ func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) ListActivityWeekly(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	activity, err := h.srv.ListActivityWeekly(ctx.Request.Context(), user.ID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly activity", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list weekly activity"})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, activity)
+}
+
+func (h *TrainingPlanHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return auth.AuthUser{}, false
+	}
+
+	return user, true
 }

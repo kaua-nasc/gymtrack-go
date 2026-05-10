@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"log"
-	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
+	logutil "github.com/kaua-nasc/gymtrack-go/libs/log"
 	"go.uber.org/fx"
 )
 
@@ -67,9 +67,7 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
 
 func main() {
 	config.LoadEnvironmentVariable()
-
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	slog.SetDefault(logger)
+	logutil.InitLogger()
 
 	fx.New(
 		cache.Module,

@@ -22,6 +22,15 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+var (
+	ErrUserAlreadyExists  = errors.New("user already exists")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrEmailNotFound      = errors.New("email not found")
+	ErrInvalidCode        = errors.New("invalid code")
+	ErrTrainerNotFound    = errors.New("trainer not found")
+)
+
 type UserService struct {
 	repo UserRepository
 }
@@ -36,7 +45,7 @@ func (s *UserService) Register(ctx context.Context, u User) error {
 		return err
 	}
 	if existing != nil {
-		return errors.New("user already exists")
+		return ErrUserAlreadyExists
 	}
 
 	hashedPassword, err := HashArgon2Password(u.Password)
@@ -92,13 +101,13 @@ func HashArgon2Password(password string) (string, error) {
 func (s *UserService) Login(ctx context.Context, email, password string) (string, error) {
 	u, err := s.repo.FindByEmail(ctx, email)
 	if err != nil || u == nil {
-		return "", errors.New("invalid credentials")
+		return "", ErrInvalidCredentials
 	}
 
 	ok, err := VerifyArgon2Password(password, u.Password)
 
 	if err != nil || !ok {
-		return "", errors.New("invalid credentials")
+		return "", ErrInvalidCredentials
 	}
 
 	now := time.Now().UTC()
@@ -128,7 +137,7 @@ func (s *UserService) ResetPasswordSendToken(ctx context.Context, userEmail stri
 		return err
 	}
 	if u == nil {
-		return errors.New("email not found")
+		return ErrEmailNotFound
 	}
 
 	code, err := generateResetCode(6)
@@ -259,7 +268,7 @@ func (s *UserService) ResetPasswordVerifyToken(ctx context.Context, userEmail st
 	}
 
 	if userCode != code {
-		return false, fmt.Errorf("invalid code")
+		return false, ErrInvalidCode
 	}
 
 	return true, nil
@@ -272,7 +281,7 @@ func (s *UserService) ResetPassword(ctx context.Context, userEmail, userCode, ne
 	}
 
 	if userCode != code {
-		return fmt.Errorf("invalid code")
+		return ErrInvalidCode
 	}
 
 	user, err := s.repo.FindByEmail(ctx, userEmail)
@@ -281,7 +290,7 @@ func (s *UserService) ResetPassword(ctx context.Context, userEmail, userCode, ne
 	}
 
 	if user == nil {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	hashedPassword, err := HashArgon2Password(newPassword)
@@ -431,7 +440,7 @@ func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) er
 		return err
 	}
 	if user == nil {
-		return fmt.Errorf("trainer not found")
+		return ErrTrainerNotFound
 	}
 
 	return s.repo.CreateTrainerCode(ctx, id, code)
@@ -440,10 +449,10 @@ func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) er
 func (s *UserService) LinkTrainer(ctx context.Context, id, code string) error {
 	trainer, err := s.repo.FindByTrainerCode(ctx, code)
 	if err != nil {
-		return fmt.Errorf("erro")
+		return err
 	}
 	if trainer == nil {
-		return fmt.Errorf("trainer not found")
+		return ErrTrainerNotFound
 	}
 
 	now := time.Now().UTC()
@@ -469,7 +478,7 @@ func (s *UserService) UnlinkTrainer(ctx context.Context, studentId string) error
 	return s.repo.UnlinkTrainer(ctx, studentId)
 }
 
-func (s *UserService) UnlinkStudant(ctx context.Context, studentId string) error {
+func (s *UserService) UnlinkStudent(ctx context.Context, studentId string) error {
 	return s.repo.UnlinkTrainer(ctx, studentId)
 }
 
@@ -543,10 +552,10 @@ func (s *UserService) AddWeightLogNote(ctx context.Context, id, note string) err
 func (s *UserService) ChangeToTrainer(ctx context.Context, id, cref string) error {
 	user, err := s.repo.Find(ctx, id)
 	if err != nil {
-		return fmt.Errorf("erro")
+		return err
 	}
 	if user == nil {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	return s.repo.ChangeUserType(ctx, *user, Trainer)
@@ -555,10 +564,10 @@ func (s *UserService) ChangeToTrainer(ctx context.Context, id, cref string) erro
 func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
 	user, err := s.repo.Find(ctx, id)
 	if err != nil {
-		return fmt.Errorf("erro")
+		return err
 	}
 	if user == nil {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	return s.repo.ChangeUserType(ctx, *user, Client)
@@ -575,7 +584,7 @@ func (s *UserService) UploadProfilePicture(ctx context.Context, id string, file 
 	}
 
 	if user == nil {
-		return fmt.Errorf("user not found")
+		return ErrUserNotFound
 	}
 
 	bytes, err := io.ReadAll(file)

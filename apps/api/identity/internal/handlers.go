@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/log"
 )
 
 type UserHandler struct {
@@ -19,6 +22,7 @@ func NewUserHandler(srv *UserService) *UserHandler {
 }
 
 func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
+	r.Use(log.LoggerMiddleware())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
 	})
@@ -46,25 +50,30 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.POST("/profile/upgrade", h.ChangeToTrainer)
 		protected.POST("/profile/downgrade", h.ChangeToClient)
 
-		protected.PATCH("/trainers/profile/code", h.CreateTrainerCode)
-		protected.POST("/trainers/profile/link", h.LinkTrainer)
-		protected.POST("/trainers/profile/unlink", h.UnlinkTrainer)
+		// Trainer routes
+		trainers := protected.Group("/trainers")
+		// trainers.Use(auth.RolesMiddleware(string(Trainer)))
+		{
+			trainers.PATCH("/profile/code", h.CreateTrainerCode)
+			trainers.POST("/profile/link", h.LinkTrainer)
+			trainers.POST("/profile/unlink", h.UnlinkTrainer)
 
-		protected.PATCH("/trainers/body-measurements/:id/notes", h.AddBodyMeasurementNote)
-		protected.GET("/trainers/body-measurements/latest", h.FindLastBodyMeasurementNote)
-		protected.GET("/trainers/body-measurements", h.ListBodyMeasurements)
-		protected.GET("/trainers/students/:id/body-measurements", h.ListBodyMeasurements)
+			trainers.PATCH("/body-measurements/:id/notes", h.AddBodyMeasurementNote)
+			trainers.GET("/body-measurements/latest", h.FindLastBodyMeasurementNote)
+			trainers.GET("/body-measurements", h.ListBodyMeasurements)
+			trainers.GET("/students/:id/body-measurements", h.ListBodyMeasurements)
 
-		protected.PATCH("/trainers/weight-log/:id/notes", h.AddWeightLogNote)
-		protected.GET("/trainers/weight-logs", h.ListWeightLogs)
-		protected.GET("/trainers/students/:id/weight-logs", h.ListWeightLogs)
+			trainers.PATCH("/weight-log/:id/notes", h.AddWeightLogNote)
+			trainers.GET("/weight-logs", h.ListWeightLogs)
+			trainers.GET("/students/:id/weight-logs", h.ListWeightLogs)
 
-		protected.POST("/trainers/goals", h.AddGoalMetric)
-		protected.GET("/trainers/goals", h.ListGoalsMetric)
-		protected.GET("/trainers/students/:id/goals", h.ListGoalsMetricById)
+			trainers.POST("/goals", h.AddGoalMetric)
+			trainers.GET("/goals", h.ListGoalsMetric)
+			trainers.GET("/students/:id/goals", h.ListGoalsMetricById)
 
-		protected.GET("/students", h.ListStudents)
-		protected.POST("/students/:id/profile/unlink", h.UnlinkStudant)
+			trainers.GET("/students", h.ListStudents)
+			trainers.POST("/students/:id/profile/unlink", h.UnlinkStudent)
+		}
 	}
 }
 
@@ -81,7 +90,12 @@ func (h *UserHandler) Login(ctx *gin.Context) {
 
 	token, err := h.srv.Login(ctx.Request.Context(), body.Email, body.Password)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrInvalidCredentials) {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "login failed", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to login"})
 		return
 	}
 
@@ -99,7 +113,12 @@ func (h *UserHandler) ResetPasswordSendToken(ctx *gin.Context) {
 	}
 
 	if err := h.srv.ResetPasswordSendToken(ctx.Request.Context(), body.Email); err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrEmailNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to send reset token", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send reset token"})
 		return
 	}
 
@@ -119,7 +138,12 @@ func (h *UserHandler) ResetPasswordVerifyToken(ctx *gin.Context) {
 
 	res, err := h.srv.ResetPasswordVerifyToken(ctx.Request.Context(), body.Email, body.Code)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrInvalidCode) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to verify reset token", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify reset token"})
 		return
 	}
 
@@ -139,7 +163,16 @@ func (h *UserHandler) ResetPassword(ctx *gin.Context) {
 	}
 
 	if err := h.srv.ResetPassword(ctx.Request.Context(), body.Email, body.Code, body.NewPassword); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrInvalidCode) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to reset password", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset password"})
 		return
 	}
 
@@ -147,8 +180,6 @@ func (h *UserHandler) ResetPassword(ctx *gin.Context) {
 }
 
 func (h *UserHandler) ListUsers(ctx *gin.Context) {
-	// ... rest of the code
-
 	idsStr := ctx.Query("ids")
 	if idsStr == "" {
 		ctx.JSON(http.StatusOK, []User{})
@@ -158,7 +189,8 @@ func (h *UserHandler) ListUsers(ctx *gin.Context) {
 	ids := strings.Split(idsStr, ",")
 	res, err := h.srv.ListUsers(ctx.Request.Context(), ids)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list users", slog.Any("error", err), slog.String("ids", idsStr))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
 		return
 	}
 
@@ -166,15 +198,32 @@ func (h *UserHandler) ListUsers(ctx *gin.Context) {
 }
 
 func (h *UserHandler) Register(ctx *gin.Context) {
-	var u User
-	if err := ctx.ShouldBindJSON(&u); err != nil {
+	var body struct {
+		FirstName string `json:"firstName" binding:"required,min=1,max=255"`
+		LastName  string `json:"lastName" binding:"required,min=1,max=255"`
+		Email     string `json:"email" binding:"required,email"`
+		Password  string `json:"password" binding:"required,min=8"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err := h.srv.Register(ctx.Request.Context(), u)
+	err := h.srv.Register(ctx.Request.Context(), User{
+		FirstName: body.FirstName,
+		LastName:  body.LastName,
+		Email:     body.Email,
+		Password:  body.Password,
+	})
+
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrUserAlreadyExists) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "user registration failed", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register user"})
 		return
 	}
 
@@ -185,7 +234,8 @@ func (h *UserHandler) GetUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 	res, err := h.srv.GetUser(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to get user", slog.Any("error", err), slog.String("id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})
 		return
 	}
 
@@ -202,7 +252,8 @@ func (h *UserHandler) CountFollowers(ctx *gin.Context) {
 
 	count, err := h.srv.CountFollowers(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to count followers", slog.Any("error", err), slog.String("id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count followers"})
 		return
 	}
 
@@ -214,7 +265,8 @@ func (h *UserHandler) CountFollowing(ctx *gin.Context) {
 
 	count, err := h.srv.CountFollowing(ctx.Request.Context(), id)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to count following", slog.Any("error", err), slog.String("id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count following"})
 		return
 	}
 
@@ -224,14 +276,14 @@ func (h *UserHandler) CountFollowing(ctx *gin.Context) {
 func (h *UserHandler) FollowUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.FollowUser(ctx.Request.Context(), user.ID, id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to follow user", slog.Any("error", err), slog.String("follower_id", user.ID), slog.String("following_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to follow user"})
 		return
 	}
 
@@ -241,14 +293,14 @@ func (h *UserHandler) FollowUser(ctx *gin.Context) {
 func (h *UserHandler) UnfollowUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.UnfollowUser(ctx.Request.Context(), user.ID, id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to unfollow user", slog.Any("error", err), slog.String("follower_id", user.ID), slog.String("following_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unfollow user"})
 		return
 	}
 
@@ -256,14 +308,13 @@ func (h *UserHandler) UnfollowUser(ctx *gin.Context) {
 }
 
 func (h *UserHandler) LinkTrainer(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var body struct {
-		Code string `json:"id" validate:"required"`
+		Code string `json:"code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -272,7 +323,12 @@ func (h *UserHandler) LinkTrainer(ctx *gin.Context) {
 	}
 
 	if err := h.srv.LinkTrainer(ctx.Request.Context(), user.ID, body.Code); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrTrainerNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to link trainer", slog.Any("error", err), slog.String("user_id", user.ID), slog.String("code", body.Code))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to link trainer"})
 		return
 	}
 
@@ -280,14 +336,13 @@ func (h *UserHandler) LinkTrainer(ctx *gin.Context) {
 }
 
 func (h *UserHandler) CreateTrainerCode(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var body struct {
-		Code string `json:"code" validate:"required"`
+		Code string `json:"code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -296,7 +351,8 @@ func (h *UserHandler) CreateTrainerCode(ctx *gin.Context) {
 	}
 
 	if err := h.srv.CreateTrainerCode(ctx.Request.Context(), user.ID, body.Code); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to create trainer code", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create trainer code"})
 		return
 	}
 
@@ -304,14 +360,14 @@ func (h *UserHandler) CreateTrainerCode(ctx *gin.Context) {
 }
 
 func (h *UserHandler) UnlinkTrainer(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.UnlinkTrainer(ctx.Request.Context(), user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to unlink trainer", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unlink trainer"})
 		return
 	}
 
@@ -319,28 +375,17 @@ func (h *UserHandler) UnlinkTrainer(ctx *gin.Context) {
 }
 
 func (h *UserHandler) ListStudents(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
-	if user.Type != "PERSONAL_TRAINER" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "nao eh o personal, nao consegue ver alunos"})
-		return
-	}
-
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListStudents(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list students", slog.Any("error", err), slog.String("trainer_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list students"})
 		return
 	}
 
@@ -350,11 +395,12 @@ func (h *UserHandler) ListStudents(ctx *gin.Context) {
 	})
 }
 
-func (h *UserHandler) UnlinkStudant(ctx *gin.Context) {
+func (h *UserHandler) UnlinkStudent(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	if err := h.srv.UnlinkStudant(ctx.Request.Context(), id); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := h.srv.UnlinkStudent(ctx.Request.Context(), id); err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to unlink student", slog.Any("error", err), slog.String("student_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unlink student"})
 		return
 	}
 
@@ -365,7 +411,7 @@ func (h *UserHandler) AddBodyMeasurementNote(ctx *gin.Context) {
 	id := ctx.Param("id")
 
 	var body struct {
-		Note string `json:"note" validate:"required"`
+		Note string `json:"note" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -374,7 +420,8 @@ func (h *UserHandler) AddBodyMeasurementNote(ctx *gin.Context) {
 	}
 
 	if err := h.srv.AddBodyMeasurementNote(ctx.Request.Context(), id, body.Note); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to add body measurement note", slog.Any("error", err), slog.String("measurement_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add note"})
 		return
 	}
 
@@ -382,15 +429,15 @@ func (h *UserHandler) AddBodyMeasurementNote(ctx *gin.Context) {
 }
 
 func (h *UserHandler) FindLastBodyMeasurementNote(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	measurement, err := h.srv.FindLastBodyMeasurementNote(ctx.Request.Context(), user.ID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to fetch last measurement", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch last measurement"})
 		return
 	}
 
@@ -408,17 +455,12 @@ func (h *UserHandler) ListBodyMeasurements(ctx *gin.Context) {
 		id = user.ID
 	}
 
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list body measurements", slog.Any("error", err), slog.String("user_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list measurements"})
 		return
 	}
 
@@ -429,16 +471,15 @@ func (h *UserHandler) ListBodyMeasurements(ctx *gin.Context) {
 }
 
 func (h *UserHandler) AddGoalMetric(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var body struct {
-		Type        string    `json:"type" validate:"required"`
-		TargetValue float64   `json:"targetValue" validate:"required,gt=0"`
-		Deadline    time.Time `json:"deadline" validate:"required, gt"`
+		Type        string    `json:"type" binding:"required"`
+		TargetValue float64   `json:"targetValue" binding:"required,gt=0"`
+		Deadline    time.Time `json:"deadline" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -452,7 +493,8 @@ func (h *UserHandler) AddGoalMetric(ctx *gin.Context) {
 		TargetValue: body.TargetValue,
 		Deadline:    &body.Deadline,
 	}); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to add goal metric", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add goal metric"})
 		return
 	}
 
@@ -460,23 +502,16 @@ func (h *UserHandler) AddGoalMetric(ctx *gin.Context) {
 }
 
 func (h *UserHandler) ListGoalsMetric(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
-
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list goals", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
 		return
 	}
 
@@ -488,18 +523,12 @@ func (h *UserHandler) ListGoalsMetric(ctx *gin.Context) {
 
 func (h *UserHandler) ListGoalsMetricById(ctx *gin.Context) {
 	id := ctx.Param("id")
-
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list goals by id", slog.Any("error", err), slog.String("user_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
 		return
 	}
 
@@ -513,7 +542,7 @@ func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
 	id := ctx.Param("id")
 
 	var body struct {
-		Note string `json:"note" validate:"required"`
+		Note string `json:"note" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -522,7 +551,8 @@ func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
 	}
 
 	if err := h.srv.AddWeightLogNote(ctx.Request.Context(), id, body.Note); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to add weight log note", slog.Any("error", err), slog.String("log_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add note"})
 		return
 	}
 
@@ -530,14 +560,13 @@ func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
 }
 
 func (h *UserHandler) ChangeToTrainer(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	var body struct {
-		Cref string `json:"cref" validate:"required"`
+		Cref string `json:"cref" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
@@ -546,7 +575,8 @@ func (h *UserHandler) ChangeToTrainer(ctx *gin.Context) {
 	}
 
 	if err := h.srv.ChangeToTrainer(ctx.Request.Context(), user.ID, body.Cref); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to upgrade profile", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upgrade profile"})
 		return
 	}
 
@@ -554,14 +584,14 @@ func (h *UserHandler) ChangeToTrainer(ctx *gin.Context) {
 }
 
 func (h *UserHandler) ChangeToClient(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.ChangeToClient(ctx.Request.Context(), user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to downgrade profile", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to downgrade profile"})
 		return
 	}
 
@@ -569,14 +599,14 @@ func (h *UserHandler) ChangeToClient(ctx *gin.Context) {
 }
 
 func (h *UserHandler) RemoveProfilePicture(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	if err := h.srv.RemoveProfilePicture(ctx.Request.Context(), user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to remove profile picture", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove profile picture"})
 		return
 	}
 
@@ -586,25 +616,19 @@ func (h *UserHandler) RemoveProfilePicture(ctx *gin.Context) {
 func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if id == "" {
-		user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+		user, ok := h.getAuthUser(ctx)
 		if !ok {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 			return
 		}
 		id = user.ID
 	}
 
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to list weight logs", slog.Any("error", err), slog.String("user_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list weight logs"})
 		return
 	}
 
@@ -615,27 +639,49 @@ func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
 }
 
 func (h *UserHandler) UploadProfilePicture(ctx *gin.Context) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	user, ok := h.getAuthUser(ctx)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
 
 	file, err := ctx.FormFile("file")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
 	}
 
 	openedFile, err := file.Open()
 	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to open file", slog.Any("error", err), slog.String("user_id", user.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open file"})
+		return
 	}
 	defer openedFile.Close()
 
 	if err := h.srv.UploadProfilePicture(ctx.Request.Context(), user.ID, openedFile); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.ErrorContext(ctx.Request.Context(), "failed to upload profile picture", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload picture"})
 		return
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return auth.AuthUser{}, false
+	}
+
+	return user, true
+}
+
+func (h *UserHandler) getPagination(ctx *gin.Context) (string, int) {
+	cursor := ctx.Query("cursor")
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	if limit <= 0 {
+		limit = 20
+	}
+	return cursor, limit
 }

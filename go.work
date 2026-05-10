@@ -9,4 +9,5 @@ use (
 	./libs/db
 	./libs/email
 	./libs/storage
+	./libs/log
 )
