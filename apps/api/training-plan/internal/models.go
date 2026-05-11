@@ -96,11 +96,11 @@ type WeeklyActivity struct {
 
 // TrainingPlan Entity
 type TrainingPlan struct {
-	Id               string                 `json:"id" validate:"required,uuid4"`
+	Id               *string                `json:"id,omitempty" validate:"omitempty,uuid"`
 	CreatedAt        time.Time              `json:"createdAt"`
 	UpdatedAt        time.Time              `json:"updatedAt"`
 	Name             string                 `json:"name" validate:"required,min=3,max=255"`
-	AuthorId         string                 `json:"authorId" validate:"required,uuid4"`
+	AuthorId         string                 `json:"authorId" validate:"required,uuid"`
 	TimeInDays       int                    `json:"timeInDays" validate:"required,min=1"`
 	Type             TrainingPlanType       `json:"type" validate:"required"`
 	Visibility       TrainingPlanVisibility `json:"visibility" validate:"required"`
@@ -130,11 +130,11 @@ type TrainingPlan struct {
 
 // Day Entity
 type Day struct {
-	Id             string    `json:"id" validate:"required,uuid4"`
+	Id             string    `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Name           string    `json:"name" validate:"required,min=1,max=255"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
+	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
 
 	// Relations
 	TrainingPlan    *TrainingPlan     `json:"trainingPlan,omitempty"`
@@ -144,11 +144,11 @@ type Day struct {
 
 // Exercise Entity
 type Exercise struct {
-	Id          string       `json:"id" validate:"required,uuid4"`
+	Id          string       `json:"id" validate:"required,uuid"`
 	CreatedAt   time.Time    `json:"createdAt"`
 	UpdatedAt   time.Time    `json:"updatedAt"`
 	Name        string       `json:"name" validate:"required,min=1,max=255"`
-	DayId       string       `json:"dayId" validate:"required,uuid4"`
+	DayId       string       `json:"dayId" validate:"required,uuid"`
 	Type        ExerciseType `json:"type" validate:"required"`
 	SetsNumber  int          `json:"setsNumber" validate:"required,min=1"`
 	RepsNumber  int          `json:"repsNumber" validate:"required,min=1"`
@@ -161,11 +161,11 @@ type Exercise struct {
 
 // PlanSubscription Entity
 type PlanSubscription struct {
-	Id             string                 `json:"id" validate:"required,uuid4"`
+	Id             string                 `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time              `json:"createdAt"`
 	UpdatedAt      time.Time              `json:"updatedAt"`
-	TrainingPlanId string                 `json:"trainingPlanId" validate:"required,uuid4"`
-	UserId         string                 `json:"userId" validate:"required,uuid4"`
+	TrainingPlanId string                 `json:"trainingPlanId" validate:"required,uuid"`
+	UserId         string                 `json:"userId" validate:"required,uuid"`
 	Status         PlanSubscriptionStatus `json:"status" validate:"required"`
 	Type           PlanSubscriptionType   `json:"type" validate:"required"`
 
@@ -177,11 +177,11 @@ type PlanSubscription struct {
 
 // PlanAccessRequest Entity
 type PlanAccessRequest struct {
-	Id             string                  `json:"id" validate:"required,uuid4"`
+	Id             string                  `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	UpdatedAt      time.Time               `json:"updatedAt"`
-	UserId         string                  `json:"userId" validate:"required,uuid4"`
-	TrainingPlanId string                  `json:"trainingPlanId" validate:"required,uuid4"`
+	UserId         string                  `json:"userId" validate:"required,uuid"`
+	TrainingPlanId string                  `json:"trainingPlanId" validate:"required,uuid"`
 	Status         PlanAccessRequestStatus `json:"status" validate:"required"`
 
 	// Relations
@@ -191,10 +191,10 @@ type PlanAccessRequest struct {
 // Support Entities
 // PlanSubscriptionPrivacySettings Entity
 type PlanSubscriptionPrivacySettings struct {
-	Id                   string    `json:"id" validate:"required,uuid4"`
+	Id                   string    `json:"id" validate:"required,uuid"`
 	CreatedAt            time.Time `json:"createdAt"`
 	UpdatedAt            time.Time `json:"updatedAt"`
-	PlanSubscriptionId   string    `json:"planSubscriptionId" validate:"required,uuid4"`
+	PlanSubscriptionId   string    `json:"planSubscriptionId" validate:"required,uuid"`
 	ShareProgress        bool      `json:"shareProgress"`
 	SharePersonalMetrics bool      `json:"sharePersonalMetrics"`
 
@@ -204,11 +204,11 @@ type PlanSubscriptionPrivacySettings struct {
 
 // PlanParticipant Entity
 type PlanParticipant struct {
-	Id             string    `json:"id" validate:"required,uuid4"`
+	Id             string    `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
-	UserId         string    `json:"userId" validate:"required,uuid4"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
+	UserId         string    `json:"userId" validate:"required,uuid"`
+	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
 	ExpirationDate time.Time `json:"expirationDate"`
 	ApprovedAt     time.Time `json:"approvedAt"`
 
@@ -218,11 +218,11 @@ type PlanParticipant struct {
 
 // TrainingPlanFeedback Entity
 type TrainingPlanFeedback struct {
-	Id             string    `json:"id" validate:"required,uuid4"`
+	Id             string    `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
-	UserId         string    `json:"userId" validate:"required,uuid4"`
+	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
+	UserId         string    `json:"userId" validate:"required,uuid"`
 	Rating         float64   `json:"rating" validate:"required,min=0,max=5"`
 	Message        *string   `json:"message,omitempty"`
 
@@ -232,11 +232,11 @@ type TrainingPlanFeedback struct {
 
 // TrainingPlanLike Entity
 type TrainingPlanLike struct {
-	Id             string    `json:"id" validate:"required,uuid4"`
+	Id             string    `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
-	LikedBy        string    `json:"likedBy" validate:"required,uuid4"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
+	LikedBy        string    `json:"likedBy" validate:"required,uuid"`
+	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
 
 	// Relations
 	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
@@ -244,12 +244,12 @@ type TrainingPlanLike struct {
 
 // TrainingPlanComment Entity
 type TrainingPlanComment struct {
-	Id             string    `json:"id" validate:"required,uuid4"`
+	Id             string    `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Content        string    `json:"content" validate:"required"`
-	AuthorId       string    `json:"authorId" validate:"required,uuid4"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid4"`
+	AuthorId       string    `json:"authorId" validate:"required,uuid"`
+	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
 
 	// Relations
 	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
@@ -260,12 +260,12 @@ type TrainingPlanComment struct {
 
 // PlanInvite Entity
 type PlanInvite struct {
-	Id             string           `json:"id" validate:"required,uuid4"`
+	Id             string           `json:"id" validate:"required,uuid"`
 	CreatedAt      time.Time        `json:"createdAt"`
 	UpdatedAt      time.Time        `json:"updatedAt"`
-	PlanId         string           `json:"planId" validate:"required,uuid4"`
-	SenderId       string           `json:"senderId" validate:"required,uuid4"`
-	RecipientId    *string          `json:"recipientId,omitempty" validate:"omitempty,uuid4"`
+	PlanId         string           `json:"planId" validate:"required,uuid"`
+	SenderId       string           `json:"senderId" validate:"required,uuid"`
+	RecipientId    *string          `json:"recipientId,omitempty" validate:"omitempty,uuid"`
 	RecipientEmail string           `json:"recipientEmail" validate:"required,email"`
 	Status         PlanInviteStatus `json:"status" validate:"required"`
 
@@ -275,11 +275,11 @@ type PlanInvite struct {
 
 // ExerciseLog Entity
 type ExerciseLog struct {
-	Id         string    `json:"id" validate:"required,uuid4"`
+	Id         string    `json:"id" validate:"required,uuid"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
-	UserId     string    `json:"userId" validate:"required,uuid4"`
-	ExerciseId string    `json:"exerciseId" validate:"required,uuid4"`
+	UserId     string    `json:"userId" validate:"required,uuid"`
+	ExerciseId string    `json:"exerciseId" validate:"required,uuid"`
 	Reps       []int     `json:"reps" validate:"required"`
 	Weight     []float64 `json:"weight" validate:"required"`
 	Notes      *string   `json:"notes,omitempty"`
@@ -289,11 +289,11 @@ type ExerciseLog struct {
 }
 
 type PlanDayProgress struct {
-	Id                 string                `json:"id" validate:"required,uuid4"`
+	Id                 string                `json:"id" validate:"required,uuid"`
 	CreatedAt          time.Time             `json:"createdAt"`
 	UpdatedAt          time.Time             `json:"updatedAt"`
-	DayId              string                `json:"dayId" validate:"required,uuid4"`
-	PlanSubscriptionId string                `json:"planSubscriptionId" validate:"required,uuid4"`
+	DayId              string                `json:"dayId" validate:"required,uuid"`
+	PlanSubscriptionId string                `json:"planSubscriptionId" validate:"required,uuid"`
 	Status             PlanDayProgressStatus `json:"status" validate:"required"`
 
 	// Relations

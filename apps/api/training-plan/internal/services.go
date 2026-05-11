@@ -36,7 +36,7 @@ func NewTrainingPlanService(
 }
 
 func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan, user auth.AuthUser) (*TrainingPlan, error) {
-	slog.InfoContext(ctx, "creating training plan", slog.String("author_id", user.ID))
+	slog.InfoContext(ctx, "creating training plan", slog.String("authorId", user.ID))
 
 	if err := s.validate.Struct(plan); err != nil {
 		slog.ErrorContext(ctx, "failed to validate training plan", slog.Any("error", err))
@@ -53,23 +53,25 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	}
 
 	// 2. Business Rule: Clients can only have one personal plan, and it must be private
-	if user.Type == "client" {
-		count, err := s.repo.CountByAuthor(ctx, user.ID)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to count plans by author", slog.String("author_id", user.ID), slog.Any("error", err))
-			return nil, err
-		}
-		if count >= 1 {
-			slog.WarnContext(ctx, "client attempted to create more than one plan", slog.String("author_id", user.ID))
-			return nil, errors.New("clients can only have one personal training plan")
-		}
-		plan.Visibility = Private
-	} else if user.Type != "trainer" && user.Type != "admin" {
-		slog.WarnContext(ctx, "unauthorized user type attempted to create plan", slog.String("user_id", user.ID), slog.String("user_type", user.Type))
-		return nil, errors.New("only trainers and admins can create training plans")
+	count, err := s.repo.CountByAuthor(ctx, user.ID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to count plans by author", slog.String("authorId", user.ID), slog.Any("error", err))
+		return nil, err
 	}
+	if count >= 1 {
+		slog.WarnContext(ctx, "client attempted to create more than one plan", slog.String("authorId", user.ID))
+		return nil, errors.New("clients can only have one personal training plan")
+	}
+	plan.Visibility = Private
 
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return nil, fmt.Errorf("error on generate uuid")
+	}
+	idStr := id.String()
 	now := time.Now().UTC()
+	plan.Id = &idStr
 	plan.AuthorId = user.ID
 	plan.CreatedAt = now
 	plan.UpdatedAt = now
@@ -82,11 +84,11 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 
 	// 4. Save nested days and exercises (Cascade)
 	for _, day := range plan.Days {
-		day.TrainingPlanId = plan.Id
+		day.TrainingPlanId = *plan.Id
 		day.CreatedAt = now
 		day.UpdatedAt = now
 		if err := s.repo.CreateDay(ctx, &day); err != nil {
-			slog.ErrorContext(ctx, "failed to save plan day", slog.String("plan_id", plan.Id), slog.Any("error", err))
+			slog.ErrorContext(ctx, "failed to save plan day", slog.String("plan_id", *plan.Id), slog.Any("error", err))
 			return nil, fmt.Errorf("could not save plan day: %w", err)
 		}
 
@@ -101,7 +103,7 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 		}
 	}
 
-	slog.InfoContext(ctx, "training plan created successfully", slog.String("plan_id", plan.Id))
+	slog.InfoContext(ctx, "training plan created successfully", slog.String("plan_id", *plan.Id))
 	return &plan, nil
 }
 
@@ -259,7 +261,7 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 	if err == nil {
 		plan.Author = authorsMap[plan.AuthorId]
 	} else {
-		slog.WarnContext(ctx, "failed to fetch author details", slog.String("author_id", plan.AuthorId), slog.Any("error", err))
+		slog.WarnContext(ctx, "failed to fetch author details", slog.String("authorId", plan.AuthorId), slog.Any("error", err))
 	}
 
 	// Hydrate with days and exercises
@@ -288,7 +290,7 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 }
 
 func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor string, limit int) ([]*TrainingPlan, string, error) {
-	slog.InfoContext(ctx, "listing training plans", slog.String("author_id", authorId), slog.Int("limit", limit))
+	slog.InfoContext(ctx, "listing training plans", slog.String("authorId", authorId), slog.Int("limit", limit))
 
 	var decodedCursor *CursorData
 	if cursor != "" {
@@ -313,7 +315,7 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 	planIDs := make([]string, len(plans))
 	authorIDMap := make(map[string]bool)
 	for i, p := range plans {
-		planIDs[i] = p.Id
+		planIDs[i] = *p.Id
 		authorIDMap[p.AuthorId] = true
 	}
 	var authorIDs []string
@@ -367,8 +369,8 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 	// Hydration
 	for _, p := range plans {
 		p.Author = authorsMap[p.AuthorId]
-		p.LikesCount = likesMap[p.Id]
-		p.LikedByCurrentUser = userLikesSet[p.Id]
+		p.LikesCount = likesMap[*p.Id]
+		p.LikedByCurrentUser = userLikesSet[*p.Id]
 	}
 
 	// Encode cursor
@@ -532,7 +534,6 @@ func (s *TrainingPlanService) authorizeAccess(ctx context.Context, plan *Trainin
 }
 
 // Subscription Logic
-
 func (s *TrainingPlanService) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {
 	slog.InfoContext(ctx, "listing subscriptions", slog.String("user_id", userId))
 
@@ -543,6 +544,47 @@ func (s *TrainingPlanService) ListSubscription(ctx context.Context, userId strin
 	}
 
 	return subscriptions, nil
+}
+
+func (s *TrainingPlanService) ListSubscriptionByUserId(ctx context.Context, id, userId string) ([]*PlanSubscription, error) {
+	slog.InfoContext(ctx, "listing subscriptions", slog.String("user_id", userId))
+
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
+	user, err := s.identity.FindUser(ctx, userId, token)
+	if err != nil {
+		return nil, err
+	}
+
+	subscriptions, err := s.repo.ListSubscription(ctx, userId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list subscriptions", slog.String("user_id", userId), slog.Any("error", err))
+		return nil, err
+	}
+
+	if userId == id {
+		return subscriptions, nil
+	}
+
+	if user.StudentOf != nil && user.StudentOf.ID == id {
+		subs := make([]*PlanSubscription, 0)
+		for _, s := range subscriptions {
+			if s.Type == PrivateSubscription {
+				continue
+			}
+			subs = append(subs, s)
+		}
+	}
+
+	subs := make([]*PlanSubscription, 0)
+	for _, s := range subscriptions {
+		if s.Type == PrivateSubscription || s.Type == PartialAccessSubscription {
+			continue
+		}
+		subs = append(subs, s)
+	}
+
+	return subs, nil
 }
 
 func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId string, subType PlanSubscriptionType) error {

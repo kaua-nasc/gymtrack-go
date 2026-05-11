@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -74,21 +75,49 @@ func (r PostgresUserRepository) Create(ctx context.Context, u *User) error {
 func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	query := `
 		SELECT 
-			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
-			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
-			"trainerInviteCode", cref, "isVerified"
-		FROM users WHERE email = $1 LIMIT 1`
+			u.id, u."firstName", u."lastName", u.email, u.password, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified",
+			(SELECT json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'trainer', json_build_object(
+					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
+					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
+				)
+			) FROM trainer_student_relationships tsr 
+			  LEFT JOIN users t ON tsr."trainerId" = t.id 
+			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			COALESCE((SELECT json_agg(json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'student', json_build_object(
+					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
+					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
+				)
+			)) FROM trainer_student_relationships tsr 
+			   LEFT JOIN users s ON tsr."studentId" = s.id 
+			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
+		FROM users u WHERE email = $1 LIMIT 1`
 	var u User
+	var studentOfJSON, trainerOfJSON []byte
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
 		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+		&studentOfJSON, &trainerOfJSON,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	if len(studentOfJSON) > 0 {
+		json.Unmarshal(studentOfJSON, &u.StudentOf)
+	}
+	if len(trainerOfJSON) > 0 {
+		json.Unmarshal(trainerOfJSON, &u.TrainerOf)
 	}
 	return &u, nil
 }
@@ -96,15 +125,37 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, error) {
 	query := `
 		SELECT 
-			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
-			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
-			"trainerInviteCode", cref, "isVerified"
-		FROM users WHERE id = $1 LIMIT 1`
+			u.id, u."firstName", u."lastName", u.email, u.password, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified",
+			(SELECT json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'trainer', json_build_object(
+					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
+					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
+				)
+			) FROM trainer_student_relationships tsr 
+			  LEFT JOIN users t ON tsr."trainerId" = t.id 
+			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			COALESCE((SELECT json_agg(json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'student', json_build_object(
+					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
+					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
+				)
+			)) FROM trainer_student_relationships tsr 
+			   LEFT JOIN users s ON tsr."studentId" = s.id 
+			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
+		FROM users u WHERE id = $1 LIMIT 1`
 	var u User
+	var studentOfJSON, trainerOfJSON []byte
 	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+		&studentOfJSON, &trainerOfJSON,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -112,16 +163,42 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, er
 		}
 		return nil, err
 	}
+	if len(studentOfJSON) > 0 {
+		json.Unmarshal(studentOfJSON, &u.StudentOf)
+	}
+	if len(trainerOfJSON) > 0 {
+		json.Unmarshal(trainerOfJSON, &u.TrainerOf)
+	}
 	return &u, nil
 }
 
 func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
 	query := `
 		SELECT 
-			id, "firstName", "lastName", email, type, "createdAt", "updatedAt",
-			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
-			"trainerInviteCode", cref, "isVerified"
-		FROM users WHERE id = ANY($1)`
+			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified",
+			(SELECT json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'trainer', json_build_object(
+					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
+					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
+				)
+			) FROM trainer_student_relationships tsr 
+			  LEFT JOIN users t ON tsr."trainerId" = t.id 
+			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			COALESCE((SELECT json_agg(json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'student', json_build_object(
+					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
+					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
+				)
+			)) FROM trainer_student_relationships tsr 
+			   LEFT JOIN users s ON tsr."studentId" = s.id 
+			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
+		FROM users u WHERE id = ANY($1)`
 	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -131,13 +208,21 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 	users := make([]*User, 0)
 	for rows.Next() {
 		var u User
+		var studentOfJSON, trainerOfJSON []byte
 		err := rows.Scan(
 			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 			&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 			&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+			&studentOfJSON, &trainerOfJSON,
 		)
 		if err != nil {
 			return nil, err
+		}
+		if len(studentOfJSON) > 0 {
+			json.Unmarshal(studentOfJSON, &u.StudentOf)
+		}
+		if len(trainerOfJSON) > 0 {
+			json.Unmarshal(trainerOfJSON, &u.TrainerOf)
 		}
 		users = append(users, &u)
 	}
@@ -149,7 +234,27 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 		SELECT 
 			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
-			u."trainerInviteCode", u.cref, u."isVerified"
+			u."trainerInviteCode", u.cref, u."isVerified",
+			(SELECT json_build_object(
+				'id', tsr_s.id, 'createdAt', tsr_s."createdAt", 'updatedAt', tsr_s."updatedAt",
+				'trainerId', tsr_s."trainerId", 'studentId', tsr_s."studentId", 'linkedAt', tsr_s."linkedAt",
+				'trainer', json_build_object(
+					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
+					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
+				)
+			) FROM trainer_student_relationships tsr_s 
+			  LEFT JOIN users t ON tsr_s."trainerId" = t.id 
+			  WHERE tsr_s."studentId" = u.id LIMIT 1) as student_of,
+			COALESCE((SELECT json_agg(json_build_object(
+				'id', tsr_t.id, 'createdAt', tsr_t."createdAt", 'updatedAt', tsr_t."updatedAt",
+				'trainerId', tsr_t."trainerId", 'studentId', tsr_t."studentId", 'linkedAt', tsr_t."linkedAt",
+				'student', json_build_object(
+					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
+					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
+				)
+			)) FROM trainer_student_relationships tsr_t 
+			   LEFT JOIN users s ON tsr_t."studentId" = s.id 
+			   WHERE tsr_t."trainerId" = u.id), '[]'::json) as trainer_of
 		FROM users u
 		INNER JOIN trainer_student_relationships tsr ON tsr."studentId" = u.id
 		WHERE tsr."trainerId" = $1 AND tsr."deletedAt" IS NULL
@@ -159,7 +264,7 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 	args = append(args, trainerId)
 
 	if cursor != nil {
-		query += ` AND ("createdAt", id) < ($2, $3)`
+		query += ` AND (u."createdAt", u.id) < ($2, $3)`
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
@@ -175,13 +280,21 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 	users := make([]*User, 0)
 	for rows.Next() {
 		var u User
+		var studentOfJSON, trainerOfJSON []byte
 		err := rows.Scan(
 			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 			&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 			&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+			&studentOfJSON, &trainerOfJSON,
 		)
 		if err != nil {
 			return nil, nil, err
+		}
+		if len(studentOfJSON) > 0 {
+			json.Unmarshal(studentOfJSON, &u.StudentOf)
+		}
+		if len(trainerOfJSON) > 0 {
+			json.Unmarshal(trainerOfJSON, &u.TrainerOf)
 		}
 		users = append(users, &u)
 	}
@@ -279,21 +392,49 @@ func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string) ([
 func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
 	query := `
 		SELECT 
-			id, "firstName", "lastName", email, password, type, "createdAt", "updatedAt",
-			bio, "profilePictureUrl", height, "currentWeight", "weightUnit", "heightUnit",
-			"trainerInviteCode", cref, "isVerified"
-		FROM users WHERE "trainerInviteCode" = $1 LIMIT 1`
+			u.id, u."firstName", u."lastName", u.email, u.password, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified",
+			(SELECT json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'trainer', json_build_object(
+					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
+					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
+				)
+			) FROM trainer_student_relationships tsr 
+			  LEFT JOIN users t ON tsr."trainerId" = t.id 
+			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			COALESCE((SELECT json_agg(json_build_object(
+				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'student', json_build_object(
+					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
+					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
+				)
+			)) FROM trainer_student_relationships tsr 
+			   LEFT JOIN users s ON tsr."studentId" = s.id 
+			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
+		FROM users u WHERE "trainerInviteCode" = $1 LIMIT 1`
 	var u User
+	var studentOfJSON, trainerOfJSON []byte
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
 		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+		&studentOfJSON, &trainerOfJSON,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	if len(studentOfJSON) > 0 {
+		json.Unmarshal(studentOfJSON, &u.StudentOf)
+	}
+	if len(trainerOfJSON) > 0 {
+		json.Unmarshal(trainerOfJSON, &u.TrainerOf)
 	}
 	return &u, nil
 }

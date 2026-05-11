@@ -16,9 +16,16 @@ type UserContextKeyType string
 const UserContextKey UserContextKeyType = "user"
 const TokenContextKey UserContextKeyType = "token"
 
+type UserType string
+
+const (
+	Trainer UserType = "PERSONAL_TRAINER"
+	Client  UserType = "CLIENT"
+)
+
 type AuthUser struct {
 	ID   string
-	Type string
+	Type UserType
 }
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -82,9 +89,17 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		typedUserType := UserType(userType)
+
+		if typedUserType != Client && typedUserType != Trainer {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user type"})
+			c.Abort()
+			return
+		}
+
 		c.Set(string(UserContextKey), AuthUser{
 			ID:   userID,
-			Type: userType,
+			Type: typedUserType,
 		})
 		c.Set(string(TokenContextKey), tokenString)
 
@@ -92,7 +107,7 @@ func AuthMiddleware() gin.HandlerFunc {
 		ctx := c.Request.Context()
 		ctx = context.WithValue(ctx, string(UserContextKey), AuthUser{
 			ID:   userID,
-			Type: userType,
+			Type: typedUserType,
 		})
 		ctx = context.WithValue(ctx, string(TokenContextKey), tokenString)
 		c.Request = c.Request.WithContext(ctx)
@@ -102,7 +117,7 @@ func AuthMiddleware() gin.HandlerFunc {
 }
 
 // RolesMiddleware ensures the user has one of the required roles
-func RolesMiddleware(allowedTypes ...string) gin.HandlerFunc {
+func RolesMiddleware(allowedTypes ...UserType) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := c.Value(string(UserContextKey)).(AuthUser)
 		if !ok {

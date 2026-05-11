@@ -179,7 +179,7 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 	if len(plans) > limit {
 		lastItem := plans[limit-1]
 		nextCursor = &CursorData{
-			ID:        lastItem.Id,
+			ID:        *lastItem.Id,
 			CreatedAt: lastItem.CreatedAt,
 		}
 		plans = plans[:limit]

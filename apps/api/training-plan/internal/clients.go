@@ -52,6 +52,58 @@ func (s *IdentityService) ExistsUser(ctx context.Context, id string, token strin
 	return true, nil
 }
 
+type UserType string
+
+const (
+	Trainer UserType = "PERSONAL_TRAINER"
+	Client  UserType = "CLIENT"
+)
+
+type User struct {
+	ID        string                   `json:"id" validate:"uuid"`
+	Type      UserType                 `json:"type"`
+	StudentOf *TrainerStudentRelation  `json:"studentOf,omitempty"`
+	TrainerOf []TrainerStudentRelation `json:"trainerOf,omitempty"`
+}
+
+type TrainerStudentRelation struct {
+	ID        string `json:"id"`
+	TrainerId string `json:"trainerId"`
+	StudentId string `json:"studentId"`
+	Trainer   *User  `json:"trainer,omitempty"`
+	Student   *User  `json:"student,omitempty"`
+}
+
+func (s *IdentityService) FindUser(ctx context.Context, id string, token string) (*User, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/identity/users/%s", s.baseURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("identity service error: %d", resp.StatusCode)
+	}
+
+	var user User
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode user: %w", err)
+	}
+
+	return &user, nil
+}
+
 func (s *IdentityService) ListUser(ctx context.Context, ids *[]string, token string) (map[string]*any, error) {
 	if ids == nil || len(*ids) == 0 {
 		return map[string]*any{}, nil

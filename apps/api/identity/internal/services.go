@@ -351,12 +351,7 @@ func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
 	if err != nil || u == nil {
 		return u, err
 	}
-	u.Password = ""
-	if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
-		uri := os.Getenv("AZURE_STORAGE_URL")
-		fullUrl := uri + "/" + *u.ProfilePictureUrl
-		u.ProfilePictureUrl = &fullUrl
-	}
+	s.sanitizeUser(u)
 	return u, nil
 }
 
@@ -366,14 +361,31 @@ func (s *UserService) ListUsers(ctx context.Context, ids []string) ([]*User, err
 		return nil, err
 	}
 	for _, u := range users {
-		u.Password = ""
-		if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
-			uri := os.Getenv("AZURE_STORAGE_URL")
-			fullUrl := uri + "/" + *u.ProfilePictureUrl
-			u.ProfilePictureUrl = &fullUrl
-		}
+		s.sanitizeUser(u)
 	}
 	return users, nil
+}
+
+func (s *UserService) sanitizeUser(u *User) {
+	if u == nil {
+		return
+	}
+	u.Password = ""
+	if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" && !strings.HasPrefix(*u.ProfilePictureUrl, "http") {
+		uri := os.Getenv("AZURE_STORAGE_URL")
+		fullUrl := uri + "/" + *u.ProfilePictureUrl
+		u.ProfilePictureUrl = &fullUrl
+	}
+
+	if u.StudentOf != nil && u.StudentOf.Trainer != nil {
+		s.sanitizeUser(u.StudentOf.Trainer)
+	}
+
+	for i := range u.TrainerOf {
+		if u.TrainerOf[i].Student != nil {
+			s.sanitizeUser(u.TrainerOf[i].Student)
+		}
+	}
 }
 
 func VerifyArgon2Password(password, encodedHash string) (bool, error) {
@@ -541,12 +553,7 @@ func (s *UserService) ListStudents(ctx context.Context, trainerId, cursor string
 	}
 
 	for _, u := range users {
-		if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" {
-			uri := os.Getenv("AZURE_STORAGE_URL")
-			fullUrl := uri + "/" + *u.ProfilePictureUrl
-			u.ProfilePictureUrl = &fullUrl
-		}
-		u.Password = ""
+		s.sanitizeUser(u)
 	}
 
 	var nextCursorStr string

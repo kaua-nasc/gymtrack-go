@@ -44,7 +44,7 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
 
 		plans.GET("/subscriptions", h.ListSubscription)
-		plans.GET("/subscriptions/:userId", h.ListSubscription)
+		plans.GET("/subscriptions/:userId", h.ListSubscriptionByUserId)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
 
@@ -130,7 +130,24 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 		userId = user.ID
 	}
 
-	if _, err := h.srv.ListSubscription(ctx.Request.Context(), userId); err != nil {
+	subscriptions, err := h.srv.ListSubscription(ctx.Request.Context(), userId)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list subscriptions"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, subscriptions)
+}
+
+func (h *TrainingPlanHandler) ListSubscriptionByUserId(ctx *gin.Context) {
+	userId := ctx.Param("userId")
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if _, err := h.srv.ListSubscriptionByUserId(ctx.Request.Context(), user.ID, userId); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list subscriptions"})
 		return
@@ -261,13 +278,14 @@ func (h *TrainingPlanHandler) CreatePlan(ctx *gin.Context) {
 		return
 	}
 
-	if _, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("author_id", user.ID))
+	newPlan, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("authorId", user.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create plan"})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, plan)
+	ctx.JSON(http.StatusCreated, newPlan)
 }
 
 func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
@@ -282,7 +300,7 @@ func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
 
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to list plans", slog.Any("error", err), slog.String("author_id", authorId))
+		slog.ErrorContext(ctx.Request.Context(), "failed to list plans", slog.Any("error", err), slog.String("authorId", authorId))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list plans"})
 		return
 	}

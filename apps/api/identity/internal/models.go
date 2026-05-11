@@ -55,7 +55,7 @@ const (
 
 // User Entity
 type User struct {
-	ID                string     `json:"id" validate:"uuid4"`
+	ID                string     `json:"id" validate:"uuid"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 	FirstName         string     `json:"firstName" validate:"required,min=1,max=255"`
@@ -86,13 +86,13 @@ type User struct {
 
 // BodyMeasurement Entity
 type BodyMeasurement struct {
-	ID            string              `json:"id" validate:"required,uuid4"`
+	ID            string              `json:"id" validate:"required,uuid"`
 	CreatedAt     time.Time           `json:"createdAt"`
 	UpdatedAt     time.Time           `json:"updatedAt"`
 	Type          BodyMeasurementType `json:"type" validate:"required"`
 	Value         float64             `json:"value" validate:"required"`
 	MeasuredAt    time.Time           `json:"measuredAt" validate:"required"`
-	UserId        string              `json:"userId" validate:"required,uuid4"`
+	UserId        string              `json:"userId" validate:"required,uuid"`
 	TrainerNote   *string             `json:"trainerNote,omitempty"`
 	TrainerNoteAt *time.Time          `json:"trainerNoteAt,omitempty"`
 
@@ -102,7 +102,7 @@ type BodyMeasurement struct {
 
 // MetricGoal Entity
 type MetricGoal struct {
-	ID            string           `json:"id" validate:"required,uuid4"`
+	ID            string           `json:"id" validate:"required,uuid"`
 	CreatedAt     time.Time        `json:"createdAt"`
 	UpdatedAt     time.Time        `json:"updatedAt"`
 	Type          string           `json:"type" validate:"required"`
@@ -111,7 +111,7 @@ type MetricGoal struct {
 	Deadline      *time.Time       `json:"deadline,omitempty"`
 	AchievedAt    *time.Time       `json:"achievedAt,omitempty"`
 	Status        MetricGoalStatus `json:"status" validate:"required"`
-	UserId        string           `json:"userId" validate:"required,uuid4"`
+	UserId        string           `json:"userId" validate:"required,uuid"`
 
 	// Relations
 	User *User `json:"user,omitempty"`
@@ -119,11 +119,11 @@ type MetricGoal struct {
 
 // TrainerStudentRelation Entity
 type TrainerStudentRelation struct {
-	ID        string    `json:"id" validate:"required,uuid4"`
+	ID        string    `json:"id" validate:"required,uuid"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-	TrainerId string    `json:"trainerId" validate:"required,uuid4"`
-	StudentId string    `json:"studentId" validate:"required,uuid4"`
+	TrainerId string    `json:"trainerId" validate:"required,uuid"`
+	StudentId string    `json:"studentId" validate:"required,uuid"`
 	LinkedAt  time.Time `json:"linkedAt" validate:"required"`
 
 	// Relations
@@ -133,11 +133,11 @@ type TrainerStudentRelation struct {
 
 // UserFollows Entity
 type UserFollows struct {
-	ID          string    `json:"id" validate:"required,uuid4"`
+	ID          string    `json:"id" validate:"required,uuid"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
-	FollowerId  string    `json:"followerId" validate:"required,uuid4"`
-	FollowingId string    `json:"followingId" validate:"required,uuid4"`
+	FollowerId  string    `json:"followerId" validate:"required,uuid"`
+	FollowingId string    `json:"followingId" validate:"required,uuid"`
 
 	// Relations
 	Follower  *User `json:"follower,omitempty"`
@@ -146,14 +146,14 @@ type UserFollows struct {
 
 // UserPrivacySettings Entity
 type UserPrivacySettings struct {
-	ID                       string    `json:"id" validate:"required,uuid4"`
+	ID                       string    `json:"id" validate:"required,uuid"`
 	CreatedAt                time.Time `json:"createdAt"`
 	UpdatedAt                time.Time `json:"updatedAt"`
 	ShareName                bool      `json:"shareName"`
 	ShareEmail               bool      `json:"shareEmail"`
 	ShareTrainingProgress    bool      `json:"shareTrainingProgress"`
 	SharePastDataWithTrainer bool      `json:"sharePastDataWithTrainer"`
-	UserId                   string    `json:"userId" validate:"required,uuid4"`
+	UserId                   string    `json:"userId" validate:"required,uuid"`
 
 	// Relations
 	User *User `json:"user,omitempty"`
@@ -161,12 +161,12 @@ type UserPrivacySettings struct {
 
 // WeightLog Entity
 type WeightLog struct {
-	ID            string     `json:"id" validate:"required,uuid4"`
+	ID            string     `json:"id" validate:"required,uuid"`
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	Weight        float64    `json:"weight" validate:"required"`
 	MeasuredAt    time.Time  `json:"measuredAt" validate:"required"`
-	UserId        string     `json:"userId" validate:"required,uuid4"`
+	UserId        string     `json:"userId" validate:"required,uuid"`
 	TrainerNote   *string    `json:"trainerNote,omitempty"`
 	TrainerNoteAt *time.Time `json:"trainerNoteAt,omitempty"`
 
