@@ -600,6 +600,16 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		return errors.New("already subscribed")
 	}
 
+	complete, err := s.repo.IsPlanComplete(ctx, planId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to check if plan is complete", slog.String("plan_id", planId), slog.Any("error", err))
+		return err
+	}
+	if !complete {
+		slog.WarnContext(ctx, "attempted to subscribe to incomplete plan", slog.String("plan_id", planId))
+		return errors.New("training plan is incomplete (must have at least one day and one exercise)")
+	}
+
 	id, err := uuid.NewV7()
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))

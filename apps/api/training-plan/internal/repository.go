@@ -42,6 +42,8 @@ type TrainingPlanRepository interface {
 	AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error
 	LogExercise(ctx context.Context, l *ExerciseLog) error
 	ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error)
+	IsPlanComplete(ctx context.Context, planId string) (bool, error)
+	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
 }
 
 type PostgresTrainingPlanRepository struct {
@@ -625,6 +627,21 @@ func (r *PostgresTrainingPlanRepository) IsParticipant(ctx context.Context, plan
 		return false, fmt.Errorf("could not check participant status: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *PostgresTrainingPlanRepository) IsPlanComplete(ctx context.Context, planId string) (bool, error) {
+	query := `
+		SELECT EXISTS (
+			SELECT 1 FROM days d
+			JOIN exercises e ON d.id = e."dayId"
+			WHERE d."trainingPlanId" = $1
+		)`
+	var complete bool
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(&complete)
+	if err != nil {
+		return false, fmt.Errorf("could not check if plan is complete: %w", err)
+	}
+	return complete, nil
 }
 
 // Feedback and Log Methods
