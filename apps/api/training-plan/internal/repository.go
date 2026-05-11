@@ -42,6 +42,7 @@ type TrainingPlanRepository interface {
 	AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error
 	LogExercise(ctx context.Context, l *ExerciseLog) error
 	ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error)
+	GetSubscriptionEligibility(ctx context.Context, planId, userId string) (alreadySubscribed bool, isComplete bool, err error)
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
 }
@@ -617,6 +618,20 @@ func (r *PostgresTrainingPlanRepository) AddParticipant(ctx context.Context, p *
 		return fmt.Errorf("could not add participant: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresTrainingPlanRepository) GetSubscriptionEligibility(ctx context.Context, planId, userId string) (bool, bool, error) {
+	query := `
+		SELECT 
+			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2) as already_subscribed,
+			EXISTS (SELECT 1 FROM days d JOIN exercises e ON d.id = e."dayId" WHERE d."trainingPlanId" = $1) as is_complete
+	`
+	var alreadySubscribed, isComplete bool
+	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&alreadySubscribed, &isComplete)
+	if err != nil {
+		return false, false, fmt.Errorf("could not check subscription eligibility: %w", err)
+	}
+	return alreadySubscribed, isComplete, nil
 }
 
 func (r *PostgresTrainingPlanRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {

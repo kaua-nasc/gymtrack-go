@@ -590,22 +590,18 @@ func (s *TrainingPlanService) ListSubscriptionByUserId(ctx context.Context, id, 
 func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId string, subType PlanSubscriptionType) error {
 	slog.InfoContext(ctx, "subscribing user to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 
-	existing, err := s.repo.FindSubscription(ctx, planId, userId)
+	alreadySubscribed, isComplete, err := s.repo.GetSubscriptionEligibility(ctx, planId, userId)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to check existing subscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to check subscription eligibility", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
 	}
-	if existing != nil {
+
+	if alreadySubscribed {
 		slog.WarnContext(ctx, "user already subscribed to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 		return errors.New("already subscribed")
 	}
 
-	complete, err := s.repo.IsPlanComplete(ctx, planId)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to check if plan is complete", slog.String("plan_id", planId), slog.Any("error", err))
-		return err
-	}
-	if !complete {
+	if !isComplete {
 		slog.WarnContext(ctx, "attempted to subscribe to incomplete plan", slog.String("plan_id", planId))
 		return errors.New("training plan is incomplete (must have at least one day and one exercise)")
 	}
