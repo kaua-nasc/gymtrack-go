@@ -51,7 +51,6 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 
-		plans.POST("/:id/days/batch", h.CreateDays)
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
@@ -290,13 +289,7 @@ func (h *TrainingPlanHandler) CreatePlan(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
 	authorId := ctx.Param("authorId")
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {
@@ -425,13 +418,7 @@ func (h *TrainingPlanHandler) UnlikePlan(ctx *gin.Context) {
 
 func (h *TrainingPlanHandler) ListPlanComment(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor := ctx.Query("cursor")
-	limitStr := ctx.DefaultQuery("limit", "20")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil {
-		limit = 20
-	}
+	cursor, limit := h.getPagination(ctx)
 
 	comments, nextCursor, err := h.srv.ListPlanComments(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -486,22 +473,6 @@ func (h *TrainingPlanHandler) RemovePlanComment(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
-}
-
-func (h *TrainingPlanHandler) CreateDays(ctx *gin.Context) {
-	var days []Day
-	if err := ctx.ShouldBindJSON(&days); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.srv.CreateDays(ctx.Request.Context(), days); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to create days", slog.Any("error", err))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create days"})
-		return
-	}
-
-	ctx.Status(http.StatusCreated)
 }
 
 func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {
@@ -584,4 +555,13 @@ func (h *TrainingPlanHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool
 	}
 
 	return user, true
+}
+
+func (h *TrainingPlanHandler) getPagination(ctx *gin.Context) (string, int) {
+	cursor := ctx.Query("cursor")
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	if limit <= 0 {
+		limit = 20
+	}
+	return cursor, limit
 }

@@ -145,28 +145,6 @@ func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) er
 	return nil
 }
 
-func (s *TrainingPlanService) CreateDays(ctx context.Context, days []Day) error {
-	now := time.Now().UTC()
-	for i := range days {
-		id, err := uuid.NewV7()
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-			return fmt.Errorf("error on generate uuid")
-		}
-
-		days[i].Id = id.String()
-		days[i].CreatedAt = now
-		days[i].UpdatedAt = now
-	}
-
-	if err := s.repo.CreateDays(ctx, days); err != nil {
-		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
-		return fmt.Errorf("could not save plan day: %w", err)
-	}
-
-	return nil
-}
-
 func (s *TrainingPlanService) DeleteDay(ctx context.Context, id string) error {
 	if err := s.repo.DeleteDay(ctx, id); err != nil {
 		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
