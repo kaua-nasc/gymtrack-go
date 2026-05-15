@@ -19,8 +19,8 @@ type UserRepository interface {
 	SaveResetCode(ctx context.Context, code, email string) error
 	GetResetCode(ctx context.Context, email string) (string, error)
 	ListByIDs(ctx context.Context, ids []string) ([]*User, error)
-	ListFollowing(ctx context.Context, id string) ([]*UserFollows, error)
-	ListFollower(ctx context.Context, id string) ([]*UserFollows, error)
+	ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
+	ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
 	CountFollowers(ctx context.Context, userId string) (int, error)
 	CountFollowing(ctx context.Context, userId string) (int, error)
 	FollowUser(ctx context.Context, f UserFollows) error
@@ -349,44 +349,94 @@ func (r *PostgresUserRepository) UnfollowUser(ctx context.Context, followerId, f
 	return nil
 }
 
-func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
-	query := `SELECT id, "followerId", "followingId", "createdAt", "updatedAt" FROM user_follows WHERE followerId = ANY($1)`
-	rows, err := r.db.QueryContext(ctx, query, id)
+func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+	query := `
+		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
+		FROM user_follows f LEFT JOIN users u ON f."followingId" = u.id
+		WHERE f."followerId" = $1
+	`
+	var args []interface{}
+	args = append(args, id)
+
+	if cursor != nil {
+		query += ` AND (u."createdAt", u.id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY u."createdAt" DESC, u.id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
-	follows := make([]*UserFollows, 0)
+	users := make([]*User, 0)
 	for rows.Next() {
-		var u UserFollows
-		err := rows.Scan(&u.ID, &u.FollowerId, &u.FollowingId, &u.CreatedAt, &u.UpdatedAt)
+		var u User
+		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt, &u.ProfilePictureUrl)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		follows = append(follows, &u)
+		users = append(users, &u)
 	}
-	return follows, nil
+
+	var nextCursor *CursorData
+	if len(users) > limit {
+		nextCursor = &CursorData{
+			ID:        users[limit].ID,
+			CreatedAt: users[limit].CreatedAt,
+		}
+		users = users[:limit]
+	}
+
+	return users, nextCursor, nil
 }
 
-func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
-	query := `SELECT id, "followerId", "followingId", "createdAt", "updatedAt" FROM user_follows WHERE followingId = ANY($1)`
-	rows, err := r.db.QueryContext(ctx, query, id)
+func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+	query := `
+		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
+		FROM user_follows f LEFT JOIN users u ON f."followerId" = u.id
+		WHERE f."followingId" = $1
+	`
+	var args []interface{}
+	args = append(args, id)
+
+	if cursor != nil {
+		query += ` AND (u."createdAt", u.id) < ($2, $3)`
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+
+	query += fmt.Sprintf(` ORDER BY u."createdAt" DESC, u.id DESC LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
-	follows := make([]*UserFollows, 0)
+	users := make([]*User, 0)
 	for rows.Next() {
-		var u UserFollows
-		err := rows.Scan(&u.ID, &u.FollowerId, &u.FollowingId, &u.CreatedAt, &u.UpdatedAt)
+		var u User
+		err := rows.Scan(&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt, &u.ProfilePictureUrl)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		follows = append(follows, &u)
+		users = append(users, &u)
 	}
-	return follows, nil
+
+	var nextCursor *CursorData
+	if len(users) > limit {
+		nextCursor = &CursorData{
+			ID:        users[limit].ID,
+			CreatedAt: users[limit].CreatedAt,
+		}
+		users = users[:limit]
+	}
+
+	return users, nextCursor, nil
 }
 
 func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {

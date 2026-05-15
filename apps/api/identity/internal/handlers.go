@@ -40,6 +40,8 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.GET("/:id", h.GetUser)
 		protected.PUT("/:id", h.UpdateProfile)
 
+		protected.GET("/:id/followers", h.ListFollower)
+		protected.GET("/:id/following", h.ListFollowing)
 		protected.GET("/:id/followers/count", h.CountFollowers)
 		protected.GET("/:id/following/count", h.CountFollowing)
 		protected.POST("/:id/follows", h.FollowUser)
@@ -283,6 +285,39 @@ func (h *UserHandler) GetUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, res)
 }
 
+func (h *UserHandler) ListFollower(ctx *gin.Context) {
+	id := ctx.Param("id")
+	cursor, limit := h.getPagination(ctx)
+
+	users, nextCursor, err := h.srv.ListFollower(ctx.Request.Context(), id, cursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list followers", slog.Any("error", err), slog.String("id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list followers"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       users,
+		"nextCursor": nextCursor,
+	})
+}
+
+func (h *UserHandler) ListFollowing(ctx *gin.Context) {
+	id := ctx.Param("id")
+	cursor, limit := h.getPagination(ctx)
+
+	users, nextCursor, err := h.srv.ListFollowing(ctx.Request.Context(), id, cursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list following", slog.Any("error", err), slog.String("id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list following"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":       users,
+		"nextCursor": nextCursor,
+	})
+}
 func (h *UserHandler) CountFollowers(ctx *gin.Context) {
 	id := ctx.Param("id")
 

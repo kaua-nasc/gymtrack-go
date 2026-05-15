@@ -57,20 +57,30 @@ func (m *MockUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*Us
 	return args.Get(0).([]*User), args.Error(1)
 }
 
-func (m *MockUserRepository) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockUserRepository) ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+	args := m.Called(ctx, id, cursor, limit)
+	var users []*User
+	if args.Get(0) != nil {
+		users = args.Get(0).([]*User)
 	}
-	return args.Get(0).([]*UserFollows), args.Error(1)
+	var nextCursor *CursorData
+	if args.Get(1) != nil {
+		nextCursor = args.Get(1).(*CursorData)
+	}
+	return users, nextCursor, args.Error(2)
 }
 
-func (m *MockUserRepository) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
+func (m *MockUserRepository) ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+	args := m.Called(ctx, id, cursor, limit)
+	var users []*User
+	if args.Get(0) != nil {
+		users = args.Get(0).([]*User)
 	}
-	return args.Get(0).([]*UserFollows), args.Error(1)
+	var nextCursor *CursorData
+	if args.Get(1) != nil {
+		nextCursor = args.Get(1).(*CursorData)
+	}
+	return users, nextCursor, args.Error(2)
 }
 
 func (m *MockUserRepository) CountFollowers(ctx context.Context, userId string) (int, error) {

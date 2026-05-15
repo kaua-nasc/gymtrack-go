@@ -416,22 +416,58 @@ func VerifyArgon2Password(password, encodedHash string) (bool, error) {
 	return subtle.ConstantTimeCompare(decodedHash, comparisonHash) == 1, nil
 }
 
-func (s *UserService) ListFollowing(ctx context.Context, id string) ([]*UserFollows, error) {
-	follows, err := s.repo.ListFollowing(ctx, id)
-	if err != nil {
-		return nil, err
+func (s *UserService) ListFollowing(ctx context.Context, id, cursor string, limit int) ([]*User, string, error) {
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		}
 	}
 
-	return follows, nil
+	users, rawNextCursor, err := s.repo.ListFollowing(ctx, id, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, u := range users {
+		s.sanitizeUser(u)
+	}
+
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return users, nextCursorStr, nil
 }
 
-func (s *UserService) ListFollower(ctx context.Context, id string) ([]*UserFollows, error) {
-	follows, err := s.repo.ListFollower(ctx, id)
-	if err != nil {
-		return nil, err
+func (s *UserService) ListFollower(ctx context.Context, id, cursor string, limit int) ([]*User, string, error) {
+	var decodedCursor *CursorData
+	if cursor != "" {
+		b, err := base64.StdEncoding.DecodeString(cursor)
+		if err == nil {
+			json.Unmarshal(b, &decodedCursor)
+		}
 	}
 
-	return follows, nil
+	users, rawNextCursor, err := s.repo.ListFollower(ctx, id, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, u := range users {
+		s.sanitizeUser(u)
+	}
+
+	var nextCursorStr string
+	if rawNextCursor != nil {
+		b, _ := json.Marshal(rawNextCursor)
+		nextCursorStr = base64.StdEncoding.EncodeToString(b)
+	}
+
+	return users, nextCursorStr, nil
 }
 
 func (s *UserService) CountFollowers(ctx context.Context, id string) (int, error) {
