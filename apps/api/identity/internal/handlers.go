@@ -270,7 +270,13 @@ func (h *UserHandler) UpdateProfile(ctx *gin.Context) {
 
 func (h *UserHandler) GetUser(ctx *gin.Context) {
 	id := ctx.Param("id")
-	res, err := h.srv.GetUser(ctx.Request.Context(), id)
+
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	res, err := h.srv.GetUser(ctx.Request.Context(), id, user.ID)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to get user", slog.Any("error", err), slog.String("id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get user"})

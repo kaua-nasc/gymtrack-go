@@ -23,8 +23,8 @@ func (m *MockUserRepository) Update(ctx context.Context, u *User) error {
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) Find(ctx context.Context, id string) (*User, error) {
-	args := m.Called(ctx, id)
+func (m *MockUserRepository) Find(ctx context.Context, id string, currentUserId string) (*User, error) {
+	args := m.Called(ctx, id, currentUserId)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

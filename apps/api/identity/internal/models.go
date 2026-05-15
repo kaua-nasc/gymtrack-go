@@ -72,6 +72,7 @@ type User struct {
 	TrainerInviteCode *string    `json:"trainerInviteCode,omitempty"`
 	Cref              *string    `json:"cref,omitempty"`
 	IsVerified        bool       `json:"isVerified"`
+	IsFollowing       *bool      `json:"isFollowing,omitempty"`
 
 	// Relations
 	Measurements    []BodyMeasurement        `json:"measurements,omitempty"`

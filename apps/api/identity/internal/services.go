@@ -311,7 +311,7 @@ func (s *UserService) UpdateProfile(
 	heightUnit *HeightUnit,
 	currentWeight *float64,
 ) error {
-	u, err := s.repo.Find(ctx, id)
+	u, err := s.repo.Find(ctx, id, "")
 	if err != nil {
 		return err
 	}
@@ -346,8 +346,8 @@ func (s *UserService) UpdateProfile(
 	return s.repo.Update(ctx, u)
 }
 
-func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
-	u, err := s.repo.Find(ctx, id)
+func (s *UserService) GetUser(ctx context.Context, id string, userId string) (*User, error) {
+	u, err := s.repo.Find(ctx, id, userId)
 	if err != nil || u == nil {
 		return u, err
 	}
@@ -527,7 +527,7 @@ func (s *UserService) UnfollowUser(ctx context.Context, followerId, followingId 
 }
 
 func (s *UserService) CreateTrainerCode(ctx context.Context, id, code string) error {
-	user, err := s.repo.Find(ctx, id)
+	user, err := s.repo.Find(ctx, id, "")
 	if err != nil {
 		return err
 	}
@@ -637,7 +637,7 @@ func (s *UserService) AddWeightLogNote(ctx context.Context, id, note string) err
 }
 
 func (s *UserService) ChangeToTrainer(ctx context.Context, id, cref string) error {
-	user, err := s.repo.Find(ctx, id)
+	user, err := s.repo.Find(ctx, id, "")
 	if err != nil {
 		return err
 	}
@@ -649,7 +649,7 @@ func (s *UserService) ChangeToTrainer(ctx context.Context, id, cref string) erro
 }
 
 func (s *UserService) ChangeToClient(ctx context.Context, id string) error {
-	user, err := s.repo.Find(ctx, id)
+	user, err := s.repo.Find(ctx, id, "")
 	if err != nil {
 		return err
 	}
@@ -665,11 +665,13 @@ func (s *UserService) RemoveProfilePicture(ctx context.Context, id string) error
 }
 
 func (s *UserService) UploadProfilePicture(ctx context.Context, id string, file io.Reader) error {
-	user, err := s.repo.Find(ctx, id)
+	fmt.Println(id)
+	user, err := s.repo.Find(ctx, id, "")
 	if err != nil {
 		return err
 	}
 
+	fmt.Println(id)
 	if user == nil {
 		return ErrUserNotFound
 	}

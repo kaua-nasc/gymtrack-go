@@ -14,7 +14,7 @@ import (
 type UserRepository interface {
 	Create(ctx context.Context, u *User) error
 	Update(ctx context.Context, u *User) error
-	Find(ctx context.Context, id string) (*User, error)
+	Find(ctx context.Context, id string, currentUserId string) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	SaveResetCode(ctx context.Context, code, email string) error
 	GetResetCode(ctx context.Context, email string) (string, error)
@@ -122,9 +122,9 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 	return &u, nil
 }
 
-func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, error) {
+func (r *PostgresUserRepository) Find(ctx context.Context, id string, currentUserId string) (*User, error) {
 	query := `
-		SELECT 
+		SELECT
 			u.id, u."firstName", u."lastName", u.email, u.password, u.type, u."createdAt", u."updatedAt",
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
@@ -135,8 +135,8 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, er
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
 				)
-			) FROM trainer_student_relationships tsr 
-			  LEFT JOIN users t ON tsr."trainerId" = t.id 
+			) FROM trainer_student_relationships tsr
+			  LEFT JOIN users t ON tsr."trainerId" = t.id
 			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
@@ -145,17 +145,19 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, er
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
 				)
-			)) FROM trainer_student_relationships tsr 
-			   LEFT JOIN users s ON tsr."studentId" = s.id 
-			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
-		FROM users u WHERE id = $1 LIMIT 1`
+			)) FROM trainer_student_relationships tsr
+			   LEFT JOIN users s ON tsr."studentId" = s.id
+			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of,
+			EXISTS (SELECT 1 FROM user_follows WHERE "followerId" = NULLIF($2, '')::uuid AND "followingId" = u.id) as is_following
+			FROM users u WHERE id = $1 LIMIT 1`
 	var u User
 	var studentOfJSON, trainerOfJSON []byte
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	var isFollowing bool
+	err := r.db.QueryRowContext(ctx, query, id, currentUserId).Scan(
 		&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Password, &u.Type, &u.CreatedAt, &u.UpdatedAt,
 		&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
 		&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
-		&studentOfJSON, &trainerOfJSON,
+		&studentOfJSON, &trainerOfJSON, &isFollowing,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -163,6 +165,9 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string) (*User, er
 		}
 		return nil, err
 	}
+
+	u.IsFollowing = &isFollowing
+
 	if len(studentOfJSON) > 0 {
 		json.Unmarshal(studentOfJSON, &u.StudentOf)
 	}
