@@ -30,6 +30,7 @@ var (
 	ErrInvalidCode        = errors.New("invalid code")
 	ErrTrainerNotFound    = errors.New("trainer not found")
 	ErrAlreadyVerified    = errors.New("email already verified")
+	ErrNotVerified        = errors.New("user not verified")
 )
 
 type UserService struct {
@@ -449,6 +450,34 @@ func (s *UserService) ResetPassword(ctx context.Context, userEmail, userCode, ne
 	user.Password = hashedPassword
 
 	return s.repo.Update(ctx, user)
+}
+
+func (s *UserService) ChangePassword(ctx context.Context, id, currentPassword, newPassword string) error {
+	u, err := s.repo.Find(ctx, id, "")
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return ErrUserNotFound
+	}
+
+	if !u.IsVerified {
+		return ErrNotVerified
+	}
+
+	ok, err := VerifyArgon2Password(currentPassword, u.Password)
+	if err != nil || !ok {
+		return ErrInvalidCredentials
+	}
+
+	hashedPassword, err := HashArgon2Password(newPassword)
+	if err != nil {
+		return err
+	}
+	u.Password = hashedPassword
+	u.UpdatedAt = time.Now().UTC()
+
+	return s.repo.Update(ctx, u)
 }
 
 func (s *UserService) UpdateProfile(

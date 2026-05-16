@@ -41,6 +41,7 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 		protected.GET("", h.ListUsers)
 		protected.GET("/:id", h.GetUser)
 		protected.PUT("/:id", h.UpdateProfile)
+		protected.PUT("/profile/password", h.ChangePassword)
 
 		protected.GET("/:id/followers", h.ListFollower)
 		protected.GET("/:id/following", h.ListFollowing)
@@ -292,6 +293,44 @@ func (h *UserHandler) Register(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *UserHandler) ChangePassword(ctx *gin.Context) {
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		CurrentPassword string `json:"currentPassword" binding:"required"`
+		NewPassword     string `json:"newPassword" binding:"required,min=8"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.srv.ChangePassword(ctx.Request.Context(), user.ID, body.CurrentPassword, body.NewPassword)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrNotVerified) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrInvalidCredentials) {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "senha atual incorreta"})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to change password", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change password"})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *UserHandler) UpdateProfile(ctx *gin.Context) {

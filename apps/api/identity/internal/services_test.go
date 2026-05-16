@@ -396,3 +396,73 @@ func TestUserService_VerifyEmail(t *testing.T) {
 	}
 }
 
+func TestUserService_ChangePassword(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	service := NewUserService(mockRepo)
+
+	hashedPassword, _ := HashArgon2Password("oldpassword123")
+
+	tests := []struct {
+		name            string
+		userId          string
+		currentPassword string
+		newPassword     string
+		mockBehavior    func()
+		wantErr         bool
+		expectedError   string
+	}{
+		{
+			name:            "Success change password",
+			userId:          "user-123",
+			currentPassword: "oldpassword123",
+			newPassword:     "newpassword123",
+			mockBehavior: func() {
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: true}, nil).Once()
+				mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *User) bool {
+					ok, _ := VerifyArgon2Password("newpassword123", u.Password)
+					return ok
+				})).Return(nil).Once()
+			},
+			wantErr: false,
+		},
+		{
+			name:            "Error: User not verified",
+			userId:          "user-123",
+			currentPassword: "oldpassword123",
+			newPassword:     "newpassword123",
+			mockBehavior: func() {
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: false}, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "user not verified",
+		},
+		{
+			name:            "Error: Incorrect current password",
+			userId:          "user-123",
+			currentPassword: "wrongpassword",
+			newPassword:     "newpassword123",
+			mockBehavior: func() {
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: true}, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "invalid credentials",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			err := service.ChangePassword(context.Background(), tt.userId, tt.currentPassword, tt.newPassword)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+
