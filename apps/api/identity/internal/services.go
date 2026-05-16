@@ -651,18 +651,28 @@ func (s *UserService) CountFollowing(ctx context.Context, id string) (int, error
 
 func (s *UserService) FollowUser(ctx context.Context, followerId, followingId string) error {
 	users, err := s.repo.ListByIDs(ctx, []string{followerId, followingId})
+	if err != nil {
+		return err
+	}
 
 	var follower, following *User
 	for _, user := range users {
-		if user.ID == &followerId {
-			follower = user
-		} else {
-			following = user
+		if user.ID != nil {
+			if *user.ID == followerId {
+				follower = user
+			}
+			if *user.ID == followingId {
+				following = user
+			}
 		}
 	}
 
+	if follower == nil {
+		return fmt.Errorf("seguidor não encontrado")
+	}
+
 	if following == nil {
-		return fmt.Errorf("usuario nao existe")
+		return fmt.Errorf("usuario para seguir não encontrado")
 	}
 
 	id, err := utils.GenerateUUIDV7(ctx)

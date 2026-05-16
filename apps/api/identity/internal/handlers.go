@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/log"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type UserHandler struct {
@@ -423,10 +424,7 @@ func (h *UserHandler) ListFollower(ctx *gin.Context) {
 		}
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       data,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(data, nextCursor))
 }
 
 func (h *UserHandler) ListFollowing(ctx *gin.Context) {
@@ -461,10 +459,7 @@ func (h *UserHandler) ListFollowing(ctx *gin.Context) {
 		}
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       data,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(data, nextCursor))
 }
 func (h *UserHandler) CountFollowers(ctx *gin.Context) {
 	id := ctx.Param("id")
@@ -608,10 +603,7 @@ func (h *UserHandler) ListStudents(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       users,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(users, nextCursor))
 }
 
 func (h *UserHandler) UnlinkStudent(ctx *gin.Context) {
@@ -683,10 +675,7 @@ func (h *UserHandler) ListBodyMeasurements(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       measurements,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(measurements, nextCursor))
 }
 
 func (h *UserHandler) AddGoalMetric(ctx *gin.Context) {
@@ -734,10 +723,7 @@ func (h *UserHandler) ListGoalsMetric(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       goals,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(goals, nextCursor))
 }
 
 func (h *UserHandler) ListGoalsMetricById(ctx *gin.Context) {
@@ -751,10 +737,7 @@ func (h *UserHandler) ListGoalsMetricById(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       goals,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(goals, nextCursor))
 }
 
 func (h *UserHandler) AddWeightLogNote(ctx *gin.Context) {
@@ -851,10 +834,7 @@ func (h *UserHandler) ListWeightLogs(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       logs,
-		"nextCursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(logs, nextCursor))
 }
 
 func (h *UserHandler) UploadProfilePicture(ctx *gin.Context) {

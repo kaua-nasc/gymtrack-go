@@ -423,3 +423,76 @@ func TestUserService_ChangePassword(t *testing.T) {
 		})
 	}
 }
+
+func TestUserService_FollowUser(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	service := NewUserService(mockRepo)
+
+	followerID := "follower-123"
+	followingID := "following-456"
+
+	tests := []struct {
+		name          string
+		followerID    string
+		followingID   string
+		mockBehavior  func()
+		wantErr       bool
+		expectedError string
+	}{
+		{
+			name:        "Success follow user",
+			followerID:  followerID,
+			followingID: followingID,
+			mockBehavior: func() {
+				mockRepo.On("ListByIDs", mock.Anything, []string{followerID, followingID}).Return([]*User{
+					{ID: strPtr(followerID)},
+					{ID: strPtr(followingID)},
+				}, nil).Once()
+				mockRepo.On("FollowUser", mock.Anything, mock.MatchedBy(func(f UserFollows) bool {
+					return *f.FollowerId == followerID && *f.FollowingId == followingID
+				})).Return(nil).Once()
+			},
+			wantErr: false,
+		},
+		{
+			name:        "Error: Following user not found",
+			followerID:  followerID,
+			followingID: followingID,
+			mockBehavior: func() {
+				mockRepo.On("ListByIDs", mock.Anything, []string{followerID, followingID}).Return([]*User{
+					{ID: strPtr(followerID)},
+				}, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "usuario para seguir não encontrado",
+		},
+		{
+			name:        "Error: Follower not found",
+			followerID:  followerID,
+			followingID: followingID,
+			mockBehavior: func() {
+				mockRepo.On("ListByIDs", mock.Anything, []string{followerID, followingID}).Return([]*User{
+					{ID: strPtr(followingID)},
+				}, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "seguidor não encontrado",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			err := service.FollowUser(context.Background(), tt.followerID, tt.followingID)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+

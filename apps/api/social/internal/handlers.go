@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type PostHandler struct {
@@ -31,7 +32,7 @@ func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
 func (h *PostHandler) createPost(ctx *gin.Context) {
 	var post Post
 	if err := ctx.ShouldBindJSON(&post); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -43,7 +44,7 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 	post.AuthorId = user.ID
 
 	if err := h.service.CreatePost(ctx.Request.Context(), &post, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -59,14 +60,11 @@ func (h *PostHandler) getFeed(ctx *gin.Context) {
 	cursor, limit := h.getPagination(ctx)
 	posts, nextCursor, err := h.service.GetFeed(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":   posts,
-		"cursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
 }
 
 func (h *PostHandler) toggleLike(ctx *gin.Context) {
@@ -77,7 +75,7 @@ func (h *PostHandler) toggleLike(ctx *gin.Context) {
 	}
 
 	if err := h.service.ToggleLike(ctx.Request.Context(), postId, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -93,7 +91,7 @@ func (h *PostHandler) addComment(ctx *gin.Context) {
 
 	var comment Comment
 	if err := ctx.ShouldBindJSON(&comment); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -101,7 +99,7 @@ func (h *PostHandler) addComment(ctx *gin.Context) {
 	comment.AuthorId = user.ID
 
 	if err := h.service.AddComment(ctx.Request.Context(), &comment, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -114,20 +112,17 @@ func (h *PostHandler) getComments(ctx *gin.Context) {
 
 	comments, nextCursor, err := h.service.GetComments(ctx.Request.Context(), postId, cursor, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":   comments,
-		"cursor": nextCursor,
-	})
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(comments, nextCursor))
 }
 
 func (h *PostHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
 		return auth.AuthUser{}, false
 	}
 
