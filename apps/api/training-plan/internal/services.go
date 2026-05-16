@@ -233,6 +233,14 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 		return nil, nil
 	}
 
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if ok {
+		sub, err := s.repo.FindSubscription(ctx, id, user.ID)
+		if err == nil && sub != nil {
+			plan.PlanSubscriptionStatus = string(sub.Status)
+		}
+	}
+
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 	authorIds := []string{plan.AuthorId}
 	authorsMap, err := s.identity.ListUser(ctx, &authorIds, token)
