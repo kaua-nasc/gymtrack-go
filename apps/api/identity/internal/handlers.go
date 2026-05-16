@@ -302,8 +302,29 @@ func (h *UserHandler) ListFollower(ctx *gin.Context) {
 		return
 	}
 
+	type followerResponse struct {
+		Id        string    `json:"id"`
+		FirstName string    `json:"firstName"`
+		LastName  string    `json:"lastName"`
+		Email     string    `json:"email"`
+		Type      UserType  `json:"type"`
+		CreatedAt time.Time `json:"createdAt"`
+	}
+
+	data := make([]followerResponse, len(users))
+	for i, u := range users {
+		data[i] = followerResponse{
+			Id:        u.ID,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+			Email:     u.Email,
+			Type:      u.Type,
+			CreatedAt: u.CreatedAt,
+		}
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"data":       users,
+		"data":       data,
 		"nextCursor": nextCursor,
 	})
 }
@@ -319,8 +340,29 @@ func (h *UserHandler) ListFollowing(ctx *gin.Context) {
 		return
 	}
 
+	type followerResponse struct {
+		Id        string    `json:"id"`
+		FirstName string    `json:"firstName"`
+		LastName  string    `json:"lastName"`
+		Email     string    `json:"email"`
+		Type      UserType  `json:"type"`
+		CreatedAt time.Time `json:"createdAt"`
+	}
+
+	data := make([]followerResponse, len(users))
+	for i, u := range users {
+		data[i] = followerResponse{
+			Id:        u.ID,
+			FirstName: u.FirstName,
+			LastName:  u.LastName,
+			Email:     u.Email,
+			Type:      u.Type,
+			CreatedAt: u.CreatedAt,
+		}
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"data":       users,
+		"data":       data,
 		"nextCursor": nextCursor,
 	})
 }
