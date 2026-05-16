@@ -42,15 +42,13 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 		}
 	}
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
-	idStr := id.String()
 	now := time.Now().UTC()
-	post.Id = &idStr
+	post.Id = id
 	post.AuthorId = authorId
 	post.CreatedAt = now
 	post.UpdatedAt = now
@@ -111,15 +109,13 @@ func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId
 		return fmt.Errorf("failed to verify author existence: %w", err)
 	}
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
-	idStr := id.String()
 	now := time.Now().UTC()
-	comment.Id = &idStr
+	comment.Id = id
 	comment.AuthorId = authorId
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
@@ -155,4 +151,16 @@ func (s *PostService) GetComments(ctx context.Context, postId string) ([]Comment
 	}
 
 	return comments, nil
+}
+
+func (s *PostService) generateUuid(ctx context.Context) (*string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return nil, fmt.Errorf("error on generate uuid")
+	}
+
+	idStr := id.String()
+
+	return &idStr, nil
 }

@@ -55,7 +55,7 @@ const (
 
 // User Entity
 type User struct {
-	ID                string     `json:"id" validate:"uuid"`
+	ID                *string    `json:"id" validate:"uuid"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
 	FirstName         string     `json:"firstName" validate:"required,min=1,max=255"`
@@ -120,10 +120,10 @@ type MetricGoal struct {
 
 // TrainerStudentRelation Entity
 type TrainerStudentRelation struct {
-	ID        string    `json:"id" validate:"required,uuid"`
+	ID        *string   `json:"id" validate:"required,uuid"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
-	TrainerId string    `json:"trainerId" validate:"required,uuid"`
+	TrainerId *string   `json:"trainerId" validate:"required,uuid"`
 	StudentId string    `json:"studentId" validate:"required,uuid"`
 	LinkedAt  time.Time `json:"linkedAt" validate:"required"`
 
@@ -134,11 +134,11 @@ type TrainerStudentRelation struct {
 
 // UserFollows Entity
 type UserFollows struct {
-	ID          string    `json:"id" validate:"required,uuid"`
+	ID          *string   `json:"id" validate:"required,uuid"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
-	FollowerId  string    `json:"followerId" validate:"required,uuid"`
-	FollowingId string    `json:"followingId" validate:"required,uuid"`
+	FollowerId  *string   `json:"followerId" validate:"required,uuid"`
+	FollowingId *string   `json:"followingId" validate:"required,uuid"`
 
 	// Relations
 	Follower  *User `json:"follower,omitempty"`

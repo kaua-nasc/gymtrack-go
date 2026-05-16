@@ -64,14 +64,12 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	}
 	plan.Visibility = Private
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return nil, fmt.Errorf("error on generate uuid")
+		return nil, err
 	}
-	idStr := id.String()
 	now := time.Now().UTC()
-	plan.Id = &idStr
+	plan.Id = id
 	plan.AuthorId = user.ID
 	plan.CreatedAt = now
 	plan.UpdatedAt = now
@@ -108,14 +106,13 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 }
 
 func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
 	now := time.Now().UTC()
-	day.Id = id.String()
+	day.Id = *id
 	day.CreatedAt = now
 	day.UpdatedAt = now
 	if err := s.repo.CreateDay(ctx, &day); err != nil {
@@ -127,14 +124,13 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 }
 
 func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) error {
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
 	now := time.Now().UTC()
-	e.Id = id.String()
+	e.Id = *id
 	e.CreatedAt = now
 	e.UpdatedAt = now
 	if err := s.repo.CreateExercise(ctx, &e); err != nil {
@@ -430,14 +426,13 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		return errors.New("training plan is incomplete (must have at least one day and one exercise)")
 	}
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 	now := time.Now().UTC()
 	sub := &PlanSubscription{
-		Id:             id.String(),
+		Id:             *id,
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Status:         NotStarted,
@@ -471,6 +466,7 @@ func (s *TrainingPlanService) Unsubscribe(ctx context.Context, planId, userId st
 		slog.ErrorContext(ctx, "failed to delete plan subscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
 	}
+
 	return nil
 }
 
@@ -546,14 +542,13 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId string, rating float64, message *string) error {
 	slog.InfoContext(ctx, "adding feedback to plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Float64("rating", rating))
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 	now := time.Now().UTC()
 	feedback := &TrainingPlanFeedback{
-		Id:             id.String(),
+		Id:             *id,
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Rating:         rating,
@@ -571,15 +566,14 @@ func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId st
 func (s *TrainingPlanService) LogExercise(ctx context.Context, exerciseId, userId string, reps []int, weight []float64, notes *string) error {
 	slog.InfoContext(ctx, "logging exercise", slog.String("exercise_id", exerciseId), slog.String("user_id", userId))
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
 	now := time.Now().UTC()
 	log := &ExerciseLog{
-		Id:         id.String(),
+		Id:         *id,
 		UserId:     userId,
 		ExerciseId: exerciseId,
 		Reps:       reps,
@@ -626,4 +620,16 @@ func (s *TrainingPlanService) ListActivityWeekly(ctx context.Context, userId str
 	activity.Sun = trainedDates[startOfWeek.AddDate(0, 0, 6).Format("2006-01-02")]
 
 	return activity, nil
+}
+
+func (s *TrainingPlanService) generateUuid(ctx context.Context) (*string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return nil, fmt.Errorf("error on generate uuid")
+	}
+
+	idStr := id.String()
+
+	return &idStr, nil
 }

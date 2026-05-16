@@ -25,18 +25,14 @@ func (m *MockUserRepository) Update(ctx context.Context, u *User) error {
 
 func (m *MockUserRepository) Find(ctx context.Context, id string, currentUserId string) (*User, error) {
 	args := m.Called(ctx, id, currentUserId)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*User), args.Error(1)
+	user, _ := args.Get(0).(*User)
+	return user, args.Error(1)
 }
 
 func (m *MockUserRepository) FindByEmail(ctx context.Context, email string) (*User, error) {
 	args := m.Called(ctx, email)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*User), args.Error(1)
+	user, _ := args.Get(0).(*User)
+	return user, args.Error(1)
 }
 
 func (m *MockUserRepository) SaveResetCode(ctx context.Context, code, email string) error {
@@ -61,35 +57,21 @@ func (m *MockUserRepository) GetVerificationCode(ctx context.Context, email stri
 
 func (m *MockUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
 	args := m.Called(ctx, ids)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*User), args.Error(1)
+	users, _ := args.Get(0).([]*User)
+	return users, args.Error(1)
 }
 
 func (m *MockUserRepository) ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
-	var users []*User
-	if args.Get(0) != nil {
-		users = args.Get(0).([]*User)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	users, _ := args.Get(0).([]*User)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
 func (m *MockUserRepository) ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
-	var users []*User
-	if args.Get(0) != nil {
-		users = args.Get(0).([]*User)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	users, _ := args.Get(0).([]*User)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
@@ -120,10 +102,8 @@ func (m *MockUserRepository) CreateTrainerCode(ctx context.Context, id, code str
 
 func (m *MockUserRepository) FindByTrainerCode(ctx context.Context, code string) (*User, error) {
 	args := m.Called(ctx, code)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*User), args.Error(1)
+	user, _ := args.Get(0).(*User)
+	return user, args.Error(1)
 }
 
 func (m *MockUserRepository) LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error {
@@ -138,14 +118,8 @@ func (m *MockUserRepository) UnlinkTrainer(ctx context.Context, studentId string
 
 func (m *MockUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
 	args := m.Called(ctx, trainerId, cursor, limit)
-	var users []*User
-	if args.Get(0) != nil {
-		users = args.Get(0).([]*User)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	users, _ := args.Get(0).([]*User)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
@@ -156,22 +130,14 @@ func (m *MockUserRepository) AddBodyMeasurementNote(ctx context.Context, id, not
 
 func (m *MockUserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
 	args := m.Called(ctx, userId)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*BodyMeasurement), args.Error(1)
+	measurement, _ := args.Get(0).(*BodyMeasurement)
+	return measurement, args.Error(1)
 }
 
 func (m *MockUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
 	args := m.Called(ctx, userId, cursor, limit)
-	var measurements []*BodyMeasurement
-	if args.Get(0) != nil {
-		measurements = args.Get(0).([]*BodyMeasurement)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	measurements, _ := args.Get(0).([]*BodyMeasurement)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return measurements, nextCursor, args.Error(2)
 }
 
@@ -196,14 +162,8 @@ func (m *MockUserRepository) ChangeProfileImage(ctx context.Context, u User, pic
 
 func (m *MockUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
-	var goals []*MetricGoal
-	if args.Get(0) != nil {
-		goals = args.Get(0).([]*MetricGoal)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	goals, _ := args.Get(0).([]*MetricGoal)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return goals, nextCursor, args.Error(2)
 }
 
@@ -213,15 +173,13 @@ func (m *MockUserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) er
 
 func (m *MockUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
 	args := m.Called(ctx, userId, cursor, limit)
-	var logs []*WeightLog
-	if args.Get(0) != nil {
-		logs = args.Get(0).([]*WeightLog)
-	}
-	var nextCursor *CursorData
-	if args.Get(1) != nil {
-		nextCursor = args.Get(1).(*CursorData)
-	}
+	logs, _ := args.Get(0).([]*WeightLog)
+	nextCursor, _ := args.Get(1).(*CursorData)
 	return logs, nextCursor, args.Error(2)
+}
+
+func strPtr(s string) *string {
+	return &s
 }
 
 func TestUserService_Register(t *testing.T) {
@@ -255,7 +213,7 @@ func TestUserService_Register(t *testing.T) {
 				Email: "existing@example.com",
 			},
 			mockBehavior: func() {
-				mockRepo.On("FindByEmail", mock.Anything, "existing@example.com").Return(&User{ID: "123"}, nil).Once()
+				mockRepo.On("FindByEmail", mock.Anything, "existing@example.com").Return(&User{ID: strPtr("123")}, nil).Once()
 			},
 			wantErr:       true,
 			expectedError: "user already exists",
@@ -321,7 +279,7 @@ func TestUserService_SendVerificationEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockBehavior()
-			
+
 			// Set dummy env vars to avoid error in email.Send (or at least avoid immediate return)
 			t.Setenv("AZURE_EMAIL_CONNECTION_STRING", "Endpoint=https://test.com;AccessKey=dGVzdA==")
 			t.Setenv("AZURE_EMAIL_SENDER_ADDRESS", "test@test.com")
@@ -417,7 +375,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 			currentPassword: "oldpassword123",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: true}, nil).Once()
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: strPtr("user-123"), Password: hashedPassword, IsVerified: true}, nil).Once()
 				mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *User) bool {
 					ok, _ := VerifyArgon2Password("newpassword123", u.Password)
 					return ok
@@ -431,7 +389,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 			currentPassword: "oldpassword123",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: false}, nil).Once()
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: strPtr("user-123"), Password: hashedPassword, IsVerified: false}, nil).Once()
 			},
 			wantErr:       true,
 			expectedError: "user not verified",
@@ -442,7 +400,7 @@ func TestUserService_ChangePassword(t *testing.T) {
 			currentPassword: "wrongpassword",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: "user-123", Password: hashedPassword, IsVerified: true}, nil).Once()
+				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&User{ID: strPtr("user-123"), Password: hashedPassword, IsVerified: true}, nil).Once()
 			},
 			wantErr:       true,
 			expectedError: "invalid credentials",
@@ -464,5 +422,3 @@ func TestUserService_ChangePassword(t *testing.T) {
 		})
 	}
 }
-
-

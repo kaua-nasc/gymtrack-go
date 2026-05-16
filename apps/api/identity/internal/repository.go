@@ -309,7 +309,7 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 	var nextCursor *CursorData
 	if len(users) > limit {
 		nextCursor = &CursorData{
-			ID:        users[limit].ID,
+			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
 		users = users[:limit]
@@ -392,7 +392,7 @@ func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, c
 	var nextCursor *CursorData
 	if len(users) > limit {
 		nextCursor = &CursorData{
-			ID:        users[limit].ID,
+			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
 		users = users[:limit]
@@ -437,7 +437,7 @@ func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cu
 	var nextCursor *CursorData
 	if len(users) > limit {
 		nextCursor = &CursorData{
-			ID:        users[limit].ID,
+			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
 		users = users[:limit]

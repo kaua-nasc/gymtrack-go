@@ -414,7 +414,7 @@ func (h *UserHandler) ListFollower(ctx *gin.Context) {
 	data := make([]followerResponse, len(users))
 	for i, u := range users {
 		data[i] = followerResponse{
-			Id:        u.ID,
+			Id:        *u.ID,
 			FirstName: u.FirstName,
 			LastName:  u.LastName,
 			Email:     u.Email,
@@ -452,7 +452,7 @@ func (h *UserHandler) ListFollowing(ctx *gin.Context) {
 	data := make([]followerResponse, len(users))
 	for i, u := range users {
 		data[i] = followerResponse{
-			Id:        u.ID,
+			Id:        *u.ID,
 			FirstName: u.FirstName,
 			LastName:  u.LastName,
 			Email:     u.Email,

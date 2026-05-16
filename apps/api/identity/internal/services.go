@@ -56,13 +56,13 @@ func (s *UserService) Register(ctx context.Context, u User) error {
 	}
 	u.Password = hashedPassword
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
+
 	now := time.Now().UTC()
-	u.ID = id.String()
+	u.ID = id
 	u.CreatedAt = now
 	u.UpdatedAt = now
 	u.Type = Client
@@ -671,7 +671,7 @@ func (s *UserService) FollowUser(ctx context.Context, followerId, followingId st
 
 	var follower, following *User
 	for _, user := range users {
-		if user.ID == followerId {
+		if user.ID == &followerId {
 			follower = user
 		} else {
 			following = user
@@ -682,15 +682,14 @@ func (s *UserService) FollowUser(ctx context.Context, followerId, followingId st
 		return fmt.Errorf("usuario nao existe")
 	}
 
-	id, err := uuid.NewV7()
+	id, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
 	now := time.Now().UTC()
 	follow := &UserFollows{
-		ID:          id.String(),
+		ID:          id,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		FollowerId:  follower.ID,
@@ -726,14 +725,13 @@ func (s *UserService) LinkTrainer(ctx context.Context, id, code string) error {
 	}
 
 	now := time.Now().UTC()
-	createdId, err := uuid.NewV7()
+	newId, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
 	relation := &TrainerStudentRelation{
-		ID:        createdId.String(),
+		ID:        newId,
 		CreatedAt: now,
 		UpdatedAt: now,
 		TrainerId: trainer.ID,
@@ -895,13 +893,12 @@ func (s *UserService) ListGoalsMetric(ctx context.Context, userId, cursor string
 
 func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error {
 	now := time.Now().UTC()
-	createdId, err := uuid.NewV7()
+	newId, err := s.generateUuid(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
+		return err
 	}
 
-	goal.ID = createdId.String()
+	goal.ID = *newId
 	goal.CreatedAt = now
 	goal.UpdatedAt = now
 	goal.Status = MetricGoalActive
@@ -936,4 +933,16 @@ func (s *UserService) ListWeightLogs(ctx context.Context, userId, cursor string,
 	}
 
 	return logs, nextCursorStr, nil
+}
+
+func (s *UserService) generateUuid(ctx context.Context) (*string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
+		return nil, fmt.Errorf("error on generate uuid")
+	}
+
+	idStr := id.String()
+
+	return &idStr, nil
 }
