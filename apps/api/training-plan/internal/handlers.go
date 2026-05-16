@@ -36,13 +36,6 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.DELETE("/:id", h.DeletePlan)
 		plans.GET("/exists/:id", h.ExistsPlan)
 
-		plans.POST("/:id/like", h.LikePlan)
-		plans.DELETE("/:id/like", h.UnlikePlan)
-
-		plans.GET("/:id/comments", h.ListPlanComment)
-		plans.POST("/:id/comments", h.AddPlanComment)
-		plans.DELETE("/:id/comments/:commentId", h.RemovePlanComment)
-
 		plans.GET("/subscriptions", h.ListSubscription)
 		plans.GET("/subscriptions/:userId", h.ListSubscriptionByUserId)
 		plans.POST("/:id/subscriptions", h.Subscribe)
@@ -382,97 +375,6 @@ func (h *TrainingPlanHandler) GetPlan(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, plan)
-}
-
-func (h *TrainingPlanHandler) LikePlan(ctx *gin.Context) {
-	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	if err := h.srv.LikePlan(ctx.Request.Context(), id, user.ID); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to like plan", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to like plan"})
-		return
-	}
-
-	ctx.Status(http.StatusNoContent)
-}
-
-func (h *TrainingPlanHandler) UnlikePlan(ctx *gin.Context) {
-	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	if err := h.srv.UnlikePlan(ctx.Request.Context(), id, user.ID); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to unlike plan", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to unlike plan"})
-		return
-	}
-
-	ctx.Status(http.StatusNoContent)
-}
-
-func (h *TrainingPlanHandler) ListPlanComment(ctx *gin.Context) {
-	id := ctx.Param("id")
-	cursor, limit := h.getPagination(ctx)
-
-	comments, nextCursor, err := h.srv.ListPlanComments(ctx.Request.Context(), id, cursor, limit)
-	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to list plan comments", slog.Any("error", err), slog.String("plan_id", id))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":       comments,
-		"nextCursor": nextCursor,
-	})
-}
-
-func (h *TrainingPlanHandler) AddPlanComment(ctx *gin.Context) {
-	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	var body struct {
-		Message string `json:"message" binding:"required"`
-	}
-
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	comment, err := h.srv.AddPlanComment(ctx.Request.Context(), id, body.Message, user.ID)
-	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to add plan comment", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add comment"})
-		return
-	}
-
-	ctx.JSON(http.StatusCreated, comment)
-}
-
-func (h *TrainingPlanHandler) RemovePlanComment(ctx *gin.Context) {
-	commentId := ctx.Param("commentId")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	if err := h.srv.RemovePlanComment(ctx.Request.Context(), commentId, user.ID); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to remove plan comment", slog.Any("error", err), slog.String("comment_id", commentId), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove comment"})
-		return
-	}
-
-	ctx.Status(http.StatusNoContent)
 }
 
 func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {

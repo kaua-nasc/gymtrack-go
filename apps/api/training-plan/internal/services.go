@@ -303,32 +303,9 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	var likesMap map[string]int
-	var userLikesSet map[string]bool
 	var authorsMap map[string]*any
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
-
-	g.Go(func() error {
-		var err error
-		likesMap, err = s.repo.LikesCount(ctx, &planIDs)
-		if err != nil {
-			slog.WarnContext(ctx, "failed to fetch likes count", slog.Any("error", err))
-		}
-		return err
-	})
-
-	g.Go(func() error {
-		if authorId == "" {
-			return nil
-		}
-		var err error
-		userLikesSet, err = s.repo.LikesByUser(ctx, &planIDs, &authorId)
-		if err != nil {
-			slog.WarnContext(ctx, "failed to fetch user likes", slog.String("user_id", authorId), slog.Any("error", err))
-		}
-		return err
-	})
 
 	g.Go(func() error {
 		var err error
@@ -347,8 +324,6 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 	// Hydration
 	for _, p := range plans {
 		p.Author = authorsMap[p.AuthorId]
-		p.LikesCount = likesMap[*p.Id]
-		p.LikedByCurrentUser = userLikesSet[*p.Id]
 	}
 
 	// Encode cursor
@@ -359,143 +334,6 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 	}
 
 	return plans, nextCursorStr, nil
-}
-
-func (s *TrainingPlanService) LikePlan(ctx context.Context, planId string, userId string) error {
-	slog.InfoContext(ctx, "liking training plan", slog.String("plan_id", planId), slog.String("user_id", userId))
-
-	id, err := uuid.NewV7()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
-		return fmt.Errorf("error on generate uuid")
-	}
-	now := time.Now().UTC()
-	like := &TrainingPlanLike{
-		Id:             id.String(),
-		LikedBy:        userId,
-		TrainingPlanId: planId,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
-	if err := s.repo.LikePlan(ctx, like); err != nil {
-		slog.ErrorContext(ctx, "failed to like plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
-		return err
-	}
-	return nil
-}
-
-func (s *TrainingPlanService) UnlikePlan(ctx context.Context, planId string, userId string) error {
-	slog.InfoContext(ctx, "unliking training plan", slog.String("plan_id", planId), slog.String("user_id", userId))
-
-	if err := s.repo.UnlikePlan(ctx, planId, userId); err != nil {
-		slog.ErrorContext(ctx, "failed to unlike plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
-		return err
-	}
-	return nil
-}
-
-func (s *TrainingPlanService) AddPlanComment(ctx context.Context, planId, content, userId string) (*TrainingPlanComment, error) {
-	slog.InfoContext(ctx, "adding comment to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
-
-	id, err := uuid.NewV7()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for comment", slog.Any("error", err))
-		return nil, fmt.Errorf("error on generate uuid")
-	}
-	now := time.Now().UTC()
-	comment := &TrainingPlanComment{
-		Id:             id.String(),
-		Content:        content,
-		AuthorId:       userId,
-		TrainingPlanId: planId,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-	}
-	if err := s.repo.AddPlanComment(ctx, comment); err != nil {
-		slog.ErrorContext(ctx, "failed to add comment to plan", slog.String("plan_id", planId), slog.Any("error", err))
-		return nil, err
-	}
-	return comment, nil
-}
-
-func (s *TrainingPlanService) RemovePlanComment(ctx context.Context, commentId, userId string) error {
-	slog.InfoContext(ctx, "removing comment from plan", slog.String("comment_id", commentId), slog.String("user_id", userId))
-
-	comment, err := s.repo.FindComment(ctx, commentId)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to find comment", slog.String("comment_id", commentId), slog.Any("error", err))
-		return err
-	}
-	if comment == nil {
-		slog.WarnContext(ctx, "comment not found for removal", slog.String("comment_id", commentId))
-		return errors.New("comment not found")
-	}
-
-	// Check if the user is the author of the comment
-	if comment.AuthorId != userId {
-		// Optional: Check if the user is the author of the plan
-		plan, err := s.repo.Find(ctx, comment.TrainingPlanId)
-		if err != nil || plan == nil || plan.AuthorId != userId {
-			slog.WarnContext(ctx, "unauthorized attempt to remove comment", slog.String("comment_id", commentId), slog.String("user_id", userId))
-			return errors.New("you are not authorized to remove this comment")
-		}
-	}
-
-	if err := s.repo.RemovePlanComment(ctx, commentId); err != nil {
-		slog.ErrorContext(ctx, "failed to remove comment", slog.String("comment_id", commentId), slog.Any("error", err))
-		return err
-	}
-	return nil
-}
-
-func (s *TrainingPlanService) ListPlanComments(ctx context.Context, planId, cursor string, limit int) ([]*TrainingPlanComment, string, error) {
-	slog.InfoContext(ctx, "listing plan comments", slog.String("plan_id", planId), slog.Int("limit", limit))
-
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		} else {
-			slog.WarnContext(ctx, "failed to decode cursor for comments", slog.String("cursor", cursor), slog.Any("error", err))
-		}
-	}
-
-	comments, rawNextCursor, err := s.repo.ListPlanComments(ctx, planId, decodedCursor, limit)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to list plan comments", slog.String("plan_id", planId), slog.Any("error", err))
-		return nil, "", err
-	}
-
-	if len(comments) > 0 {
-		authorIDsMap := make(map[string]bool)
-		for _, c := range comments {
-			authorIDsMap[c.AuthorId] = true
-		}
-		var authorIDs []string
-		for id := range authorIDsMap {
-			authorIDs = append(authorIDs, id)
-		}
-
-		token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
-		authorsMap, err := s.identity.ListUser(ctx, &authorIDs, token)
-		if err == nil {
-			for _, c := range comments {
-				c.Author = authorsMap[c.AuthorId]
-			}
-		} else {
-			slog.WarnContext(ctx, "failed to fetch authors for comments", slog.Any("error", err))
-		}
-	}
-
-	// Encode cursor
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
-	return comments, nextCursorStr, nil
 }
 
 func (s *TrainingPlanService) authorizeAccess(ctx context.Context, plan *TrainingPlan) error {

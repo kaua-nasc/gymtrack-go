@@ -22,3 +22,15 @@ services:
     env_file:
       - .env
     image: kaiannn/gymtrack-training-plan:latest
+
+  social:
+    build:
+      context: .
+      dockerfile: apps/api/social/Dockerfile
+    container_name: gymtrack-social
+    restart: always
+    ports:
+      - "8082:80"
+    env_file:
+      - .env
+    image: kaiannn/gymtrack-social:latest

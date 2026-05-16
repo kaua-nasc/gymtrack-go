@@ -117,13 +117,9 @@ type TrainingPlan struct {
 	AccessRequests      []PlanAccessRequest    `json:"accessRequests,omitempty"`
 	PrivateParticipants []PlanParticipant      `json:"privateParticipants,omitempty"`
 	Feedbacks           []TrainingPlanFeedback `json:"feedbacks,omitempty"`
-	Likes               []TrainingPlanLike     `json:"likes,omitempty"`
-	Comments            []TrainingPlanComment  `json:"comments,omitempty"`
 	Invites             []PlanInvite           `json:"invites,omitempty"`
 
 	// Computed/Virtual Fields
-	LikesCount             int    `json:"likesCount"`
-	LikedByCurrentUser     bool   `json:"likedByCurrentUser"`
 	PlanSubscriptionStatus string `json:"planSubscriptionStatus"`
 	Author                 any    `json:"author,omitempty"`
 }
@@ -228,34 +224,6 @@ type TrainingPlanFeedback struct {
 
 	// Relations
 	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-}
-
-// TrainingPlanLike Entity
-type TrainingPlanLike struct {
-	Id             string    `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-	LikedBy        string    `json:"likedBy" validate:"required,uuid"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
-
-	// Relations
-	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-}
-
-// TrainingPlanComment Entity
-type TrainingPlanComment struct {
-	Id             string    `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-	Content        string    `json:"content" validate:"required"`
-	AuthorId       string    `json:"authorId" validate:"required,uuid"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
-
-	// Relations
-	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-
-	// Virtual fields
-	Author any `json:"author,omitempty"`
 }
 
 // PlanInvite Entity

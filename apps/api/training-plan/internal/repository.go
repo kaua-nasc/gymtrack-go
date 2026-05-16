@@ -22,14 +22,6 @@ type TrainingPlanRepository interface {
 	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error)
 	List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error)
-	LikesCount(ctx context.Context, ids *[]string) (map[string]int, error)
-	LikesByUser(ctx context.Context, ids *[]string, userId *string) (map[string]bool, error)
-	LikePlan(ctx context.Context, like *TrainingPlanLike) error
-	UnlikePlan(ctx context.Context, planId, userId string) error
-	AddPlanComment(ctx context.Context, c *TrainingPlanComment) error
-	FindComment(ctx context.Context, id string) (*TrainingPlanComment, error)
-	RemovePlanComment(ctx context.Context, commentId string) error
-	ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error)
 	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
 	FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error)
 	CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error
@@ -189,64 +181,6 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 	return plans, nextCursor, nil
 }
 
-func (r *PostgresTrainingPlanRepository) LikesCount(ctx context.Context, ids *[]string) (map[string]int, error) {
-	if ids == nil || len(*ids) == 0 {
-		return map[string]int{}, nil
-	}
-
-	query := `
-		SELECT "trainingPlanId", COUNT(*) 
-		FROM training_plan_likes 
-		WHERE "trainingPlanId" = ANY($1) 
-		GROUP BY "trainingPlanId"`
-
-	rows, err := r.db.QueryContext(ctx, query, pq.Array(*ids))
-	if err != nil {
-		return nil, fmt.Errorf("could not count likes: %w", err)
-	}
-	defer rows.Close()
-
-	counts := make(map[string]int)
-	for rows.Next() {
-		var id string
-		var count int
-		if err := rows.Scan(&id, &count); err != nil {
-			return nil, err
-		}
-		counts[id] = count
-	}
-
-	return counts, nil
-}
-
-func (r *PostgresTrainingPlanRepository) LikesByUser(ctx context.Context, ids *[]string, userId *string) (map[string]bool, error) {
-	if ids == nil || len(*ids) == 0 || userId == nil || *userId == "" {
-		return map[string]bool{}, nil
-	}
-
-	query := `
-		SELECT "trainingPlanId" 
-		FROM training_plan_likes 
-		WHERE "likedBy" = $1 AND "trainingPlanId" = ANY($2)`
-
-	rows, err := r.db.QueryContext(ctx, query, *userId, pq.Array(*ids))
-	if err != nil {
-		return nil, fmt.Errorf("could not check likes by user: %w", err)
-	}
-	defer rows.Close()
-
-	likes := make(map[string]bool)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		likes[id] = true
-	}
-
-	return likes, nil
-}
-
 // Day Methods
 func (r *PostgresTrainingPlanRepository) CreateDay(ctx context.Context, d *Day) error {
 	query := `INSERT INTO days (id, name, "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
@@ -339,98 +273,6 @@ func (r *PostgresTrainingPlanRepository) ListExercisesByDay(ctx context.Context,
 		exercises = append(exercises, e)
 	}
 	return exercises, nil
-}
-
-func (r *PostgresTrainingPlanRepository) LikePlan(ctx context.Context, like *TrainingPlanLike) error {
-	query := `INSERT INTO training_plan_likes (id, "likedBy", "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5)`
-	_, err := r.db.ExecContext(ctx, query, like.Id, like.LikedBy, like.TrainingPlanId, like.CreatedAt, like.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("could not like plan: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresTrainingPlanRepository) UnlikePlan(ctx context.Context, planId, userId string) error {
-	query := `DELETE FROM training_plan_likes WHERE "trainingPlanId" = $1 AND "likedBy" = $2`
-	_, err := r.db.ExecContext(ctx, query, planId, userId)
-	if err != nil {
-		return fmt.Errorf("could not unlike plan: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresTrainingPlanRepository) AddPlanComment(ctx context.Context, c *TrainingPlanComment) error {
-	query := `INSERT INTO training_plan_comments (id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
-	_, err := r.db.ExecContext(ctx, query, c.Id, c.Content, c.AuthorId, c.TrainingPlanId, c.CreatedAt, c.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("could not add comment: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresTrainingPlanRepository) RemovePlanComment(ctx context.Context, commentId string) error {
-	query := `DELETE FROM training_plan_comments WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, commentId)
-	if err != nil {
-		return fmt.Errorf("could not remove comment: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresTrainingPlanRepository) FindComment(ctx context.Context, id string) (*TrainingPlanComment, error) {
-	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE id = $1 LIMIT 1`
-	var c TrainingPlanComment
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&c.Id, &c.Content, &c.AuthorId, &c.TrainingPlanId, &c.CreatedAt, &c.UpdatedAt)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("could not find comment: %w", err)
-	}
-	return &c, nil
-}
-
-func (r *PostgresTrainingPlanRepository) ListPlanComments(ctx context.Context, planId string, cursor *CursorData, limit int) ([]*TrainingPlanComment, *CursorData, error) {
-	query := `SELECT id, content, "authorId", "trainingPlanId", "createdAt", "updatedAt" FROM training_plan_comments WHERE "trainingPlanId" = $1`
-
-	var args []interface{}
-	args = append(args, planId)
-
-	if cursor != nil {
-		query += ` AND ("createdAt", id) < ($2, $3)`
-		args = append(args, cursor.CreatedAt, cursor.ID)
-	}
-
-	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
-	args = append(args, limit+1)
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	comments := make([]*TrainingPlanComment, 0)
-	for rows.Next() {
-		c := &TrainingPlanComment{}
-		err := rows.Scan(&c.Id, &c.Content, &c.AuthorId, &c.TrainingPlanId, &c.CreatedAt, &c.UpdatedAt)
-		if err != nil {
-			return nil, nil, err
-		}
-		comments = append(comments, c)
-	}
-
-	var nextCursor *CursorData
-	if len(comments) > limit {
-		lastItem := comments[limit-1]
-		nextCursor = &CursorData{
-			ID:        lastItem.Id,
-			CreatedAt: lastItem.CreatedAt,
-		}
-		comments = comments[:limit]
-	}
-
-	return comments, nextCursor, nil
 }
 
 func (r *PostgresTrainingPlanRepository) ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error) {

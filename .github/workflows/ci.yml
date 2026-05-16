@@ -2,9 +2,9 @@ name: CI Quality Check
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   lint-test:
@@ -17,13 +17,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: "1.26"
           cache: true
 
       - name: Run Tests
         run: |
           go test -v ./apps/api/identity/...
           go test -v ./apps/api/training-plan/...
+          go test -v ./apps/api/social/...
           go test -v ./libs/auth/...
           go test -v ./libs/db/...
           go test -v ./libs/config/...
