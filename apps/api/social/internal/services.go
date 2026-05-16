@@ -7,6 +7,7 @@ import (
 
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
+	"golang.org/x/sync/errgroup"
 )
 
 type PostService struct {
@@ -26,19 +27,32 @@ func NewPostService(repo *PostRepository, identity *IdentityService, trainingPla
 func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId string) error {
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 
+	g, ctx := errgroup.WithContext(ctx)
+
 	// Validate author existence
-	if _, err := s.identity.FindUser(ctx, authorId, token); err != nil {
-		return fmt.Errorf("failed to verify author existence: %w", err)
+	g.Go(func() error {
+		if _, err := s.identity.FindUser(ctx, authorId, token); err != nil {
+			return fmt.Errorf("failed to verify author existence: %w", err)
+		}
+		return nil
+	})
+
+	// Validate training plan existence (if applicable)
+	if post.EntityType != nil && *post.EntityType == TrainingPlanPost && post.EntityId != nil {
+		g.Go(func() error {
+			plan, err := s.trainingPlan.FindPlan(ctx, *post.EntityId, token)
+			if err != nil {
+				return fmt.Errorf("failed to verify training plan existence: %w", err)
+			}
+			if plan == nil {
+				return fmt.Errorf("training plan with id %s not found", *post.EntityId)
+			}
+			return nil
+		})
 	}
 
-	if post.EntityType == TrainingPlanPost {
-		plan, err := s.trainingPlan.FindPlan(ctx, post.EntityId, token)
-		if err != nil {
-			return fmt.Errorf("failed to verify training plan existence: %w", err)
-		}
-		if plan == nil {
-			return fmt.Errorf("training plan with id %s not found", post.EntityId)
-		}
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
 	id, err := utils.GenerateUUIDV7(ctx)
@@ -87,8 +101,8 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 			}
 
 			// Hydrate TrainingPlan if entityType is TRAINING_PLAN
-			if posts[i].EntityType == TrainingPlanPost {
-				plan, err := s.trainingPlan.FindPlan(ctx, posts[i].EntityId, token)
+			if posts[i].EntityType != nil && *posts[i].EntityType == TrainingPlanPost && posts[i].EntityId != nil {
+				plan, err := s.trainingPlan.FindPlan(ctx, *posts[i].EntityId, token)
 				if err == nil && plan != nil {
 					posts[i].TrainingPlan = plan
 				}

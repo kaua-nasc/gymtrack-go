@@ -17,10 +17,10 @@ func NewPostRepository(db *sql.DB) *PostRepository {
 
 func (r *PostRepository) Create(post *Post) error {
 	query := `
-		INSERT INTO public.posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType")
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-	`
-	_, err := r.db.Exec(query, post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType)
+        INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType")
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `
+	_, err := r.db.Exec(query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType)
 	return err
 }
 
@@ -31,7 +31,7 @@ func (r *PostRepository) FindAll(currentUserId string, cursor *utils.CursorData,
 			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
-		FROM public.posts p
+		FROM posts p
 		WHERE ($2::timestamp IS NULL OR p."createdAt" < $2)
 		ORDER BY p."createdAt" DESC
 		LIMIT $3

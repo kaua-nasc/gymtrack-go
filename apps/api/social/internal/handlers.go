@@ -41,8 +41,6 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 		return
 	}
 
-	post.AuthorId = user.ID
-
 	if err := h.service.CreatePost(ctx.Request.Context(), &post, user.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
