@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type PostRepository struct {
@@ -23,7 +24,7 @@ func (r *PostRepository) Create(post *Post) error {
 	return err
 }
 
-func (r *PostRepository) FindAll(currentUserId string) ([]Post, error) {
+func (r *PostRepository) FindAll(currentUserId string, cursor *utils.CursorData, limit int) ([]Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
 			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType",
@@ -31,11 +32,18 @@ func (r *PostRepository) FindAll(currentUserId string) ([]Post, error) {
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
 		FROM public.posts p
+		WHERE ($2::timestamp IS NULL OR p."createdAt" < $2)
 		ORDER BY p."createdAt" DESC
+		LIMIT $3
 	`
-	rows, err := r.db.Query(query, currentUserId)
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.CreatedAt
+	}
+
+	rows, err := r.db.Query(query, currentUserId, cursorTime, limit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -47,11 +55,21 @@ func (r *PostRepository) FindAll(currentUserId string) ([]Post, error) {
 			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		posts = append(posts, p)
 	}
-	return posts, nil
+
+	var nextCursor *utils.CursorData
+	if len(posts) > 0 && len(posts) == limit {
+		lastPost := posts[len(posts)-1]
+		nextCursor = &utils.CursorData{
+			ID:        *lastPost.Id,
+			CreatedAt: lastPost.CreatedAt,
+		}
+	}
+
+	return posts, nextCursor, nil
 }
 
 func (r *PostRepository) ToggleLike(postId, userId string) error {
@@ -84,16 +102,23 @@ func (r *PostRepository) AddComment(comment *Comment) error {
 	return err
 }
 
-func (r *PostRepository) GetComments(postId string) ([]Comment, error) {
+func (r *PostRepository) GetComments(postId string, cursor *utils.CursorData, limit int) ([]Comment, *utils.CursorData, error) {
 	query := `
 		SELECT id, "createdAt", "updatedAt", content, "authorId", "postId"
 		FROM public.post_comments
 		WHERE "postId" = $1
+		AND ($2::timestamp IS NULL OR "createdAt" > $2)
 		ORDER BY "createdAt" ASC
+		LIMIT $3
 	`
-	rows, err := r.db.Query(query, postId)
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.CreatedAt
+	}
+
+	rows, err := r.db.Query(query, postId, cursorTime, limit)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 
@@ -102,9 +127,19 @@ func (r *PostRepository) GetComments(postId string) ([]Comment, error) {
 		var c Comment
 		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.Content, &c.AuthorId, &c.PostId)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		comments = append(comments, c)
 	}
-	return comments, nil
+
+	var nextCursor *utils.CursorData
+	if len(comments) > 0 && len(comments) == limit {
+		lastComment := comments[len(comments)-1]
+		nextCursor = &utils.CursorData{
+			ID:        *lastComment.Id,
+			CreatedAt: lastComment.CreatedAt,
+		}
+	}
+
+	return comments, nextCursor, nil
 }

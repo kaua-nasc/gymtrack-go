@@ -56,13 +56,17 @@ func (h *PostHandler) getFeed(ctx *gin.Context) {
 		return
 	}
 
-	posts, err := h.service.GetFeed(ctx.Request.Context(), user.ID)
+	cursor, limit := h.getPagination(ctx)
+	posts, nextCursor, err := h.service.GetFeed(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, posts)
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":   posts,
+		"cursor": nextCursor,
+	})
 }
 
 func (h *PostHandler) toggleLike(ctx *gin.Context) {
@@ -106,14 +110,18 @@ func (h *PostHandler) addComment(ctx *gin.Context) {
 
 func (h *PostHandler) getComments(ctx *gin.Context) {
 	postId := ctx.Param("id")
+	cursor, limit := h.getPagination(ctx)
 
-	comments, err := h.service.GetComments(ctx.Request.Context(), postId)
+	comments, nextCursor, err := h.service.GetComments(ctx.Request.Context(), postId, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, comments)
+	ctx.JSON(http.StatusOK, gin.H{
+		"data":   comments,
+		"cursor": nextCursor,
+	})
 }
 
 func (h *PostHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {

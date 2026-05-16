@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/lib/pq"
 )
 
@@ -21,8 +22,8 @@ type UserRepository interface {
 	SaveVerificationCode(ctx context.Context, code, email string) error
 	GetVerificationCode(ctx context.Context, email string) (string, error)
 	ListByIDs(ctx context.Context, ids []string) ([]*User, error)
-	ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
-	ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
+	ListFollowing(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error)
+	ListFollower(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error)
 	CountFollowers(ctx context.Context, userId string) (int, error)
 	CountFollowing(ctx context.Context, userId string) (int, error)
 	FollowUser(ctx context.Context, f UserFollows) error
@@ -31,16 +32,16 @@ type UserRepository interface {
 	FindByTrainerCode(ctx context.Context, code string) (*User, error)
 	LinkTrainer(ctx context.Context, relation TrainerStudentRelation) error
 	UnlinkTrainer(ctx context.Context, studentId string) error
-	ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
+	ListStudents(ctx context.Context, trainerId string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error)
 	AddBodyMeasurementNote(ctx context.Context, id, note string) error
 	FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error)
-	ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error)
+	ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*BodyMeasurement, *utils.CursorData, error)
 	AddWeightLogNote(ctx context.Context, id, note string) error
 	ChangeUserType(ctx context.Context, u User, newType UserType) error
 	RemoveProfilePicture(ctx context.Context, userId string) error
 	ChangeProfileImage(ctx context.Context, u User, pictureUrl string) error
-	ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error)
-	ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error)
+	ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*MetricGoal, *utils.CursorData, error)
+	ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*WeightLog, *utils.CursorData, error)
 	AddGoalMetric(ctx context.Context, g MetricGoal) error
 }
 
@@ -236,7 +237,7 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 	return users, nil
 }
 
-func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	query := `
 		SELECT 
 			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
@@ -306,9 +307,9 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 		users = append(users, &u)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(users) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
@@ -356,7 +357,7 @@ func (r *PostgresUserRepository) UnfollowUser(ctx context.Context, followerId, f
 	return nil
 }
 
-func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	query := `
 		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
 		FROM user_follows f LEFT JOIN users u ON f."followingId" = u.id
@@ -389,9 +390,9 @@ func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, c
 		users = append(users, &u)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(users) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
@@ -401,7 +402,7 @@ func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, c
 	return users, nextCursor, nil
 }
 
-func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	query := `
 		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
 		FROM user_follows f LEFT JOIN users u ON f."followerId" = u.id
@@ -434,9 +435,9 @@ func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cu
 		users = append(users, &u)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(users) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        *users[limit].ID,
 			CreatedAt: users[limit].CreatedAt,
 		}
@@ -532,7 +533,7 @@ func (r *PostgresUserRepository) AddBodyMeasurementNote(ctx context.Context, id,
 	return nil
 }
 
-func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
+func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*BodyMeasurement, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1`
 
 	var args []interface{}
@@ -562,9 +563,9 @@ func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userI
 		measurements = append(measurements, m)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(measurements) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        measurements[limit].ID,
 			CreatedAt: measurements[limit].CreatedAt,
 		}
@@ -622,7 +623,7 @@ func (r *PostgresUserRepository) ChangeProfileImage(ctx context.Context, u User,
 	return nil
 }
 
-func (r *PostgresUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
+func (r *PostgresUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*MetricGoal, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
 
 	var args []interface{}
@@ -652,9 +653,9 @@ func (r *PostgresUserRepository) ListGoalsMetric(ctx context.Context, id string,
 		goals = append(goals, &g)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(goals) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        goals[limit].ID,
 			CreatedAt: goals[limit].CreatedAt,
 		}
@@ -673,7 +674,7 @@ func (r *PostgresUserRepository) AddGoalMetric(ctx context.Context, g MetricGoal
 	return nil
 }
 
-func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
+func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*WeightLog, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1`
 
 	var args []interface{}
@@ -703,9 +704,9 @@ func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId stri
 		logs = append(logs, l)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(logs) > limit {
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        logs[limit].ID,
 			CreatedAt: logs[limit].CreatedAt,
 		}

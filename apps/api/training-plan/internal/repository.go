@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/lib/pq"
 )
 
@@ -21,7 +22,7 @@ type TrainingPlanRepository interface {
 	DeletePlan(ctx context.Context, id string) error
 	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error)
-	List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error)
+	List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*TrainingPlan, *utils.CursorData, error)
 	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
 	FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error)
 	CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error
@@ -128,7 +129,7 @@ func (r *PostgresTrainingPlanRepository) Find(ctx context.Context, id string) (*
 	return &p, nil
 }
 
-func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId string, cursor *CursorData, limit int) ([]*TrainingPlan, *CursorData, error) {
+func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*TrainingPlan, *utils.CursorData, error) {
 	// sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", image_url FROM training_plans WHERE 1=1`
 	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl" FROM training_plans WHERE 1=1`
 
@@ -168,10 +169,10 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 		plans = append(plans, p)
 	}
 
-	var nextCursor *CursorData
+	var nextCursor *utils.CursorData
 	if len(plans) > limit {
 		lastItem := plans[limit-1]
-		nextCursor = &CursorData{
+		nextCursor = &utils.CursorData{
 			ID:        *lastItem.Id,
 			CreatedAt: lastItem.CreatedAt,
 		}

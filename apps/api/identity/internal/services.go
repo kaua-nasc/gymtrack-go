@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -595,12 +594,9 @@ func VerifyArgon2Password(password, encodedHash string) (bool, error) {
 }
 
 func (s *UserService) ListFollowing(ctx context.Context, id, cursor string, limit int) ([]*User, string, error) {
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		}
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		// Log error if needed, but maintain current behavior of continuing with nil cursor
 	}
 
 	users, rawNextCursor, err := s.repo.ListFollowing(ctx, id, decodedCursor, limit)
@@ -612,22 +608,14 @@ func (s *UserService) ListFollowing(ctx context.Context, id, cursor string, limi
 		s.sanitizeUser(u)
 	}
 
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return users, nextCursorStr, nil
 }
 
 func (s *UserService) ListFollower(ctx context.Context, id, cursor string, limit int) ([]*User, string, error) {
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		}
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		// Log error if needed
 	}
 
 	users, rawNextCursor, err := s.repo.ListFollower(ctx, id, decodedCursor, limit)
@@ -639,12 +627,7 @@ func (s *UserService) ListFollower(ctx context.Context, id, cursor string, limit
 		s.sanitizeUser(u)
 	}
 
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return users, nextCursorStr, nil
 }
 
@@ -751,13 +734,8 @@ func (s *UserService) UnlinkStudent(ctx context.Context, studentId string) error
 }
 
 func (s *UserService) ListStudents(ctx context.Context, trainerId, cursor string, limit int) ([]*User, string, error) {
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		}
-	}
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
 
 	users, rawNextCursor, err := s.repo.ListStudents(ctx, trainerId, decodedCursor, limit)
 	if err != nil {
@@ -768,12 +746,7 @@ func (s *UserService) ListStudents(ctx context.Context, trainerId, cursor string
 		s.sanitizeUser(u)
 	}
 
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return users, nextCursorStr, nil
 }
 
@@ -786,25 +759,15 @@ func (s *UserService) FindLastBodyMeasurementNote(ctx context.Context, userId st
 }
 
 func (s *UserService) ListBodyMeasurements(ctx context.Context, userId, cursor string, limit int) ([]*BodyMeasurement, string, error) {
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		}
-	}
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
 
 	measurements, rawNextCursor, err := s.repo.ListBodyMeasurements(ctx, userId, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
 
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return measurements, nextCursorStr, nil
 }
 
@@ -869,25 +832,15 @@ func (s *UserService) UploadProfilePicture(ctx context.Context, id string, file 
 }
 
 func (s *UserService) ListGoalsMetric(ctx context.Context, userId, cursor string, limit int) ([]*MetricGoal, string, error) {
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		}
-	}
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
 
 	goals, rawNextCursor, err := s.repo.ListGoalsMetric(ctx, userId, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
 
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return goals, nextCursorStr, nil
 }
 
@@ -909,14 +862,9 @@ func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error
 func (s *UserService) ListWeightLogs(ctx context.Context, userId, cursor string, limit int) ([]*WeightLog, string, error) {
 	slog.InfoContext(ctx, "listing weight logs", slog.String("user_id", userId), slog.Int("limit", limit))
 
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		} else {
-			slog.WarnContext(ctx, "failed to decode cursor for weight history", slog.String("cursor", cursor), slog.Any("error", err))
-		}
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		slog.WarnContext(ctx, "failed to decode cursor for weight history", slog.String("cursor", cursor), slog.Any("error", err))
 	}
 
 	logs, rawNextCursor, err := s.repo.ListWeightLogs(ctx, userId, decodedCursor, limit)
@@ -925,12 +873,6 @@ func (s *UserService) ListWeightLogs(ctx context.Context, userId, cursor string,
 		return nil, "", err
 	}
 
-	// Encode cursor
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return logs, nextCursorStr, nil
 }

@@ -55,10 +55,13 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 	return s.repo.Create(post)
 }
 
-func (s *PostService) GetFeed(ctx context.Context, userId string) ([]Post, error) {
-	posts, err := s.repo.FindAll(userId)
+func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit int) ([]Post, string, error) {
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
+
+	posts, rawNextCursor, err := s.repo.FindAll(userId, decodedCursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
@@ -93,7 +96,8 @@ func (s *PostService) GetFeed(ctx context.Context, userId string) ([]Post, error
 		}
 	}
 
-	return posts, nil
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return posts, nextCursor, nil
 }
 
 func (s *PostService) ToggleLike(ctx context.Context, postId, userId string) error {
@@ -121,10 +125,13 @@ func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId
 	return s.repo.AddComment(comment)
 }
 
-func (s *PostService) GetComments(ctx context.Context, postId string) ([]Comment, error) {
-	comments, err := s.repo.GetComments(postId)
+func (s *PostService) GetComments(ctx context.Context, postId, cursor string, limit int) ([]Comment, string, error) {
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
+
+	comments, rawNextCursor, err := s.repo.GetComments(postId, decodedCursor, limit)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
@@ -149,5 +156,6 @@ func (s *PostService) GetComments(ctx context.Context, postId string) ([]Comment
 		}
 	}
 
-	return comments, nil
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return comments, nextCursor, nil
 }

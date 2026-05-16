@@ -2,8 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -274,14 +272,9 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor string, limit int) ([]*TrainingPlan, string, error) {
 	slog.InfoContext(ctx, "listing training plans", slog.String("authorId", authorId), slog.Int("limit", limit))
 
-	var decodedCursor *CursorData
-	if cursor != "" {
-		b, err := base64.StdEncoding.DecodeString(cursor)
-		if err == nil {
-			json.Unmarshal(b, &decodedCursor)
-		} else {
-			slog.WarnContext(ctx, "failed to decode cursor", slog.String("cursor", cursor), slog.Any("error", err))
-		}
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		slog.WarnContext(ctx, "failed to decode cursor", slog.String("cursor", cursor), slog.Any("error", err))
 	}
 
 	plans, rawNextCursor, err := s.repo.List(ctx, authorId, decodedCursor, limit)
@@ -330,13 +323,7 @@ func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor str
 		p.Author = authorsMap[p.AuthorId]
 	}
 
-	// Encode cursor
-	var nextCursorStr string
-	if rawNextCursor != nil {
-		b, _ := json.Marshal(rawNextCursor)
-		nextCursorStr = base64.StdEncoding.EncodeToString(b)
-	}
-
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return plans, nextCursorStr, nil
 }
 

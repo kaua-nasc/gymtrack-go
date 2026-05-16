@@ -2,11 +2,6 @@ package internal
 
 import "time"
 
-type CursorData struct {
-	ID        string    `json:"id"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
 // Enums
 type TrainingPlanType string
 

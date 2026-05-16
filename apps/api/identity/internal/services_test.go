@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -61,17 +62,17 @@ func (m *MockUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*Us
 	return users, args.Error(1)
 }
 
-func (m *MockUserRepository) ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (m *MockUserRepository) ListFollowing(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
 	users, _ := args.Get(0).([]*User)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
-func (m *MockUserRepository) ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (m *MockUserRepository) ListFollower(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
 	users, _ := args.Get(0).([]*User)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
@@ -116,10 +117,10 @@ func (m *MockUserRepository) UnlinkTrainer(ctx context.Context, studentId string
 	return args.Error(0)
 }
 
-func (m *MockUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *CursorData, limit int) ([]*User, *CursorData, error) {
+func (m *MockUserRepository) ListStudents(ctx context.Context, trainerId string, cursor *utils.CursorData, limit int) ([]*User, *utils.CursorData, error) {
 	args := m.Called(ctx, trainerId, cursor, limit)
 	users, _ := args.Get(0).([]*User)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return users, nextCursor, args.Error(2)
 }
 
@@ -134,10 +135,10 @@ func (m *MockUserRepository) FindLastBodyMeasurementNote(ctx context.Context, us
 	return measurement, args.Error(1)
 }
 
-func (m *MockUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*BodyMeasurement, *CursorData, error) {
+func (m *MockUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*BodyMeasurement, *utils.CursorData, error) {
 	args := m.Called(ctx, userId, cursor, limit)
 	measurements, _ := args.Get(0).([]*BodyMeasurement)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return measurements, nextCursor, args.Error(2)
 }
 
@@ -160,10 +161,10 @@ func (m *MockUserRepository) ChangeProfileImage(ctx context.Context, u User, pic
 	return m.Called(ctx, u, pictureUrl).Error(0)
 }
 
-func (m *MockUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *CursorData, limit int) ([]*MetricGoal, *CursorData, error) {
+func (m *MockUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*MetricGoal, *utils.CursorData, error) {
 	args := m.Called(ctx, id, cursor, limit)
 	goals, _ := args.Get(0).([]*MetricGoal)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return goals, nextCursor, args.Error(2)
 }
 
@@ -171,10 +172,10 @@ func (m *MockUserRepository) AddGoalMetric(ctx context.Context, g MetricGoal) er
 	return m.Called(ctx, g).Error(0)
 }
 
-func (m *MockUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *CursorData, limit int) ([]*WeightLog, *CursorData, error) {
+func (m *MockUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*WeightLog, *utils.CursorData, error) {
 	args := m.Called(ctx, userId, cursor, limit)
 	logs, _ := args.Get(0).([]*WeightLog)
-	nextCursor, _ := args.Get(1).(*CursorData)
+	nextCursor, _ := args.Get(1).(*utils.CursorData)
 	return logs, nextCursor, args.Error(2)
 }
 
