@@ -1,42 +1,30 @@
 name: Deploy Identity
 
 on:
-  workflow_run:
-    workflows: ["CI Quality Check"]
+  push:
     branches: [master]
-    types:
-      - completed
+    paths:
+      - 'apps/api/identity/**'
+      - 'libs/**'
+      - '.github/workflows/deploy-identity.yml'
   workflow_dispatch:
 
 jobs:
-  check-paths:
-    name: Check Modified Paths
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
-    outputs:
-      should_deploy: ${{ steps.filter.outputs.identity }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Filter Paths
-        id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            identity:
-              - 'apps/api/identity/**'
-              - 'libs/**'
-              - '.github/workflows/deploy-identity.yml'
-
   build-push:
     name: Build & Push Docker
-    needs: check-paths
-    if: ${{ needs.check-paths.outputs.should_deploy == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Run App Tests
+        run: go test -v ./apps/api/identity/...
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3

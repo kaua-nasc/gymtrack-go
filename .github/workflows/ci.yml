@@ -14,17 +14,44 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Filter Paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            identity:
+              - 'apps/api/identity/**'
+              - 'libs/**'
+            training-plan:
+              - 'apps/api/training-plan/**'
+              - 'libs/**'
+            social:
+              - 'apps/api/social/**'
+              - 'libs/**'
+            libs:
+              - 'libs/**'
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "1.26"
           cache: true
 
-      - name: Run Tests
+      - name: Run Identity Tests
+        if: steps.filter.outputs.identity == 'true'
+        run: go test -v ./apps/api/identity/...
+
+      - name: Run Training Plan Tests
+        if: steps.filter.outputs.training-plan == 'true'
+        run: go test -v ./apps/api/training-plan/...
+
+      - name: Run Social Tests
+        if: steps.filter.outputs.social == 'true'
+        run: go test -v ./apps/api/social/...
+
+      - name: Run Libs Tests
+        if: steps.filter.outputs.libs == 'true'
         run: |
-          go test -v ./apps/api/identity/...
-          go test -v ./apps/api/training-plan/...
-          go test -v ./apps/api/social/...
           go test -v ./libs/auth/...
           go test -v ./libs/db/...
           go test -v ./libs/config/...
