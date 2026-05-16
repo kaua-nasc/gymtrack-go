@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -64,7 +64,7 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	}
 	plan.Visibility = Private
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 }
 
 func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 }
 
 func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) error {
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -426,7 +426,7 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		return errors.New("training plan is incomplete (must have at least one day and one exercise)")
 	}
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -542,7 +542,7 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId string, rating float64, message *string) error {
 	slog.InfoContext(ctx, "adding feedback to plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Float64("rating", rating))
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -566,7 +566,7 @@ func (s *TrainingPlanService) AddFeedback(ctx context.Context, planId, userId st
 func (s *TrainingPlanService) LogExercise(ctx context.Context, exerciseId, userId string, reps []int, weight []float64, notes *string) error {
 	slog.InfoContext(ctx, "logging exercise", slog.String("exercise_id", exerciseId), slog.String("user_id", userId))
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -620,16 +620,4 @@ func (s *TrainingPlanService) ListActivityWeekly(ctx context.Context, userId str
 	activity.Sun = trainedDates[startOfWeek.AddDate(0, 0, 6).Format("2006-01-02")]
 
 	return activity, nil
-}
-
-func (s *TrainingPlanService) generateUuid(ctx context.Context) (*string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return nil, fmt.Errorf("error on generate uuid")
-	}
-
-	idStr := id.String()
-
-	return &idStr, nil
 }

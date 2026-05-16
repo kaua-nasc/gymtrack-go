@@ -1,4 +1,4 @@
-go 1.26.2
+go 1.26.3
 
 use (
 	./apps/api/identity
@@ -11,4 +11,5 @@ use (
 	./libs/email
 	./libs/log
 	./libs/storage
+	./libs/utils
 )

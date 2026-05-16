@@ -3,11 +3,10 @@ package internal
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type PostService struct {
@@ -42,7 +41,7 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 		}
 	}
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -109,7 +108,7 @@ func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId
 		return fmt.Errorf("failed to verify author existence: %w", err)
 	}
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -151,16 +150,4 @@ func (s *PostService) GetComments(ctx context.Context, postId string) ([]Comment
 	}
 
 	return comments, nil
-}
-
-func (s *PostService) generateUuid(ctx context.Context) (*string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return nil, fmt.Errorf("error on generate uuid")
-	}
-
-	idStr := id.String()
-
-	return &idStr, nil
 }

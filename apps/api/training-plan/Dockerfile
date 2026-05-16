@@ -20,6 +20,7 @@ COPY libs/cache/go.mod* libs/cache/go.sum* ./libs/cache/
 COPY libs/log/go.mod* libs/log/go.sum* ./libs/log/
 COPY libs/config/go.mod* libs/config/go.sum* ./libs/config/
 COPY libs/storage/go.mod* libs/storage/go.sum* ./libs/storage/
+COPY libs/utils/go.mod* libs/utils/go.sum* ./libs/utils/
 
 RUN go mod download
 

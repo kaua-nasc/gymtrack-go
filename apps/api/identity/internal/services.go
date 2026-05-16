@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/email"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -56,7 +56,7 @@ func (s *UserService) Register(ctx context.Context, u User) error {
 	}
 	u.Password = hashedPassword
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -682,7 +682,7 @@ func (s *UserService) FollowUser(ctx context.Context, followerId, followingId st
 		return fmt.Errorf("usuario nao existe")
 	}
 
-	id, err := s.generateUuid(ctx)
+	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -725,7 +725,7 @@ func (s *UserService) LinkTrainer(ctx context.Context, id, code string) error {
 	}
 
 	now := time.Now().UTC()
-	newId, err := s.generateUuid(ctx)
+	newId, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -893,7 +893,7 @@ func (s *UserService) ListGoalsMetric(ctx context.Context, userId, cursor string
 
 func (s *UserService) AddGoalMetric(ctx context.Context, goal *MetricGoal) error {
 	now := time.Now().UTC()
-	newId, err := s.generateUuid(ctx)
+	newId, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
 	}
@@ -933,16 +933,4 @@ func (s *UserService) ListWeightLogs(ctx context.Context, userId, cursor string,
 	}
 
 	return logs, nextCursorStr, nil
-}
-
-func (s *UserService) generateUuid(ctx context.Context) (*string, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to generate uuid for day", slog.Any("error", err))
-		return nil, fmt.Errorf("error on generate uuid")
-	}
-
-	idStr := id.String()
-
-	return &idStr, nil
 }

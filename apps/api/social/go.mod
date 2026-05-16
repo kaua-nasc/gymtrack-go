@@ -1,17 +1,18 @@
 module github.com/kaua-nasc/gymtrack-go/apps/api/social
 
-go 1.26.2
+go 1.26.3
 
 require (
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
-	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260512003624-4a3773363858 // indirect
+	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/cache v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/config v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/db v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260512003624-4a3773363858
-	github.com/lib/pq v1.12.3 // indirect
+	github.com/kaua-nasc/gymtrack-go/libs/utils v0.0.0-00010101000000-000000000000
 	go.uber.org/fx v1.24.0
+	github.com/google/uuid v1.6.0
 )
 
 require (
@@ -28,6 +29,7 @@ require (
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
+	github.com/lib/pq v1.12.3 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
@@ -53,3 +55,5 @@ require (
 	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/kaua-nasc/gymtrack-go/libs/utils => ../../../libs/utils

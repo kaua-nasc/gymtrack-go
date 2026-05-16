@@ -121,8 +121,8 @@ type TrainingPlan struct {
 
 	// Computed/Virtual Fields
 	PlanSubscriptionStatus *PlanSubscriptionStatus `json:"planSubscriptionStatus"`
-	Author                 any                    `json:"author,omitempty"`
-	}
+	Author                 any                     `json:"author,omitempty"`
+}
 
 // Day Entity
 type Day struct {
