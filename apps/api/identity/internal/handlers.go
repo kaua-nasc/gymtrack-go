@@ -28,6 +28,8 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 	})
 	r.POST("/identity/auth/register", h.Register)
 	r.POST("/identity/auth/login", h.Login)
+	r.POST("/identity/auth/verify/send-token", h.SendVerificationEmail)
+	r.POST("/identity/auth/verify", h.VerifyEmail)
 	r.POST("/identity/auth/reset-password/send-token", h.ResetPasswordSendToken)
 	r.POST("/identity/auth/reset-password/verify-token", h.ResetPasswordVerifyToken)
 	r.POST("/identity/auth/reset-password", h.ResetPassword)
@@ -78,6 +80,65 @@ func (h *UserHandler) RegisterRoutes(r *gin.Engine) {
 			trainers.POST("/students/:id/profile/unlink", h.UnlinkStudent)
 		}
 	}
+}
+
+func (h *UserHandler) SendVerificationEmail(ctx *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.SendVerificationEmail(ctx.Request.Context(), body.Email); err != nil {
+		if errors.Is(err, ErrEmailNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrAlreadyVerified) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to send verification token", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to send verification token"})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
+}
+
+func (h *UserHandler) VerifyEmail(ctx *gin.Context) {
+	var body struct {
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.srv.VerifyEmail(ctx.Request.Context(), body.Email, body.Code); err != nil {
+		if errors.Is(err, ErrInvalidCode) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrAlreadyVerified) {
+			ctx.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to verify email", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to verify email"})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *UserHandler) Login(ctx *gin.Context) {

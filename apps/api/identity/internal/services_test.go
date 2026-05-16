@@ -49,6 +49,16 @@ func (m *MockUserRepository) GetResetCode(ctx context.Context, email string) (st
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockUserRepository) SaveVerificationCode(ctx context.Context, code, email string) error {
+	args := m.Called(ctx, code, email)
+	return args.Error(0)
+}
+
+func (m *MockUserRepository) GetVerificationCode(ctx context.Context, email string) (string, error) {
+	args := m.Called(ctx, email)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockUserRepository) ListByIDs(ctx context.Context, ids []string) ([]*User, error) {
 	args := m.Called(ctx, ids)
 	if args.Get(0) == nil {
@@ -267,3 +277,122 @@ func TestUserService_Register(t *testing.T) {
 		})
 	}
 }
+
+func TestUserService_SendVerificationEmail(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	service := NewUserService(mockRepo)
+
+	tests := []struct {
+		name          string
+		email         string
+		mockBehavior  func()
+		wantErr       bool
+		expectedError string
+	}{
+		{
+			name:  "Success send verification email",
+			email: "user@example.com",
+			mockBehavior: func() {
+				mockRepo.On("FindByEmail", mock.Anything, "user@example.com").Return(&User{Email: "user@example.com", FirstName: "John", IsVerified: false}, nil).Once()
+				mockRepo.On("SaveVerificationCode", mock.Anything, mock.AnythingOfType("string"), "user@example.com").Return(nil).Once()
+			},
+			wantErr: false,
+		},
+		{
+			name:  "Error: User not found",
+			email: "nonexistent@example.com",
+			mockBehavior: func() {
+				mockRepo.On("FindByEmail", mock.Anything, "nonexistent@example.com").Return(nil, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "email not found",
+		},
+		{
+			name:  "Error: Already verified",
+			email: "verified@example.com",
+			mockBehavior: func() {
+				mockRepo.On("FindByEmail", mock.Anything, "verified@example.com").Return(&User{Email: "verified@example.com", IsVerified: true}, nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "email already verified",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			
+			// Set dummy env vars to avoid error in email.Send (or at least avoid immediate return)
+			t.Setenv("AZURE_EMAIL_CONNECTION_STRING", "Endpoint=https://test.com;AccessKey=dGVzdA==")
+			t.Setenv("AZURE_EMAIL_SENDER_ADDRESS", "test@test.com")
+
+			ctx := context.Background()
+			err := service.SendVerificationEmail(ctx, tt.email)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				// In success case, it will still error because test.com doesn't exist,
+				// but it shouldn't panic and it should have called mock repo
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to send email request")
+			}
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestUserService_VerifyEmail(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	service := NewUserService(mockRepo)
+
+	tests := []struct {
+		name          string
+		email         string
+		code          string
+		mockBehavior  func()
+		wantErr       bool
+		expectedError string
+	}{
+		{
+			name:  "Success verify email",
+			email: "user@example.com",
+			code:  "123456",
+			mockBehavior: func() {
+				mockRepo.On("GetVerificationCode", mock.Anything, "user@example.com").Return("123456", nil).Once()
+				mockRepo.On("FindByEmail", mock.Anything, "user@example.com").Return(&User{Email: "user@example.com", IsVerified: false}, nil).Once()
+				mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *User) bool {
+					return u.IsVerified == true
+				})).Return(nil).Once()
+			},
+			wantErr: false,
+		},
+		{
+			name:  "Error: Invalid code",
+			email: "user@example.com",
+			code:  "wrong",
+			mockBehavior: func() {
+				mockRepo.On("GetVerificationCode", mock.Anything, "user@example.com").Return("123456", nil).Once()
+			},
+			wantErr:       true,
+			expectedError: "invalid code",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			err := service.VerifyEmail(context.Background(), tt.email, tt.code)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectedError, err.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+

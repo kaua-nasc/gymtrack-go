@@ -29,6 +29,7 @@ var (
 	ErrEmailNotFound      = errors.New("email not found")
 	ErrInvalidCode        = errors.New("invalid code")
 	ErrTrainerNotFound    = errors.New("trainer not found")
+	ErrAlreadyVerified    = errors.New("email already verified")
 )
 
 type UserService struct {
@@ -131,6 +132,154 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 	return tokenString, nil
 }
 
+func (s *UserService) SendVerificationEmail(ctx context.Context, userEmail string) error {
+	u, err := s.repo.FindByEmail(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return ErrEmailNotFound
+	}
+
+	if u.IsVerified {
+		return ErrAlreadyVerified
+	}
+
+	code, err := generateCode(6)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.SaveVerificationCode(ctx, code, u.Email); err != nil {
+		return err
+	}
+
+	return email.Send(u.Email, email.EmailRequestContent{
+		Subject:   "Verificação de E-mail - Gymtrack",
+		PlainText: fmt.Sprintf("Seu código de verificação é: %s", code),
+		HTML: fmt.Sprintf(`
+			<!DOCTYPE html>
+			<html lang="pt-BR">
+			<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Verificação de E-mail</title>
+			<style>
+				body {
+				font-family: Arial, sans-serif;
+				background-color: #f4f8fc;
+				color: #334155;
+				margin: 0;
+				padding: 0;
+				}
+
+				.container {
+				max-width: 600px;
+				margin: 40px auto;
+				background-color: #ffffff;
+				border-radius: 8px;
+				padding: 20px;
+				box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+				}
+
+				h1 {
+				color: #1d4ed8;
+				font-size: 24px;
+				margin-bottom: 10px;
+				}
+
+				p {
+				font-size: 16px;
+				line-height: 1.5;
+				}
+
+				.code-box {
+				margin: 20px 0;
+				padding: 15px;
+				font-size: 22px;
+				letter-spacing: 4px;
+				font-weight: bold;
+				text-align: center;
+				color: #ffffff;
+				background: linear-gradient(135deg, #10b981, #059669);
+				border-radius: 6px;
+				}
+
+				.footer {
+				font-size: 12px;
+				color: #94a3b8;
+				text-align: center;
+				margin-top: 30px;
+				}
+
+				a {
+				color: #2563eb;
+				text-decoration: none;
+				}
+			</style>
+			</head>
+
+			<body>
+			<div class="container">
+				<h1>Verifique seu e-mail</h1>
+
+				<p>Olá %s,</p>
+
+				<p>
+				Obrigado por se juntar ao Gymtrack!
+				Para confirmar sua conta e começar a treinar, utilize o código abaixo:
+				</p>
+
+				<div class="code-box">%s</div>
+
+				<p>
+				Este código é válido por <strong>10 minutos</strong>.
+				Se você não solicitou este código, por favor ignore este email.
+				</p>
+
+				<p>
+				Atenciosamente,<br>
+				Equipe GymTrack
+				</p>
+
+				<div class="footer">
+				© 2026 GymTrack. Todos os direitos reservados.
+				</div>
+			</div>
+			</body>
+			</html>`, u.FirstName, code),
+	})
+}
+
+func (s *UserService) VerifyEmail(ctx context.Context, userEmail string, userCode string) error {
+	code, err := s.repo.GetVerificationCode(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+
+	if userCode != code {
+		return ErrInvalidCode
+	}
+
+	user, err := s.repo.FindByEmail(ctx, userEmail)
+	if err != nil {
+		return err
+	}
+
+	if user == nil {
+		return ErrUserNotFound
+	}
+
+	if user.IsVerified {
+		return ErrAlreadyVerified
+	}
+
+	user.IsVerified = true
+	user.UpdatedAt = time.Now().UTC()
+
+	return s.repo.Update(ctx, user)
+}
+
 func (s *UserService) ResetPasswordSendToken(ctx context.Context, userEmail string) error {
 	u, err := s.repo.FindByEmail(ctx, userEmail)
 	if err != nil {
@@ -140,7 +289,7 @@ func (s *UserService) ResetPasswordSendToken(ctx context.Context, userEmail stri
 		return ErrEmailNotFound
 	}
 
-	code, err := generateResetCode(6)
+	code, err := generateCode(6)
 	if err != nil {
 		return err
 	}
@@ -246,7 +395,7 @@ func (s *UserService) ResetPasswordSendToken(ctx context.Context, userEmail stri
 	})
 }
 
-func generateResetCode(length int) (string, error) {
+func generateCode(length int) (string, error) {
 	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	code := make([]byte, length)
 

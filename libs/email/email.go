@@ -34,13 +34,13 @@ type EmailRequest struct {
 func Send(recipient string, content EmailRequestContent) error {
 	connectionString := os.Getenv("AZURE_EMAIL_CONNECTION_STRING")
 	if connectionString == "" {
-		panic("AZURE_EMAIL_CONNECTION_STRING env variable cannot be null")
+		return fmt.Errorf("AZURE_EMAIL_CONNECTION_STRING env variable cannot be null")
 	}
 	endpoint, accessKey := parseConnectionString(connectionString)
 
 	senderAddress := os.Getenv("AZURE_EMAIL_SENDER_ADDRESS")
 	if senderAddress == "" {
-		panic("AZURE_EMAIL_SENDER_ADDRESS env variable cannot be null")
+		return fmt.Errorf("AZURE_EMAIL_SENDER_ADDRESS env variable cannot be null")
 	}
 	payload := EmailRequest{
 		SenderAddress: senderAddress,
@@ -58,7 +58,7 @@ func Send(recipient string, content EmailRequestContent) error {
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal email payload: %w", err)
 	}
 
 	apiPath := "/emails:send?api-version=2025-09-01"
@@ -71,16 +71,19 @@ func Send(recipient string, content EmailRequestContent) error {
 		bytes.NewBuffer(bodyBytes),
 	)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to create http request: %w", err)
 	}
 
 	date := time.Now().UTC().Format(http.TimeFormat)
 
-	host := getHost(endpoint)
+	host, err := getHost(endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to get host from endpoint: %w", err)
+	}
 
 	authHeader, contentHash, err := buildHMAC(http.MethodPost, apiPath, host, date, bodyBytes, accessKey)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to build HMAC: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -92,11 +95,15 @@ func Send(recipient string, content EmailRequestContent) error {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to send email request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("failed to send email, status: %s, body: %s", resp.Status, string(respBody))
+	}
 
 	fmt.Println("STATUS:", resp.Status)
 	fmt.Println(string(respBody))
@@ -104,15 +111,15 @@ func Send(recipient string, content EmailRequestContent) error {
 }
 
 func parseConnectionString(conn string) (endpoint string, accessKey string) {
-	parts := strings.SplitSeq(conn, ";")
+	parts := strings.Split(conn, ";")
 
-	for p := range parts {
+	for _, p := range parts {
 		if strings.HasPrefix(strings.ToLower(p), "endpoint=") {
-			endpoint = strings.TrimPrefix(p, "endpoint=")
+			endpoint = p[len("endpoint="):]
 		}
 
 		if strings.HasPrefix(strings.ToLower(p), "accesskey=") {
-			accessKey = strings.TrimPrefix(p, "accesskey=")
+			accessKey = p[len("accesskey="):]
 		}
 	}
 
@@ -121,13 +128,13 @@ func parseConnectionString(conn string) (endpoint string, accessKey string) {
 	return
 }
 
-func getHost(endpoint string) string {
+func getHost(endpoint string) (string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
-	return u.Host
+	return u.Host, nil
 }
 
 func buildHMAC(

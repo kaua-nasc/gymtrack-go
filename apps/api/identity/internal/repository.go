@@ -18,6 +18,8 @@ type UserRepository interface {
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	SaveResetCode(ctx context.Context, code, email string) error
 	GetResetCode(ctx context.Context, email string) (string, error)
+	SaveVerificationCode(ctx context.Context, code, email string) error
+	GetVerificationCode(ctx context.Context, email string) (string, error)
 	ListByIDs(ctx context.Context, ids []string) ([]*User, error)
 	ListFollowing(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
 	ListFollower(ctx context.Context, id string, cursor *CursorData, limit int) ([]*User, *CursorData, error)
@@ -714,11 +716,19 @@ func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId stri
 }
 
 func (r *PostgresUserRepository) SaveResetCode(ctx context.Context, code, email string) error {
-	return r.cache.Set(ctx, email, code, time.Minute*5)
+	return r.cache.Set(ctx, fmt.Sprintf("reset_password:%s", email), code, time.Minute*5)
 }
 
 func (r *PostgresUserRepository) GetResetCode(ctx context.Context, email string) (string, error) {
-	return r.cache.Get(ctx, email)
+	return r.cache.Get(ctx, fmt.Sprintf("reset_password:%s", email))
+}
+
+func (r *PostgresUserRepository) SaveVerificationCode(ctx context.Context, code, email string) error {
+	return r.cache.Set(ctx, fmt.Sprintf("email_verification:%s", email), code, time.Minute*10)
+}
+
+func (r *PostgresUserRepository) GetVerificationCode(ctx context.Context, email string) (string, error) {
+	return r.cache.Get(ctx, fmt.Sprintf("email_verification:%s", email))
 }
 
 func (r *PostgresUserRepository) Update(ctx context.Context, u *User) error {
