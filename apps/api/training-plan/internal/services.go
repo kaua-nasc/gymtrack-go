@@ -237,7 +237,7 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 	if ok {
 		sub, err := s.repo.FindSubscription(ctx, id, user.ID)
 		if err == nil && sub != nil {
-			plan.PlanSubscriptionStatus = string(sub.Status)
+			plan.PlanSubscriptionStatus = &sub.Status
 		}
 	}
 
