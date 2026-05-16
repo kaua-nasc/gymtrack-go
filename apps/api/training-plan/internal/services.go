@@ -440,7 +440,7 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 		Id:             id.String(),
 		TrainingPlanId: planId,
 		UserId:         userId,
-		Status:         InProgress,
+		Status:         NotStarted,
 		Type:           subType,
 		CreatedAt:      now,
 		UpdatedAt:      now,
