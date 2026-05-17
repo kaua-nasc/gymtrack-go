@@ -102,6 +102,53 @@ func (r *PostRepository) AddComment(comment *Comment) error {
 	return err
 }
 
+func (r *PostRepository) FindById(id string) (*Post, error) {
+	query := `
+		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType"
+		FROM posts WHERE id = $1 AND "deletedAt" IS NULL
+	`
+	var p Post
+	err := r.db.QueryRow(query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &p, nil
+}
+
+func (r *PostRepository) Update(post *Post) error {
+	query := `UPDATE posts SET content = $1, "updatedAt" = $2 WHERE id = $3`
+	_, err := r.db.Exec(query, post.Content, post.UpdatedAt, *post.Id)
+	return err
+}
+
+func (r *PostRepository) Delete(id string) error {
+	query := `UPDATE posts SET "deletedAt" = NOW() WHERE id = $1`
+	_, err := r.db.Exec(query, id)
+	return err
+}
+
+func (r *PostRepository) FindCommentById(id string) (*Comment, error) {
+	query := `SELECT id, "createdAt", "updatedAt", content, "authorId", "postId" FROM public.post_comments WHERE id = $1 AND "deletedAt" IS NULL`
+	var c Comment
+	err := r.db.QueryRow(query, id).Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.Content, &c.AuthorId, &c.PostId)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (r *PostRepository) DeleteComment(id string) error {
+	query := `UPDATE public.post_comments SET "deletedAt" = NOW() WHERE id = $1`
+	_, err := r.db.Exec(query, id)
+	return err
+}
+
 func (r *PostRepository) GetComments(postId string, cursor *utils.CursorData, limit int) ([]Comment, *utils.CursorData, error) {
 	query := `
 		SELECT id, "createdAt", "updatedAt", content, "authorId", "postId"

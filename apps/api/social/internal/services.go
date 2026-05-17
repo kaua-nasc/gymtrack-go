@@ -143,6 +143,41 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 	return posts, nextCursor, nil
 }
 
+func (s *PostService) UpdatePost(ctx context.Context, postId, userId, content string) error {
+	post, err := s.repo.FindById(postId)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return fmt.Errorf("post not found")
+	}
+
+	if post.AuthorId != userId {
+		return fmt.Errorf("you are not the author of this post")
+	}
+
+	post.Content = content
+	post.UpdatedAt = time.Now().UTC()
+
+	return s.repo.Update(post)
+}
+
+func (s *PostService) DeletePost(ctx context.Context, postId, userId string) error {
+	post, err := s.repo.FindById(postId)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return fmt.Errorf("post not found")
+	}
+
+	if post.AuthorId != userId {
+		return fmt.Errorf("you are not the author of this post")
+	}
+
+	return s.repo.Delete(postId)
+}
+
 func (s *PostService) ToggleLike(ctx context.Context, postId, userId string) error {
 	return s.repo.ToggleLike(postId, userId)
 }
@@ -170,6 +205,22 @@ func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId
 	}
 
 	return nil
+}
+
+func (s *PostService) DeleteComment(ctx context.Context, commentId, userId string) error {
+	comment, err := s.repo.FindCommentById(commentId)
+	if err != nil {
+		return err
+	}
+	if comment == nil {
+		return fmt.Errorf("comment not found")
+	}
+
+	if comment.AuthorId != userId {
+		return fmt.Errorf("you are not the author of this comment")
+	}
+
+	return s.repo.DeleteComment(commentId)
 }
 
 func (s *PostService) GetComments(ctx context.Context, postId, cursor string, limit int) ([]Comment, string, error) {

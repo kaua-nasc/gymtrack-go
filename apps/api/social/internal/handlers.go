@@ -23,9 +23,12 @@ func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		social.POST("/posts", h.createPost)
 		social.GET("/posts", h.getFeed)
+		social.PUT("/posts/:id", h.updatePost)
+		social.DELETE("/posts/:id", h.deletePost)
 		social.POST("/posts/:id/like", h.toggleLike)
 		social.POST("/posts/:id/comments", h.addComment)
 		social.GET("/posts/:id/comments", h.getComments)
+		social.DELETE("/comments/:commentId", h.deleteComment)
 	}
 }
 
@@ -47,6 +50,44 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *PostHandler) updatePost(ctx *gin.Context) {
+	postId := ctx.Param("id")
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		Content string `json:"content" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	if err := h.service.UpdatePost(ctx.Request.Context(), postId, user.ID, body.Content); err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (h *PostHandler) deletePost(ctx *gin.Context) {
+	postId := ctx.Param("id")
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if err := h.service.DeletePost(ctx.Request.Context(), postId, user.ID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func (h *PostHandler) getFeed(ctx *gin.Context) {
@@ -102,6 +143,21 @@ func (h *PostHandler) addComment(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *PostHandler) deleteComment(ctx *gin.Context) {
+	commentId := ctx.Param("commentId")
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if err := h.service.DeleteComment(ctx.Request.Context(), commentId, user.ID); err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func (h *PostHandler) getComments(ctx *gin.Context) {
