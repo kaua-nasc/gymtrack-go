@@ -41,7 +41,9 @@ jobs:
           context: .
           file: apps/api/identity/Dockerfile
           push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-identity:latest
+          tags: |
+            ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-identity:latest
+            ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-identity:${{ github.sha }}
 
   deploy:
     name: Deploy to Azure
@@ -61,6 +63,6 @@ jobs:
       - name: Deploy to Azure Container App
         uses: azure/container-apps-deploy-action@v2
         with:
-          imageToDeploy: ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-identity:latest
+          imageToDeploy: ${{ vars.DOCKERHUB_USERNAME }}/gymtrack-identity:${{ github.sha }}
           containerAppName: ${{ vars.AZURE_IDENTITY_APP_NAME }}
           resourceGroup: ${{ vars.AZURE_RESOURCE_GROUP }}
