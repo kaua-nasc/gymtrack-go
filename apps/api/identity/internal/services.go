@@ -116,7 +116,7 @@ func (s *UserService) Login(ctx context.Context, email, password string) (string
 		"sub":  u.ID,
 		"type": u.Type,
 		"iat":  now.Unix(),
-		"exp":  now.Add(time.Minute * 60).Unix(), // Aligned with NestJS 60m
+		"exp":  now.AddDate(0, 0, 30).Unix(), // 30 days for better consumer UX
 	})
 
 	secret := os.Getenv("JWT_SECRET")
