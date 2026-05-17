@@ -92,7 +92,7 @@ func (r *PostgresTrainingPlanRepository) Update(ctx context.Context, p *Training
 }
 
 func (r *PostgresTrainingPlanRepository) CountByAuthor(ctx context.Context, authorId string) (int, error) {
-	query := `SELECT COUNT(*) FROM training_plans WHERE "authorId" = $1`
+	query := `SELECT COUNT(*) FROM training_plans WHERE "authorId" = $1 AND "deletedAt" IS NULL`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, authorId).Scan(&count)
@@ -110,7 +110,7 @@ func (r *PostgresTrainingPlanRepository) Find(ctx context.Context, id string) (*
 			level, observation, pathology, "maxSubscriptions", 
 				"imageUrl", description, "createdAt", "updatedAt"
 		FROM training_plans 
-		WHERE id = $1 
+		WHERE id = $1 AND "deletedAt" IS NULL
 		LIMIT 1`
 
 	var p TrainingPlan
@@ -138,10 +138,10 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 
 	if authorId != "" {
 		// sqlStr += ` AND (visibility = 'public' OR "authorId" = $1 OR id IN (SELECT "trainingPlanId" FROM private_participants WHERE user_id = $1))`
-		sqlStr += ` AND "authorId" = $1`
+		sqlStr += ` AND "authorId" = $1 AND "deletedAt" IS NULL`
 		args = append(args, authorId)
 	} else {
-		sqlStr += ` AND visibility = 'PUBLIC'`
+		sqlStr += ` AND visibility = 'PUBLIC' AND "deletedAt" IS NULL`
 	}
 
 	if cursor != nil {
@@ -194,7 +194,7 @@ func (r *PostgresTrainingPlanRepository) ListByIds(ctx context.Context, ids []st
 			level, observation, pathology, "maxSubscriptions", 
 			"imageUrl", description, "createdAt", "updatedAt"
 		FROM training_plans 
-		WHERE id = ANY($1)`
+		WHERE id = ANY($1) AND "deletedAt" IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
@@ -413,10 +413,10 @@ func (r *PostgresTrainingPlanRepository) CreatePlanSubscription(ctx context.Cont
 }
 
 func (r *PostgresTrainingPlanRepository) DeletePlan(ctx context.Context, id string) error {
-	query := `delete from training_plans where id = $1`
+	query := `UPDATE training_plans SET "deletedAt" = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("could not delete day: %w", err)
+		return fmt.Errorf("could not soft delete training plan: %w", err)
 	}
 	return nil
 }

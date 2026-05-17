@@ -32,7 +32,7 @@ func (r *PostRepository) FindAll(currentUserId string, cursor *utils.CursorData,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
 		FROM posts p
-		WHERE ($2::timestamp IS NULL OR p."createdAt" < $2)
+		WHERE ("deletedAt" IS NULL) AND ($2::timestamp IS NULL OR p."createdAt" < $2)
 		ORDER BY p."createdAt" DESC
 		LIMIT $3
 	`
@@ -106,7 +106,7 @@ func (r *PostRepository) GetComments(postId string, cursor *utils.CursorData, li
 	query := `
 		SELECT id, "createdAt", "updatedAt", content, "authorId", "postId"
 		FROM public.post_comments
-		WHERE "postId" = $1
+		WHERE "postId" = $1 AND "deletedAt" IS NULL
 		AND ($2::timestamp IS NULL OR "createdAt" > $2)
 		ORDER BY "createdAt" ASC
 		LIMIT $3

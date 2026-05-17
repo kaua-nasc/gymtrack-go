@@ -90,7 +90,7 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 				)
 			) FROM trainer_student_relationships tsr 
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
-			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
 				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
@@ -100,8 +100,8 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 				)
 			)) FROM trainer_student_relationships tsr 
 			   LEFT JOIN users s ON tsr."studentId" = s.id 
-			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
-		FROM users u WHERE email = $1 LIMIT 1`
+			   WHERE tsr."trainerId" = u.id AND tsr."deletedAt" IS NULL), '[]'::json) as trainer_of
+		FROM users u WHERE email = $1 AND u."deletedAt" IS NULL LIMIT 1`
 	var u User
 	var studentOfJSON, trainerOfJSON []byte
 	err := r.db.QueryRowContext(ctx, query, email).Scan(
@@ -140,7 +140,7 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string, currentUse
 				)
 			) FROM trainer_student_relationships tsr
 			  LEFT JOIN users t ON tsr."trainerId" = t.id
-			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
 				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
@@ -150,9 +150,9 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string, currentUse
 				)
 			)) FROM trainer_student_relationships tsr
 			   LEFT JOIN users s ON tsr."studentId" = s.id
-			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of,
-			EXISTS (SELECT 1 FROM user_follows WHERE "followerId" = NULLIF($2, '')::uuid AND "followingId" = u.id) as is_following
-			FROM users u WHERE id = $1 LIMIT 1`
+			   WHERE tsr."trainerId" = u.id AND tsr."deletedAt" IS NULL), '[]'::json) as trainer_of,
+			EXISTS (SELECT 1 FROM user_follows WHERE "followerId" = NULLIF($2, '')::uuid AND "followingId" = u.id AND "deletedAt" IS NULL) as is_following
+			FROM users u WHERE id = $1 AND u."deletedAt" IS NULL LIMIT 1`
 	var u User
 	var studentOfJSON, trainerOfJSON []byte
 	var isFollowing bool
@@ -195,7 +195,7 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 				)
 			) FROM trainer_student_relationships tsr 
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
-			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
 				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
@@ -205,8 +205,8 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 				)
 			)) FROM trainer_student_relationships tsr 
 			   LEFT JOIN users s ON tsr."studentId" = s.id 
-			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
-		FROM users u WHERE id = ANY($1)`
+			   WHERE tsr."trainerId" = u.id AND tsr."deletedAt" IS NULL), '[]'::json) as trainer_of
+		FROM users u WHERE id = ANY($1) AND u."deletedAt" IS NULL`
 	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
@@ -252,7 +252,7 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 				)
 			) FROM trainer_student_relationships tsr_s 
 			  LEFT JOIN users t ON tsr_s."trainerId" = t.id 
-			  WHERE tsr_s."studentId" = u.id LIMIT 1) as student_of,
+			  WHERE tsr_s."studentId" = u.id AND tsr_s."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr_t.id, 'createdAt', tsr_t."createdAt", 'updatedAt', tsr_t."updatedAt",
 				'trainerId', tsr_t."trainerId", 'studentId', tsr_t."studentId", 'linkedAt', tsr_t."linkedAt",
@@ -262,10 +262,10 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 				)
 			)) FROM trainer_student_relationships tsr_t 
 			   LEFT JOIN users s ON tsr_t."studentId" = s.id 
-			   WHERE tsr_t."trainerId" = u.id), '[]'::json) as trainer_of
+			   WHERE tsr_t."trainerId" = u.id AND tsr_t."deletedAt" IS NULL), '[]'::json) as trainer_of
 		FROM users u
 		INNER JOIN trainer_student_relationships tsr ON tsr."studentId" = u.id
-		WHERE tsr."trainerId" = $1 AND tsr."deletedAt" IS NULL
+		WHERE tsr."trainerId" = $1 AND tsr."deletedAt" IS NULL AND u."deletedAt" IS NULL
 	`
 
 	var args []interface{}
@@ -361,7 +361,7 @@ func (r *PostgresUserRepository) ListFollowing(ctx context.Context, id string, c
 	query := `
 		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
 		FROM user_follows f LEFT JOIN users u ON f."followingId" = u.id
-		WHERE f."followerId" = $1
+		WHERE f."followerId" = $1 AND f."deletedAt" IS NULL AND u."deletedAt" IS NULL
 	`
 	var args []interface{}
 	args = append(args, id)
@@ -406,7 +406,7 @@ func (r *PostgresUserRepository) ListFollower(ctx context.Context, id string, cu
 	query := `
 		SELECT u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt", u."profilePictureUrl"
 		FROM user_follows f LEFT JOIN users u ON f."followerId" = u.id
-		WHERE f."followingId" = $1
+		WHERE f."followingId" = $1 AND f."deletedAt" IS NULL AND u."deletedAt" IS NULL
 	`
 	var args []interface{}
 	args = append(args, id)
@@ -462,7 +462,7 @@ func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code str
 				)
 			) FROM trainer_student_relationships tsr 
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
-			  WHERE tsr."studentId" = u.id LIMIT 1) as student_of,
+			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
 				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
 				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
@@ -472,8 +472,8 @@ func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code str
 				)
 			)) FROM trainer_student_relationships tsr 
 			   LEFT JOIN users s ON tsr."studentId" = s.id 
-			   WHERE tsr."trainerId" = u.id), '[]'::json) as trainer_of
-		FROM users u WHERE "trainerInviteCode" = $1 LIMIT 1`
+			   WHERE tsr."trainerId" = u.id AND tsr."deletedAt" IS NULL), '[]'::json) as trainer_of
+		FROM users u WHERE "trainerInviteCode" = $1 AND u."deletedAt" IS NULL LIMIT 1`
 	var u User
 	var studentOfJSON, trainerOfJSON []byte
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
@@ -516,7 +516,7 @@ func (r *PostgresUserRepository) LinkTrainer(ctx context.Context, relation Train
 }
 
 func (r *PostgresUserRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
-	query := `DELETE FROM trainer_student_relationships WHERE "studentId" = $1`
+	query := `UPDATE trainer_student_relationships SET "deletedAt" = NOW() WHERE "studentId" = $1 AND "deletedAt" IS NULL`
 	_, err := r.db.ExecContext(ctx, query, studentId)
 	if err != nil {
 		return fmt.Errorf("could not unlink trainer: %w", err)
@@ -534,7 +534,7 @@ func (r *PostgresUserRepository) AddBodyMeasurementNote(ctx context.Context, id,
 }
 
 func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*BodyMeasurement, *utils.CursorData, error) {
-	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1`
+	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, userId)
@@ -575,7 +575,7 @@ func (r *PostgresUserRepository) ListBodyMeasurements(ctx context.Context, userI
 	return measurements, nextCursor, nil
 }
 func (r *PostgresUserRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*BodyMeasurement, error) {
-	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 ORDER BY "measuredAt" DESC LIMIT 1`
+	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 AND "deletedAt" IS NULL ORDER BY "measuredAt" DESC LIMIT 1`
 	var m BodyMeasurement
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
 	if err != nil {
@@ -624,7 +624,7 @@ func (r *PostgresUserRepository) ChangeProfileImage(ctx context.Context, u User,
 }
 
 func (r *PostgresUserRepository) ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*MetricGoal, *utils.CursorData, error) {
-	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1`
+	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, id)
@@ -675,7 +675,7 @@ func (r *PostgresUserRepository) AddGoalMetric(ctx context.Context, g MetricGoal
 }
 
 func (r *PostgresUserRepository) ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*WeightLog, *utils.CursorData, error) {
-	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1`
+	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, userId)
