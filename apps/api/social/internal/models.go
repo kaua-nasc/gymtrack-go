@@ -15,6 +15,7 @@ type Post struct {
 	UpdatedAt  time.Time       `json:"updatedAt"`
 	AuthorId   string          `json:"-" validate:"required,uuid"`
 	Content    string          `json:"content" validate:"required"`
+	MediaUrls  []string        `json:"mediaUrls"`
 	EntityId   *string         `json:"-" validate:"omitempty,uuid"`
 	EntityType *PostEntityType `json:"-" validate:"omitempty"`
 

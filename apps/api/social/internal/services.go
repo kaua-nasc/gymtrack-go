@@ -3,11 +3,23 @@ package internal
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	MaxMediaFiles = 5
+	MaxImageSize  = 5 * 1024 * 1024  // 5MB
+	MaxVideoSize  = 20 * 1024 * 1024 // 20MB
+	MaxGifSize    = 5 * 1024 * 1024  // 5MB
 )
 
 type PostService struct {
@@ -124,6 +136,7 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 		}
 
 		for i := range posts {
+			s.sanitizePost(&posts[i])
 			// Hydrate Author
 			if authorsMap != nil {
 				if author, ok := authorsMap[posts[i].AuthorId]; ok {
@@ -141,6 +154,27 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 
 	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
 	return posts, nextCursor, nil
+}
+
+func (s *PostService) sanitizePost(p *Post) {
+	if p == nil {
+		return
+	}
+
+	if p.MediaUrls == nil {
+		p.MediaUrls = []string{}
+	}
+
+	storageURL := os.Getenv("AZURE_STORAGE_URL")
+	if storageURL == "" {
+		return
+	}
+
+	for i, url := range p.MediaUrls {
+		if !strings.HasPrefix(url, "http") {
+			p.MediaUrls[i] = storageURL + "/" + url
+		}
+	}
 }
 
 func (s *PostService) UpdatePost(ctx context.Context, postId, userId, content string) error {
@@ -221,6 +255,56 @@ func (s *PostService) DeleteComment(ctx context.Context, commentId, userId strin
 	}
 
 	return s.repo.DeleteComment(commentId)
+}
+
+func (s *PostService) UploadMedia(ctx context.Context, authorId string, files []io.Reader, filenames []string) ([]string, error) {
+	if len(files) > MaxMediaFiles {
+		return nil, fmt.Errorf("maximum of %d files allowed", MaxMediaFiles)
+	}
+
+	var mediaUrls []string
+	for i, file := range files {
+		content, err := io.ReadAll(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %s: %w", filenames[i], err)
+		}
+
+		// Detect Content-Type
+		mimeType := http.DetectContentType(content)
+		var maxSize int64
+
+		if strings.HasPrefix(mimeType, "image/") {
+			if mimeType == "image/gif" {
+				maxSize = MaxGifSize
+			} else {
+				maxSize = MaxImageSize
+			}
+		} else if strings.HasPrefix(mimeType, "video/") {
+			maxSize = MaxVideoSize
+		} else {
+			return nil, fmt.Errorf("file type %s not supported", mimeType)
+		}
+
+		if int64(len(content)) > maxSize {
+			return nil, fmt.Errorf("file %s exceeds size limit for its type", filenames[i])
+		}
+
+		// Generate unique filename
+		timestamp := time.Now().UnixNano()
+		ext := "png" // default
+		if parts := strings.Split(filenames[i], "."); len(parts) > 1 {
+			ext = parts[len(parts)-1]
+		}
+		storageFilename := fmt.Sprintf("social/posts/media/%s-%d-%d.%s", authorId, timestamp, i, ext)
+
+		if err := storage.UploadBuffer(ctx, storageFilename, content); err != nil {
+			return nil, fmt.Errorf("failed to upload file %s: %w", filenames[i], err)
+		}
+
+		mediaUrls = append(mediaUrls, storageFilename)
+	}
+
+	return mediaUrls, nil
 }
 
 func (s *PostService) GetComments(ctx context.Context, postId, cursor string, limit int) ([]Comment, string, error) {

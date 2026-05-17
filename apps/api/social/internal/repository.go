@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
+	"github.com/lib/pq"
 )
 
 type PostRepository struct {
@@ -17,17 +18,17 @@ func NewPostRepository(db *sql.DB) *PostRepository {
 
 func (r *PostRepository) Create(post *Post) error {
 	query := `
-        INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType")
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `
-	_, err := r.db.Exec(query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType)
+	_, err := r.db.Exec(query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType, pq.Array(post.MediaUrls))
 	return err
 }
 
 func (r *PostRepository) FindAll(currentUserId string, cursor *utils.CursorData, limit int) ([]Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
-			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType",
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
 			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
@@ -51,7 +52,7 @@ func (r *PostRepository) FindAll(currentUserId string, cursor *utils.CursorData,
 	for rows.Next() {
 		var p Post
 		err := rows.Scan(
-			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType,
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls),
 			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
 		)
 		if err != nil {
@@ -104,11 +105,11 @@ func (r *PostRepository) AddComment(comment *Comment) error {
 
 func (r *PostRepository) FindById(id string) (*Post, error) {
 	query := `
-		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType"
+		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls"
 		FROM posts WHERE id = $1 AND "deletedAt" IS NULL
 	`
 	var p Post
-	err := r.db.QueryRow(query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType)
+	err := r.db.QueryRow(query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil

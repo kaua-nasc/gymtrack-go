@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
@@ -23,6 +24,7 @@ func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
 	{
 		social.POST("/posts", h.createPost)
 		social.GET("/posts", h.getFeed)
+		social.POST("/posts/media", h.uploadMedia)
 		social.PUT("/posts/:id", h.updatePost)
 		social.DELETE("/posts/:id", h.deletePost)
 		social.POST("/posts/:id/like", h.toggleLike)
@@ -50,6 +52,47 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *PostHandler) uploadMedia(ctx *gin.Context) {
+	user, ok := h.getAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	form, err := ctx.MultipartForm()
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("failed to parse multipart form"))
+		return
+	}
+
+	files := form.File["files"]
+	if len(files) == 0 {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("no files provided"))
+		return
+	}
+
+	var readers []io.Reader
+	var filenames []string
+
+	for _, fileHeader := range files {
+		f, err := fileHeader.Open()
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to open file"))
+			return
+		}
+		defer f.Close()
+		readers = append(readers, f)
+		filenames = append(filenames, fileHeader.Filename)
+	}
+
+	urls, err := h.service.UploadMedia(ctx.Request.Context(), user.ID, readers, filenames)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"mediaUrls": urls})
 }
 
 func (h *PostHandler) updatePost(ctx *gin.Context) {
