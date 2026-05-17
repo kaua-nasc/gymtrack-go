@@ -27,7 +27,7 @@ type Post struct {
 	CommentsCount      int  `json:"commentsCount"`
 	LikedByCurrentUser bool `json:"likedByCurrentUser"`
 	Author             any  `json:"author,omitempty"`
-	TrainingPlan       any  `json:"trainingPlan,omitempty"`
+	Entity             any  `json:"trainingPlan,omitempty"`
 }
 
 type Like struct {

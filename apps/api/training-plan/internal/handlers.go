@@ -30,6 +30,7 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 	plans.Use(auth.AuthMiddleware())
 	{
 		plans.GET("", h.ListPlan)
+		plans.POST("/by-ids", h.ListPlansByIds)
 		plans.POST("", h.CreatePlan)
 		plans.GET("author/:authorId", h.ListPlan)
 		plans.GET("/:id", h.GetPlan)
@@ -439,6 +440,23 @@ func (h *TrainingPlanHandler) ListActivityWeekly(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, activity)
+}
+
+func (h *TrainingPlanHandler) ListPlansByIds(ctx *gin.Context) {
+	var ids []string
+	if err := ctx.ShouldBindJSON(&ids); err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	res, err := h.srv.ListPlansByIds(ctx.Request.Context(), ids)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list training plans", slog.Any("error", err))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list training plans"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (h *TrainingPlanHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {

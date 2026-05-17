@@ -23,6 +23,7 @@ type TrainingPlanRepository interface {
 	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error)
 	List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*TrainingPlan, *utils.CursorData, error)
+	ListByIds(ctx context.Context, ids []string) ([]*TrainingPlan, error)
 	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
 	FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error)
 	CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error
@@ -180,6 +181,45 @@ func (r *PostgresTrainingPlanRepository) List(ctx context.Context, authorId stri
 	}
 
 	return plans, nextCursor, nil
+}
+
+func (r *PostgresTrainingPlanRepository) ListByIds(ctx context.Context, ids []string) ([]*TrainingPlan, error) {
+	if len(ids) == 0 {
+		return []*TrainingPlan{}, nil
+	}
+
+	query := `
+		SELECT 
+			id, name, "authorId", "timeInDays", type, visibility, 
+			level, observation, pathology, "maxSubscriptions", 
+			"imageUrl", description, "createdAt", "updatedAt"
+		FROM training_plans 
+		WHERE id = ANY($1)`
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("could not list training plans by ids: %w", err)
+	}
+	defer rows.Close()
+
+	plans := make([]*TrainingPlan, 0)
+	for rows.Next() {
+		p := &TrainingPlan{}
+		err := rows.Scan(
+			&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
+			&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
+			&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		plans = append(plans, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return plans, nil
 }
 
 // Day Methods

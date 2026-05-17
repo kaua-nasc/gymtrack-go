@@ -148,3 +148,48 @@ func (s *TrainingPlanClient) FindPlan(ctx context.Context, id string, token stri
 
 	return plan, nil
 }
+
+func (s *TrainingPlanClient) ListPlans(ctx context.Context, ids []string, token string) (map[string]any, error) {
+	if len(ids) == 0 {
+		return map[string]any{}, nil
+	}
+
+	body, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal ids: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/training-plans/by-ids", s.baseURL)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(body)))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("training-plan service error: %d", resp.StatusCode)
+	}
+
+	var plans []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&plans); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]any)
+	for _, p := range plans {
+		id, _ := p["id"].(string)
+		result[id] = p
+	}
+
+	return result, nil
+}

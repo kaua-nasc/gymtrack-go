@@ -269,6 +269,18 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 	return plan, nil
 }
 
+func (s *TrainingPlanService) ListPlansByIds(ctx context.Context, ids []string) ([]*TrainingPlan, error) {
+	slog.InfoContext(ctx, "listing training plans by ids", slog.Any("ids", ids))
+
+	plans, err := s.repo.ListByIds(ctx, ids)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list training plans by ids", slog.Any("error", err))
+		return nil, fmt.Errorf("error listing training plans by ids")
+	}
+
+	return plans, nil
+}
+
 func (s *TrainingPlanService) ListPlan(ctx context.Context, authorId, cursor string, limit int) ([]*TrainingPlan, string, error) {
 	slog.InfoContext(ctx, "listing training plans", slog.String("authorId", authorId), slog.Int("limit", limit))
 

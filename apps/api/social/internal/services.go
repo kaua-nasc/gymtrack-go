@@ -86,29 +86,54 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 
 	if len(posts) > 0 {
 		authorIDsMap := make(map[string]bool)
+		plansIDsMap := make(map[string]bool)
 		for _, p := range posts {
 			authorIDsMap[p.AuthorId] = true
+			if p.EntityType != nil && *p.EntityType == TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
+				plansIDsMap[*p.EntityId] = true
+			}
 		}
 		var authorIDs []string
 		for id := range authorIDsMap {
 			authorIDs = append(authorIDs, id)
 		}
+		var plansIDs []string
+		for id := range plansIDsMap {
+			plansIDs = append(plansIDs, id)
+		}
 
-		authorsMap, err := s.identity.ListUser(ctx, authorIDs, token)
+		g, ctx := errgroup.WithContext(ctx)
+		var authorsMap map[string]any
+		var plansMap map[string]any
+
+		g.Go(func() error {
+			var err error
+			authorsMap, err = s.identity.ListUser(ctx, authorIDs, token)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			plansMap, err = s.trainingPlan.ListPlans(ctx, plansIDs, token)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			// We might want to log the error but still return the posts even if hydration fails partially
+			// For now, let's just proceed if we have some data
+		}
 
 		for i := range posts {
 			// Hydrate Author
-			if err == nil && authorsMap != nil {
+			if authorsMap != nil {
 				if author, ok := authorsMap[posts[i].AuthorId]; ok {
 					posts[i].Author = author
 				}
 			}
 
-			// Hydrate TrainingPlan if entityType is TRAINING_PLAN
-			if posts[i].EntityType != nil && *posts[i].EntityType == TrainingPlanPost && posts[i].EntityId != nil {
-				plan, err := s.trainingPlan.FindPlan(ctx, *posts[i].EntityId, token)
-				if err == nil && plan != nil {
-					posts[i].TrainingPlan = plan
+			if plansMap != nil && posts[i].EntityId != nil {
+				if plan, ok := plansMap[*posts[i].EntityId]; ok {
+					posts[i].Entity = plan
 				}
 			}
 		}
