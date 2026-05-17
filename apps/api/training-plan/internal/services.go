@@ -244,22 +244,22 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 		slog.WarnContext(ctx, "failed to fetch author details", slog.String("authorId", plan.AuthorId), slog.Any("error", err))
 	}
 
-	// Hydrate with days and exercises
+	// Hydrate with days and exercises (Optimized: single query for exercises)
 	days, err := s.repo.ListDaysByPlan(ctx, id)
 	if err == nil {
-		for i := range days {
-			exercises, err := s.repo.ListExercisesByDay(ctx, days[i].Id)
-			if err == nil {
-				days[i].Exercises = make([]Exercise, len(exercises))
-				for j, e := range exercises {
-					days[i].Exercises[j] = *e
-				}
-			} else {
-				slog.WarnContext(ctx, "failed to list exercises for day", slog.String("day_id", days[i].Id), slog.Any("error", err))
+		exercises, err := s.repo.ListExercisesByPlan(ctx, id)
+		exerciseMap := make(map[string][]Exercise)
+		if err == nil {
+			for _, e := range exercises {
+				exerciseMap[e.DayId] = append(exerciseMap[e.DayId], *e)
 			}
+		} else {
+			slog.WarnContext(ctx, "failed to list exercises for plan", slog.String("plan_id", id), slog.Any("error", err))
 		}
+
 		plan.Days = make([]Day, len(days))
 		for i, d := range days {
+			d.Exercises = exerciseMap[d.Id]
 			plan.Days[i] = *d
 		}
 	} else {

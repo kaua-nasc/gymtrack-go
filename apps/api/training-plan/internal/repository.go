@@ -22,6 +22,7 @@ type TrainingPlanRepository interface {
 	DeletePlan(ctx context.Context, id string) error
 	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*Exercise, error)
+	ListExercisesByPlan(ctx context.Context, planID string) ([]*Exercise, error)
 	List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*TrainingPlan, *utils.CursorData, error)
 	ListByIds(ctx context.Context, ids []string) ([]*TrainingPlan, error)
 	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
@@ -299,6 +300,36 @@ func (r *PostgresTrainingPlanRepository) ListExercisesByDay(ctx context.Context,
 	rows, err := r.db.QueryContext(ctx, query, dayID)
 	if err != nil {
 		return nil, fmt.Errorf("could not list exercises: %w", err)
+	}
+	defer rows.Close()
+
+	exercises := make([]*Exercise, 0)
+	for rows.Next() {
+		e := &Exercise{}
+		if err := rows.Scan(
+			&e.Id, &e.Name, &e.DayId, &e.Type, &e.SetsNumber, &e.RepsNumber,
+			&e.Description, &e.Observation, &e.CreatedAt, &e.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		exercises = append(exercises, e)
+	}
+	return exercises, nil
+}
+
+func (r *PostgresTrainingPlanRepository) ListExercisesByPlan(ctx context.Context, planID string) ([]*Exercise, error) {
+	query := `
+		SELECT 
+			e.id, e.name, e."dayId", e.type, e."setsNumber", e."repsNumber", 
+			e.description, e.observation, e."createdAt", e."updatedAt" 
+		FROM exercises e
+		INNER JOIN days d ON e."dayId" = d.id
+		WHERE d."trainingPlanId" = $1 
+		ORDER BY d."createdAt" ASC, e."createdAt" ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, planID)
+	if err != nil {
+		return nil, fmt.Errorf("could not list exercises by plan: %w", err)
 	}
 	defer rows.Close()
 
