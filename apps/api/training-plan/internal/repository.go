@@ -237,25 +237,25 @@ func (r *PostgresTrainingPlanRepository) CreateDay(ctx context.Context, d *Day) 
 }
 
 func (r *PostgresTrainingPlanRepository) DeleteDay(ctx context.Context, id string) error {
-	query := `delete from days where id = $1`
+	query := `UPDATE days SET "deletedAt" = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("could not delete day: %w", err)
+		return fmt.Errorf("could not soft delete day: %w", err)
 	}
 	return nil
 }
 
 func (r *PostgresTrainingPlanRepository) DeleteExercise(ctx context.Context, id string) error {
-	query := `delete from exercises where id = $1`
+	query := `UPDATE exercises SET "deletedAt" = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return fmt.Errorf("could not delete day: %w", err)
+		return fmt.Errorf("could not soft delete exercise: %w", err)
 	}
 	return nil
 }
 
 func (r *PostgresTrainingPlanRepository) ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error) {
-	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 ORDER BY "createdAt" ASC`
+	query := `SELECT id, name, "trainingPlanId", "createdAt", "updatedAt" FROM days WHERE "trainingPlanId" = $1 AND "deletedAt" IS NULL ORDER BY "createdAt" ASC`
 	rows, err := r.db.QueryContext(ctx, query, planID)
 	if err != nil {
 		return nil, fmt.Errorf("could not list days: %w", err)
@@ -297,7 +297,7 @@ func (r *PostgresTrainingPlanRepository) ListExercisesByDay(ctx context.Context,
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
 				description, observation, "createdAt", "updatedAt" 
 		FROM exercises 
-		WHERE "dayId" = $1 
+		WHERE "dayId" = $1 AND "deletedAt" IS NULL
 			ORDER BY "createdAt" ASC`
 
 	rows, err := r.db.QueryContext(ctx, query, dayID)
@@ -327,7 +327,7 @@ func (r *PostgresTrainingPlanRepository) ListExercisesByPlan(ctx context.Context
 			e.description, e.observation, e."createdAt", e."updatedAt" 
 		FROM exercises e
 		INNER JOIN days d ON e."dayId" = d.id
-		WHERE d."trainingPlanId" = $1 
+		WHERE d."trainingPlanId" = $1 AND e."deletedAt" IS NULL AND d."deletedAt" IS NULL
 		ORDER BY d."createdAt" ASC, e."createdAt" ASC`
 
 	rows, err := r.db.QueryContext(ctx, query, planID)
@@ -355,7 +355,7 @@ func (r *PostgresTrainingPlanRepository) ListSubscription(ctx context.Context, u
 		SELECT 
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
 			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
-		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1`
+		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL AND plans."deletedAt" IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, userId)
 	if err != nil {
@@ -386,7 +386,8 @@ func (r *PostgresTrainingPlanRepository) ListActivityWeekly(ctx context.Context,
 		JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
 		WHERE subs."userId" = $1 
 		  AND progress.status = 'COMPLETED'
-		  AND progress."updatedAt" BETWEEN $2 AND $3`
+		  AND progress."updatedAt" BETWEEN $2 AND $3
+		  AND progress."deletedAt" IS NULL AND subs."deletedAt" IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, userId, start, end)
 	if err != nil {
@@ -407,7 +408,7 @@ func (r *PostgresTrainingPlanRepository) ListActivityWeekly(ctx context.Context,
 }
 
 func (r *PostgresTrainingPlanRepository) FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
-	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 LIMIT 1`
+	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL LIMIT 1`
 	var s PlanSubscription
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
@@ -425,7 +426,7 @@ func (r *PostgresTrainingPlanRepository) FindSubscription(ctx context.Context, i
             plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
         FROM plan_subscription subs 
         JOIN training_plans plans ON subs."trainingPlanId" = plans.id 
-        WHERE subs.id = $1 
+        WHERE subs.id = $1 AND subs."deletedAt" IS NULL AND plans."deletedAt" IS NULL
         LIMIT 1`
 
 	c := &PlanSubscription{}
@@ -487,10 +488,10 @@ func (r *PostgresTrainingPlanRepository) DeletePlan(ctx context.Context, id stri
 }
 
 func (r *PostgresTrainingPlanRepository) DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error {
-	query := `DELETE FROM plan_subscription WHERE id = $1`
+	query := `UPDATE plan_subscription SET "deletedAt" = NOW() WHERE id = $1`
 	_, err := r.db.ExecContext(ctx, query, s.Id)
 	if err != nil {
-		return fmt.Errorf("could not delete subscription: %w", err)
+		return fmt.Errorf("could not soft delete subscription: %w", err)
 	}
 	return nil
 }
@@ -505,7 +506,7 @@ func (r *PostgresTrainingPlanRepository) CreateSubscriptionProgress(ctx context.
 }
 
 func (r *PostgresTrainingPlanRepository) CountSubscriptionProgress(ctx context.Context, subsId string) (int, error) {
-	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NOT NULL AND "planSubscriptionId" = $1`
+	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NULL AND "planSubscriptionId" = $1`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, subsId).Scan(&count)
@@ -548,8 +549,8 @@ func (r *PostgresTrainingPlanRepository) AddParticipant(ctx context.Context, p *
 func (r *PostgresTrainingPlanRepository) GetSubscriptionEligibility(ctx context.Context, planId, userId string) (bool, bool, error) {
 	query := `
 		SELECT 
-			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2) as already_subscribed,
-			EXISTS (SELECT 1 FROM days d JOIN exercises e ON d.id = e."dayId" WHERE d."trainingPlanId" = $1) as is_complete
+			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL) as already_subscribed,
+			EXISTS (SELECT 1 FROM days d JOIN exercises e ON d.id = e."dayId" WHERE d."trainingPlanId" = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL) as is_complete
 	`
 	var alreadySubscribed, isComplete bool
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&alreadySubscribed, &isComplete)
@@ -560,7 +561,7 @@ func (r *PostgresTrainingPlanRepository) GetSubscriptionEligibility(ctx context.
 }
 
 func (r *PostgresTrainingPlanRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM plan_participant WHERE "trainingPlanId" = $1 AND "userId" = $2)`
+	query := `SELECT EXISTS(SELECT 1 FROM plan_participant WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL)`
 	var exists bool
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&exists)
 	if err != nil {
@@ -574,7 +575,7 @@ func (r *PostgresTrainingPlanRepository) IsPlanComplete(ctx context.Context, pla
 		SELECT EXISTS (
 			SELECT 1 FROM days d
 			JOIN exercises e ON d.id = e."dayId"
-			WHERE d."trainingPlanId" = $1
+			WHERE d."trainingPlanId" = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL
 		)`
 	var complete bool
 	err := r.db.QueryRowContext(ctx, query, planId).Scan(&complete)
