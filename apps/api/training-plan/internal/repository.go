@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -19,6 +20,7 @@ type TrainingPlanRepository interface {
 	DeleteDay(ctx context.Context, id string) error
 	DeleteExercise(ctx context.Context, id string) error
 	Find(ctx context.Context, id string) (*TrainingPlan, error)
+	FindComplete(ctx context.Context, id string) (*TrainingPlan, error)
 	Update(ctx context.Context, p *TrainingPlan) error
 	DeletePlan(ctx context.Context, id string) error
 	ListDaysByPlan(ctx context.Context, planID string) ([]*Day, error)
@@ -129,6 +131,70 @@ func (r *PostgresTrainingPlanRepository) Find(ctx context.Context, id string) (*
 			return nil, nil
 		}
 		return nil, fmt.Errorf("could not find training plan: %w", err)
+	}
+
+	return &p, nil
+}
+
+func (r *PostgresTrainingPlanRepository) FindComplete(ctx context.Context, id string) (*TrainingPlan, error) {
+	query := `
+		SELECT 
+			p.id, p.name, p."authorId", p."timeInDays", p.type, p.visibility, 
+			p.level, p.observation, p.pathology, p."maxSubscriptions", 
+			p."imageUrl", p.description, p."createdAt"::timestamptz, p."updatedAt"::timestamptz,
+			COALESCE(
+				(SELECT json_agg(
+					json_build_object(
+						'id', d.id,
+						'name', d.name,
+						'trainingPlanId', d."trainingPlanId",
+						'createdAt', d."createdAt"::timestamptz,
+						'updatedAt', d."updatedAt"::timestamptz,
+						'exercises', COALESCE(
+							(SELECT json_agg(
+								json_build_object(
+									'id', e.id,
+									'name', e.name,
+									'dayId', e."dayId",
+									'type', e.type,
+									'setsNumber', e."setsNumber",
+									'repsNumber', e."repsNumber",
+									'description', e.description,
+									'observation', e.observation,
+									'createdAt', e."createdAt"::timestamptz,
+									'updatedAt', e."updatedAt"::timestamptz
+								) ORDER BY e."createdAt" ASC
+							) FROM exercises e WHERE e."dayId" = d.id AND e."deletedAt" IS NULL),
+							'[]'::json
+						)
+					) ORDER BY d."createdAt" ASC
+				) FROM days d WHERE d."trainingPlanId" = p.id AND d."deletedAt" IS NULL),
+				'[]'::json
+			) as days
+		FROM training_plans p
+		WHERE p.id = $1 AND p."deletedAt" IS NULL
+		LIMIT 1`
+
+	var p TrainingPlan
+	var daysJSON []byte
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
+		&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
+		&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+		&daysJSON,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find complete training plan: %w", err)
+	}
+
+	if len(daysJSON) > 0 {
+		if err := json.Unmarshal(daysJSON, &p.Days); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal days: %w", err)
+		}
 	}
 
 	return &p, nil

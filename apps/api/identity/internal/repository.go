@@ -82,8 +82,8 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
 			(SELECT json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'trainer', json_build_object(
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
@@ -92,8 +92,8 @@ func (r *PostgresUserRepository) FindByEmail(ctx context.Context, email string) 
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
 			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'student', json_build_object(
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
@@ -132,8 +132,8 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string, currentUse
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
 			(SELECT json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'trainer', json_build_object(
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
@@ -142,8 +142,8 @@ func (r *PostgresUserRepository) Find(ctx context.Context, id string, currentUse
 			  LEFT JOIN users t ON tsr."trainerId" = t.id
 			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'student', json_build_object(
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
@@ -187,8 +187,8 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
 			(SELECT json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'trainer', json_build_object(
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
@@ -197,8 +197,8 @@ func (r *PostgresUserRepository) ListByIDs(ctx context.Context, ids []string) ([
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
 			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'student', json_build_object(
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
@@ -244,8 +244,8 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
 			(SELECT json_build_object(
-				'id', tsr_s.id, 'createdAt', tsr_s."createdAt", 'updatedAt', tsr_s."updatedAt",
-				'trainerId', tsr_s."trainerId", 'studentId', tsr_s."studentId", 'linkedAt', tsr_s."linkedAt",
+				'id', tsr_s.id, 'createdAt', tsr_s."createdAt"::timestamptz, 'updatedAt', tsr_s."updatedAt"::timestamptz,
+				'trainerId', tsr_s."trainerId", 'studentId', tsr_s."studentId", 'linkedAt', tsr_s."linkedAt"::timestamptz,
 				'trainer', json_build_object(
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
@@ -254,8 +254,8 @@ func (r *PostgresUserRepository) ListStudents(ctx context.Context, trainerId str
 			  LEFT JOIN users t ON tsr_s."trainerId" = t.id 
 			  WHERE tsr_s."studentId" = u.id AND tsr_s."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
-				'id', tsr_t.id, 'createdAt', tsr_t."createdAt", 'updatedAt', tsr_t."updatedAt",
-				'trainerId', tsr_t."trainerId", 'studentId', tsr_t."studentId", 'linkedAt', tsr_t."linkedAt",
+				'id', tsr_t.id, 'createdAt', tsr_t."createdAt"::timestamptz, 'updatedAt', tsr_t."updatedAt"::timestamptz,
+				'trainerId', tsr_t."trainerId", 'studentId', tsr_t."studentId", 'linkedAt', tsr_t."linkedAt"::timestamptz,
 				'student', json_build_object(
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"
@@ -454,8 +454,8 @@ func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code str
 			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
 			u."trainerInviteCode", u.cref, u."isVerified",
 			(SELECT json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'trainer', json_build_object(
 					'id', t.id, 'firstName', t."firstName", 'lastName', t."lastName",
 					'email', t.email, 'type', t.type, 'profilePictureUrl', t."profilePictureUrl"
@@ -464,8 +464,8 @@ func (r *PostgresUserRepository) FindByTrainerCode(ctx context.Context, code str
 			  LEFT JOIN users t ON tsr."trainerId" = t.id 
 			  WHERE tsr."studentId" = u.id AND tsr."deletedAt" IS NULL LIMIT 1) as student_of,
 			COALESCE((SELECT json_agg(json_build_object(
-				'id', tsr.id, 'createdAt', tsr."createdAt", 'updatedAt', tsr."updatedAt",
-				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt",
+				'id', tsr.id, 'createdAt', tsr."createdAt"::timestamptz, 'updatedAt', tsr."updatedAt"::timestamptz,
+				'trainerId', tsr."trainerId", 'studentId', tsr."studentId", 'linkedAt', tsr."linkedAt"::timestamptz,
 				'student', json_build_object(
 					'id', s.id, 'firstName', s."firstName", 'lastName', s."lastName",
 					'email', s.email, 'type', s.type, 'profilePictureUrl', s."profilePictureUrl"

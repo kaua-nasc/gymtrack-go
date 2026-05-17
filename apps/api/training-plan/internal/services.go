@@ -215,9 +215,9 @@ func (s *TrainingPlanService) ExistsPlan(ctx context.Context, id string) (bool, 
 }
 
 func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*TrainingPlan, error) {
-	slog.InfoContext(ctx, "fetching training plan", slog.String("plan_id", id))
+	slog.InfoContext(ctx, "fetching training plan complete", slog.String("plan_id", id))
 
-	plan, err := s.repo.Find(ctx, id)
+	plan, err := s.repo.FindComplete(ctx, id)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to search for training plan", slog.String("plan_id", id), slog.Any("error", err))
 		return nil, fmt.Errorf("error searching for training plan")
@@ -236,35 +236,12 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 	}
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
-	authorIds := []string{plan.AuthorId}
-	authorsMap, err := s.identity.ListUser(ctx, &authorIds, token)
-	if err == nil {
-		plan.Author = authorsMap[plan.AuthorId]
-	} else {
+	author, err := s.identity.FindUser(ctx, plan.AuthorId, token)
+	if err != nil {
 		slog.WarnContext(ctx, "failed to fetch author details", slog.String("authorId", plan.AuthorId), slog.Any("error", err))
 	}
 
-	// Hydrate with days and exercises (Optimized: single query for exercises)
-	days, err := s.repo.ListDaysByPlan(ctx, id)
-	if err == nil {
-		exercises, err := s.repo.ListExercisesByPlan(ctx, id)
-		exerciseMap := make(map[string][]Exercise)
-		if err == nil {
-			for _, e := range exercises {
-				exerciseMap[e.DayId] = append(exerciseMap[e.DayId], *e)
-			}
-		} else {
-			slog.WarnContext(ctx, "failed to list exercises for plan", slog.String("plan_id", id), slog.Any("error", err))
-		}
-
-		plan.Days = make([]Day, len(days))
-		for i, d := range days {
-			d.Exercises = exerciseMap[d.Id]
-			plan.Days[i] = *d
-		}
-	} else {
-		slog.WarnContext(ctx, "failed to list days for plan", slog.String("plan_id", id), slog.Any("error", err))
-	}
+	plan.Author = author
 
 	return plan, nil
 }

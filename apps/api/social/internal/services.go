@@ -78,6 +78,10 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 	post.CreatedAt = now
 	post.UpdatedAt = now
 
+	if post.MediaUrls == nil {
+		post.MediaUrls = []string{}
+	}
+
 	if err := s.repo.Create(post); err != nil {
 		return err
 	}
