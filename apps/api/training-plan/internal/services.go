@@ -521,9 +521,13 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 		return errors.New("subscription not found")
 	}
 
+	id, err := utils.GenerateUUIDV7(ctx)
+	if err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 	progress := &PlanDayProgress{
-		Id:                 fmt.Sprintf("%s:%s:%s", planId, userId, dayId),
+		Id:                 *id,
 		DayId:              dayId,
 		PlanSubscriptionId: sub.Id,
 		Status:             DayCompleted,

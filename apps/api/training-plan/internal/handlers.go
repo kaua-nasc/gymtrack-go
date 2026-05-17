@@ -253,7 +253,7 @@ func (h *TrainingPlanHandler) CompleteDay(ctx *gin.Context) {
 
 	if err := h.srv.CompleteDay(ctx.Request.Context(), planId, user.ID, dayId); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to complete day", slog.Any("error", err), slog.String("plan_id", planId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to complete day"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
