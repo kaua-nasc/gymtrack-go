@@ -66,7 +66,11 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 	post.CreatedAt = now
 	post.UpdatedAt = now
 
-	return s.repo.Create(post)
+	if err := s.repo.Create(post); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit int) ([]Post, string, error) {
@@ -136,7 +140,11 @@ func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId
 	comment.AuthorId = authorId
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
-	return s.repo.AddComment(comment)
+	if err := s.repo.AddComment(comment); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *PostService) GetComments(ctx context.Context, postId, cursor string, limit int) ([]Comment, string, error) {

@@ -271,14 +271,14 @@ func (h *TrainingPlanHandler) CreatePlan(ctx *gin.Context) {
 		return
 	}
 
-	newPlan, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user)
+	_, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("authorId", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create plan"))
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, newPlan)
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *TrainingPlanHandler) ListPlan(ctx *gin.Context) {
@@ -376,7 +376,7 @@ func (h *TrainingPlanHandler) CreateDay(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.srv.CreateDay(ctx.Request.Context(), day); err != nil {
+	if err := h.srv.CreateDay(ctx.Request.Context(), &day); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create day", slog.Any("error", err))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create day"))
 		return
@@ -392,7 +392,7 @@ func (h *TrainingPlanHandler) CreateExercise(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.srv.CreateExercise(ctx.Request.Context(), exercise); err != nil {
+	if err := h.srv.CreateExercise(ctx.Request.Context(), &exercise); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create exercise", slog.Any("error", err))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create exercise"))
 		return

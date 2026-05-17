@@ -13,10 +13,10 @@ type Post struct {
 	Id         *string         `json:"id" validate:"required,uuid"`
 	CreatedAt  time.Time       `json:"createdAt"`
 	UpdatedAt  time.Time       `json:"updatedAt"`
-	AuthorId   string          `json:"authorId" validate:"required,uuid"`
+	AuthorId   string          `json:"-" validate:"required,uuid"`
 	Content    string          `json:"content" validate:"required"`
-	EntityId   *string         `json:"entityId,omitempty" validate:"omitempty,uuid"`
-	EntityType *PostEntityType `json:"entityType,omitempty" validate:"omitempty"`
+	EntityId   *string         `json:"-" validate:"omitempty,uuid"`
+	EntityType *PostEntityType `json:"-" validate:"omitempty"`
 
 	// Relations
 	Likes    []Like    `json:"likes,omitempty"`

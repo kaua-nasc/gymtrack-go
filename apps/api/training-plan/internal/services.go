@@ -103,7 +103,7 @@ func (s *TrainingPlanService) CreatePlan(ctx context.Context, plan TrainingPlan,
 	return &plan, nil
 }
 
-func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
+func (s *TrainingPlanService) CreateDay(ctx context.Context, day *Day) error {
 	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
@@ -113,7 +113,7 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 	day.Id = *id
 	day.CreatedAt = now
 	day.UpdatedAt = now
-	if err := s.repo.CreateDay(ctx, &day); err != nil {
+	if err := s.repo.CreateDay(ctx, day); err != nil {
 		slog.ErrorContext(ctx, "failed to save plan day", slog.String("day_id", day.Id), slog.Any("error", err))
 		return fmt.Errorf("could not save plan day: %w", err)
 	}
@@ -121,7 +121,7 @@ func (s *TrainingPlanService) CreateDay(ctx context.Context, day Day) error {
 	return nil
 }
 
-func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) error {
+func (s *TrainingPlanService) CreateExercise(ctx context.Context, e *Exercise) error {
 	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (s *TrainingPlanService) CreateExercise(ctx context.Context, e Exercise) er
 	e.Id = *id
 	e.CreatedAt = now
 	e.UpdatedAt = now
-	if err := s.repo.CreateExercise(ctx, &e); err != nil {
+	if err := s.repo.CreateExercise(ctx, e); err != nil {
 		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
 		return fmt.Errorf("could not save plan day: %w", err)
 	}

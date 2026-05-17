@@ -46,7 +46,7 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, post)
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *PostHandler) getFeed(ctx *gin.Context) {
@@ -101,7 +101,7 @@ func (h *PostHandler) addComment(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, comment)
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *PostHandler) getComments(ctx *gin.Context) {
