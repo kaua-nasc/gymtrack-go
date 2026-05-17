@@ -45,10 +45,10 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 
 		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
+		plans.POST("/subscriptions/:id/days/:dayId/complete", h.CompleteDay)
 
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
-		plans.PUT("/:id/days/:dayId/complete", h.CompleteDay)
 
 		plans.POST("/:id/feedback", h.AddFeedback)
 
@@ -244,15 +244,15 @@ func (h *TrainingPlanHandler) Unsubscribe(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) CompleteDay(ctx *gin.Context) {
-	planId := ctx.Param("id")
+	subsId := ctx.Param("id")
 	dayId := ctx.Param("dayId")
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	if err := h.srv.CompleteDay(ctx.Request.Context(), planId, user.ID, dayId); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to complete day", slog.Any("error", err), slog.String("plan_id", planId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
+	if err := h.srv.CompleteDay(ctx.Request.Context(), subsId, user.ID, dayId); err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to complete day", slog.Any("error", err), slog.String("subscription_id", subsId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

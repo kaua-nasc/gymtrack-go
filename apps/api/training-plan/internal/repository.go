@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,12 +27,14 @@ type TrainingPlanRepository interface {
 	List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*TrainingPlan, *utils.CursorData, error)
 	ListByIds(ctx context.Context, ids []string) ([]*TrainingPlan, error)
 	ListSubscription(ctx context.Context, userId string) ([]*PlanSubscription, error)
-	FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error)
+	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*PlanSubscription, error)
+	FindSubscription(ctx context.Context, id string) (*PlanSubscription, error)
 	CreatePlanSubscription(ctx context.Context, s *PlanSubscription) error
 	DeletePlanSubscription(ctx context.Context, s *PlanSubscription) error
 	UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error
 	UpdateSubscriptionPrivacy(ctx context.Context, s PlanSubscription, status PlanSubscriptionType) error
 	CreateSubscriptionProgress(ctx context.Context, p *PlanDayProgress) error
+	CountSubscriptionProgress(ctx context.Context, subsId string) (int, error)
 	AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error
 	LogExercise(ctx context.Context, l *ExerciseLog) error
 	ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error)
@@ -403,7 +406,7 @@ func (r *PostgresTrainingPlanRepository) ListActivityWeekly(ctx context.Context,
 	return dates, nil
 }
 
-func (r *PostgresTrainingPlanRepository) FindSubscription(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
+func (r *PostgresTrainingPlanRepository) FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
 	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 LIMIT 1`
 	var s PlanSubscription
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
@@ -414,6 +417,37 @@ func (r *PostgresTrainingPlanRepository) FindSubscription(ctx context.Context, p
 		return nil, fmt.Errorf("could not find subscription: %w", err)
 	}
 	return &s, nil
+}
+
+func (r *PostgresTrainingPlanRepository) FindSubscription(ctx context.Context, id string) (*PlanSubscription, error) {
+	query := `SELECT 
+            subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
+            plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
+        FROM plan_subscription subs 
+        JOIN training_plans plans ON subs."trainingPlanId" = plans.id 
+        WHERE subs.id = $1 
+        LIMIT 1`
+
+	c := &PlanSubscription{}
+	p := &TrainingPlan{}
+
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
+		&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
+		&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
+		&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find subscription: %w", err)
+	}
+
+	c.TrainingPlan = p
+
+	return c, nil
 }
 
 func (r *PostgresTrainingPlanRepository) UpdateSubscriptionStatus(ctx context.Context, s PlanSubscription, status PlanSubscriptionStatus) error {
@@ -468,6 +502,18 @@ func (r *PostgresTrainingPlanRepository) CreateSubscriptionProgress(ctx context.
 		return fmt.Errorf("could not create progress: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresTrainingPlanRepository) CountSubscriptionProgress(ctx context.Context, subsId string) (int, error) {
+	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NOT NULL AND "planSubscriptionId" = $1`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, subsId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("could not count progress: %w", err)
+	}
+
+	return count, nil
 }
 
 // Access and Invite Methods

@@ -229,7 +229,7 @@ func (s *TrainingPlanService) GetPlan(ctx context.Context, id string) (*Training
 
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if ok {
-		sub, err := s.repo.FindSubscription(ctx, id, user.ID)
+		sub, err := s.repo.FindSubscriptionByPlan(ctx, id, user.ID)
 		if err == nil && sub != nil {
 			plan.PlanSubscriptionStatus = &sub.Status
 		}
@@ -451,7 +451,7 @@ func (s *TrainingPlanService) Subscribe(ctx context.Context, planId, userId stri
 func (s *TrainingPlanService) Unsubscribe(ctx context.Context, planId, userId string) error {
 	slog.InfoContext(ctx, "unsubscribing user from plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 
-	existing, err := s.repo.FindSubscription(ctx, planId, userId)
+	existing, err := s.repo.FindSubscriptionByPlan(ctx, planId, userId)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription for unsubscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
@@ -470,7 +470,7 @@ func (s *TrainingPlanService) Unsubscribe(ctx context.Context, planId, userId st
 }
 
 func (s *TrainingPlanService) ChangeSubscriptionStatus(ctx context.Context, planId, userId string, status PlanSubscriptionStatus) error {
-	subscription, err := s.repo.FindSubscription(ctx, planId, userId)
+	subscription, err := s.repo.FindSubscriptionByPlan(ctx, planId, userId)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription for unsubscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
@@ -499,7 +499,7 @@ func (s *TrainingPlanService) ChangeSubscriptionStatus(ctx context.Context, plan
 }
 
 func (s *TrainingPlanService) ChangeSubscriptionPrivacy(ctx context.Context, planId, userId string, subsType PlanSubscriptionType) error {
-	subscription, err := s.repo.FindSubscription(ctx, planId, userId)
+	subscription, err := s.repo.FindSubscriptionByPlan(ctx, planId, userId)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription for unsubscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
@@ -508,16 +508,16 @@ func (s *TrainingPlanService) ChangeSubscriptionPrivacy(ctx context.Context, pla
 	return s.repo.UpdateSubscriptionPrivacy(ctx, *subscription, subsType)
 }
 
-func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, dayId string) error {
-	slog.InfoContext(ctx, "completing plan day", slog.String("plan_id", planId), slog.String("user_id", userId), slog.String("day_id", dayId))
+func (s *TrainingPlanService) CompleteDay(ctx context.Context, subsId, userId, dayId string) error {
+	slog.InfoContext(ctx, "completing plan day", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.String("day_id", dayId))
 
-	sub, err := s.repo.FindSubscription(ctx, planId, userId)
+	sub, err := s.repo.FindSubscription(ctx, subsId)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to find subscription for day completion", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to find subscription for day completion", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
 	}
 	if sub == nil {
-		slog.WarnContext(ctx, "subscription not found for day completion", slog.String("plan_id", planId), slog.String("user_id", userId))
+		slog.WarnContext(ctx, "subscription not found for day completion", slog.String("subscription_id", subsId), slog.String("user_id", userId))
 		return errors.New("subscription not found")
 	}
 
@@ -539,6 +539,12 @@ func (s *TrainingPlanService) CompleteDay(ctx context.Context, planId, userId, d
 		slog.ErrorContext(ctx, "failed to create subscription progress", slog.Any("error", err))
 		return err
 	}
+
+	progressQuantity, err := s.repo.CountSubscriptionProgress(ctx, sub.Id)
+	if progressQuantity == sub.TrainingPlan.TimeInDays {
+		s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, Completed)
+	}
+
 	return nil
 }
 
