@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/log"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
@@ -19,6 +20,10 @@ func NewPostHandler(service *PostService) *PostHandler {
 }
 
 func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
+	r.Use(log.LoggerMiddleware())
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
+	})
 	social := r.Group("/social")
 	social.Use(auth.AuthMiddleware())
 	{
