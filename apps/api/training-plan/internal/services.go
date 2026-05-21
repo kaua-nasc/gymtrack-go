@@ -575,35 +575,32 @@ func (s *TrainingPlanService) LogExercise(ctx context.Context, exerciseId, userI
 	return nil
 }
 
-func (s *TrainingPlanService) ListActivityWeekly(ctx context.Context, userId string) (*WeeklyActivity, error) {
-	slog.InfoContext(ctx, "listing weekly activity", slog.String("user_id", userId))
-
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	weekday := int(today.Weekday()) // Sun=0, Mon=1, ...
-	daysSinceMonday := (weekday + 6) % 7
-	startOfWeek := today.AddDate(0, 0, -daysSinceMonday)
-	endOfWeek := startOfWeek.AddDate(0, 0, 7).Add(-time.Nanosecond)
-
-	dates, err := s.repo.ListActivityWeekly(ctx, userId, startOfWeek, endOfWeek)
+func (s *TrainingPlanService) ListWeeklyDayProgress(ctx context.Context, userId string) (*WeeklyDayProgress, error) {
+	progresses, err := s.repo.ListWeeklyDayProgress(ctx, userId)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to list weekly activity", slog.String("user_id", userId), slog.Any("error", err))
 		return nil, err
 	}
 
-	activity := &WeeklyActivity{}
-	trainedDates := make(map[string]bool)
-	for _, d := range dates {
-		trainedDates[d.Format("2006-01-02")] = true
+	weekly := &WeeklyDayProgress{}
+	for i := range progresses {
+		p := &progresses[i]
+		switch p.UpdatedAt.Weekday() {
+		case time.Monday:
+			weekly.Mon = p
+		case time.Tuesday:
+			weekly.Tue = p
+		case time.Wednesday:
+			weekly.Wed = p
+		case time.Thursday:
+			weekly.Thu = p
+		case time.Friday:
+			weekly.Fri = p
+		case time.Saturday:
+			weekly.Sat = p
+		case time.Sunday:
+			weekly.Sun = p
+		}
 	}
 
-	activity.Mon = trainedDates[startOfWeek.Format("2006-01-02")]
-	activity.Tue = trainedDates[startOfWeek.AddDate(0, 0, 1).Format("2006-01-02")]
-	activity.Wed = trainedDates[startOfWeek.AddDate(0, 0, 2).Format("2006-01-02")]
-	activity.Thu = trainedDates[startOfWeek.AddDate(0, 0, 3).Format("2006-01-02")]
-	activity.Fri = trainedDates[startOfWeek.AddDate(0, 0, 4).Format("2006-01-02")]
-	activity.Sat = trainedDates[startOfWeek.AddDate(0, 0, 5).Format("2006-01-02")]
-	activity.Sun = trainedDates[startOfWeek.AddDate(0, 0, 6).Format("2006-01-02")]
-
-	return activity, nil
+	return weekly, nil
 }

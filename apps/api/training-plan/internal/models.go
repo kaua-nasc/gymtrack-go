@@ -76,17 +76,17 @@ type PlanDayProgressStatus string
 const (
 	DayInProgress PlanDayProgressStatus = "IN_PROGRESS"
 	DayCompleted  PlanDayProgressStatus = "COMPLETED"
-	DaySkipped    PlanDayProgressStatus = "SKIPPED"
+	DayCanceled   PlanDayProgressStatus = "CANCELLED"
 )
 
-type WeeklyActivity struct {
-	Mon bool `json:"mon"`
-	Tue bool `json:"tue"`
-	Wed bool `json:"wed"`
-	Thu bool `json:"thu"`
-	Fri bool `json:"fri"`
-	Sat bool `json:"sat"`
-	Sun bool `json:"sun"`
+type WeeklyDayProgress struct {
+	Mon *PlanDayProgress `json:"mon"`
+	Tue *PlanDayProgress `json:"tue"`
+	Wed *PlanDayProgress `json:"wed"`
+	Thu *PlanDayProgress `json:"thu"`
+	Fri *PlanDayProgress `json:"fri"`
+	Sat *PlanDayProgress `json:"sat"`
+	Sun *PlanDayProgress `json:"sun"`
 }
 
 // TrainingPlan Entity
@@ -152,13 +152,14 @@ type Exercise struct {
 
 // PlanSubscription Entity
 type PlanSubscription struct {
-	Id             string                 `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time              `json:"createdAt"`
-	UpdatedAt      time.Time              `json:"updatedAt"`
-	TrainingPlanId string                 `json:"trainingPlanId" validate:"required,uuid"`
-	UserId         string                 `json:"userId" validate:"required,uuid"`
-	Status         PlanSubscriptionStatus `json:"status" validate:"required"`
-	Type           PlanSubscriptionType   `json:"type" validate:"required"`
+	Id                 string                 `json:"id" validate:"required,uuid"`
+	CreatedAt          time.Time              `json:"createdAt"`
+	UpdatedAt          time.Time              `json:"updatedAt"`
+	TrainingPlanId     string                 `json:"trainingPlanId" validate:"required,uuid"`
+	UserId             string                 `json:"userId" validate:"required,uuid"`
+	Status             PlanSubscriptionStatus `json:"status" validate:"required"`
+	Type               PlanSubscriptionType   `json:"type" validate:"required"`
+	CompletedDaysCount *int                   `json:"completedDaysCount,omitempty"`
 
 	// Relations
 	PlanDayProgress []PlanDayProgress                `json:"planDayProgress,omitempty"`

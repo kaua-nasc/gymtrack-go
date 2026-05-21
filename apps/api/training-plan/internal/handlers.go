@@ -39,13 +39,14 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("/exists/:id", h.ExistsPlan)
 
 		plans.GET("/subscriptions", h.ListSubscription)
-		plans.GET("/subscriptions/:userId", h.ListSubscriptionByUserId)
+		plans.GET("/subscriptions/:id", h.ListSubscriptionByUserId)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
 
 		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 		plans.POST("/subscriptions/:id/days/:dayId/complete", h.CompleteDay)
+		plans.GET("/subscriptions/days/resume", h.ListWeeklyDayProgress)
 
 		plans.POST("/:id/days", h.CreateDay)
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
@@ -55,8 +56,6 @@ func (h *TrainingPlanHandler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/days/:dayId/exercises", h.CreateExercise)
 		plans.DELETE("/:id/days/:dayId/exercises/:exerciseId", h.DeleteExercise)
 		plans.POST("/:id/days/:dayId/exercises/:exerciseId/logs", h.LogExercise)
-
-		plans.GET("/activity/weekly", h.ListActivityWeekly)
 	}
 }
 
@@ -127,7 +126,7 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 	subscriptions, err := h.srv.ListSubscription(ctx.Request.Context(), userId)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list subscriptions"))
+		ctx.JSON(http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -135,7 +134,7 @@ func (h *TrainingPlanHandler) ListSubscription(ctx *gin.Context) {
 }
 
 func (h *TrainingPlanHandler) ListSubscriptionByUserId(ctx *gin.Context) {
-	userId := ctx.Param("userId")
+	userId := ctx.Param("id")
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
 		return
@@ -426,20 +425,20 @@ func (h *TrainingPlanHandler) DeleteExercise(ctx *gin.Context) {
 	ctx.Status(http.StatusOK)
 }
 
-func (h *TrainingPlanHandler) ListActivityWeekly(ctx *gin.Context) {
+func (h *TrainingPlanHandler) ListWeeklyDayProgress(ctx *gin.Context) {
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	activity, err := h.srv.ListActivityWeekly(ctx.Request.Context(), user.ID)
+	progress, err := h.srv.ListWeeklyDayProgress(ctx.Request.Context(), user.ID)
 	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly activity", slog.Any("error", err), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list weekly activity"))
+		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly day progress", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list weekly day progress"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, activity)
+	ctx.JSON(http.StatusOK, progress)
 }
 
 func (h *TrainingPlanHandler) ListPlansByIds(ctx *gin.Context) {

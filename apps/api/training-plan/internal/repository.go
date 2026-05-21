@@ -39,7 +39,7 @@ type TrainingPlanRepository interface {
 	CountSubscriptionProgress(ctx context.Context, subsId string) (int, error)
 	AddFeedback(ctx context.Context, f *TrainingPlanFeedback) error
 	LogExercise(ctx context.Context, l *ExerciseLog) error
-	ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error)
+	ListWeeklyDayProgress(ctx context.Context, userId string) ([]PlanDayProgress, error)
 	GetSubscriptionEligibility(ctx context.Context, planId, userId string) (alreadySubscribed bool, isComplete bool, err error)
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
@@ -420,7 +420,8 @@ func (r *PostgresTrainingPlanRepository) ListSubscription(ctx context.Context, u
 	query := `
 		SELECT 
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
-			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
+			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt",
+			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELLED') AND "deletedAt" IS NULL), 0) as completed_days_count
 		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL AND plans."deletedAt" IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, userId)
@@ -432,45 +433,68 @@ func (r *PostgresTrainingPlanRepository) ListSubscription(ctx context.Context, u
 	subscriptions := make([]*PlanSubscription, 0)
 	for rows.Next() {
 		c := &PlanSubscription{TrainingPlan: &TrainingPlan{}}
-		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type, &c.TrainingPlan.Id,
-			&c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays, &c.TrainingPlan.Type, &c.TrainingPlan.Visibility,
-			&c.TrainingPlan.Level, &c.TrainingPlan.Observation, &c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions,
-			&c.TrainingPlan.ImageUrl, &c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt)
+		var completedCount int
+		err := rows.Scan(
+			&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
+			&c.TrainingPlan.Id, &c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays,
+			&c.TrainingPlan.Type, &c.TrainingPlan.Visibility, &c.TrainingPlan.Level, &c.TrainingPlan.Observation,
+			&c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions, &c.TrainingPlan.ImageUrl,
+			&c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt,
+			&completedCount,
+		)
 		if err != nil {
 			return nil, err
 		}
+		c.CompletedDaysCount = &completedCount
 		subscriptions = append(subscriptions, c)
 	}
 
 	return subscriptions, nil
 }
 
-func (r *PostgresTrainingPlanRepository) ListActivityWeekly(ctx context.Context, userId string, start, end time.Time) ([]time.Time, error) {
+func (r *PostgresTrainingPlanRepository) ListWeeklyDayProgress(ctx context.Context, userId string) ([]PlanDayProgress, error) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	weekday := int(today.Weekday()) // Sun=0, Mon=1, ...
+	daysSinceMonday := (weekday + 6) % 7
+	startOfWeek := today.AddDate(0, 0, -daysSinceMonday)
+	endOfWeek := startOfWeek.AddDate(0, 0, 7).Add(-time.Nanosecond)
+
 	query := `
-		SELECT progress."updatedAt" 
+		SELECT progress.id, progress."dayId", progress."planSubscriptionId", progress.status, progress."createdAt", progress."updatedAt"
 		FROM plan_day_progress progress
 		JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
 		WHERE subs."userId" = $1 
-		  AND progress.status = 'COMPLETED'
 		  AND progress."updatedAt" BETWEEN $2 AND $3
-		  AND progress."deletedAt" IS NULL AND subs."deletedAt" IS NULL`
-
-	rows, err := r.db.QueryContext(ctx, query, userId, start, end)
+		  AND progress."deletedAt" IS NULL 
+		  AND subs."deletedAt" IS NULL`
+	rows, err := r.db.QueryContext(ctx, query, userId, startOfWeek, endOfWeek)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not query weekly day progress: %w", err)
 	}
 	defer rows.Close()
 
-	var dates []time.Time
+	var progresses []PlanDayProgress
 	for rows.Next() {
-		var t time.Time
-		if err := rows.Scan(&t); err != nil {
-			return nil, err
+		var p PlanDayProgress
+		err := rows.Scan(
+			&p.Id,
+			&p.DayId,
+			&p.PlanSubscriptionId,
+			&p.Status,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("could not scan weekly day progress: %w", err)
 		}
-		dates = append(dates, t)
+		progresses = append(progresses, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	return dates, nil
+	return progresses, nil
 }
 
 func (r *PostgresTrainingPlanRepository) FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*PlanSubscription, error) {
