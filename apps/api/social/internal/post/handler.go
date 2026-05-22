@@ -1,4 +1,4 @@
-package internal
+package post
 
 import (
 	"io"
@@ -6,20 +6,21 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/log"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
-type PostHandler struct {
-	service *PostService
+type Handler struct {
+	service *Service
 }
 
-func NewPostHandler(service *PostService) *PostHandler {
-	return &PostHandler{service: service}
+func NewHandler(service *Service) *Handler {
+	return &Handler{service: service}
 }
 
-func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
+func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.Use(log.LoggerMiddleware())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
@@ -35,15 +36,11 @@ func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
 		social.POST("/posts/media", h.uploadMedia)
 		social.PUT("/posts/:id", h.updatePost)
 		social.DELETE("/posts/:id", h.deletePost)
-		social.POST("/posts/:id/like", h.toggleLike)
-		social.POST("/posts/:id/comments", h.addComment)
-		social.GET("/posts/:id/comments", h.getComments)
-		social.DELETE("/comments/:commentId", h.deleteComment)
 	}
 }
 
-func (h *PostHandler) createPost(ctx *gin.Context) {
-	var post Post
+func (h *Handler) createPost(ctx *gin.Context) {
+	var post domain.Post
 	if err := ctx.ShouldBindJSON(&post); err != nil {
 		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
 		return
@@ -62,7 +59,7 @@ func (h *PostHandler) createPost(ctx *gin.Context) {
 	ctx.Status(http.StatusCreated)
 }
 
-func (h *PostHandler) uploadMedia(ctx *gin.Context) {
+func (h *Handler) uploadMedia(ctx *gin.Context) {
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
 		return
@@ -103,7 +100,7 @@ func (h *PostHandler) uploadMedia(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"mediaUrls": urls})
 }
 
-func (h *PostHandler) updatePost(ctx *gin.Context) {
+func (h *Handler) updatePost(ctx *gin.Context) {
 	postId := ctx.Param("id")
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
@@ -126,7 +123,7 @@ func (h *PostHandler) updatePost(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-func (h *PostHandler) deletePost(ctx *gin.Context) {
+func (h *Handler) deletePost(ctx *gin.Context) {
 	postId := ctx.Param("id")
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
@@ -141,7 +138,7 @@ func (h *PostHandler) deletePost(ctx *gin.Context) {
 	ctx.Status(http.StatusNoContent)
 }
 
-func (h *PostHandler) getFeed(ctx *gin.Context) {
+func (h *Handler) getFeed(ctx *gin.Context) {
 	user, ok := h.getAuthUser(ctx)
 	if !ok {
 		return
@@ -157,74 +154,7 @@ func (h *PostHandler) getFeed(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
 }
 
-func (h *PostHandler) toggleLike(ctx *gin.Context) {
-	postId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	if err := h.service.ToggleLike(ctx.Request.Context(), postId, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
-}
-
-func (h *PostHandler) addComment(ctx *gin.Context) {
-	postId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	var comment Comment
-	if err := ctx.ShouldBindJSON(&comment); err != nil {
-		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	comment.PostId = postId
-	comment.AuthorId = user.ID
-
-	if err := h.service.AddComment(ctx.Request.Context(), &comment, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	ctx.Status(http.StatusCreated)
-}
-
-func (h *PostHandler) deleteComment(ctx *gin.Context) {
-	commentId := ctx.Param("commentId")
-	user, ok := h.getAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	if err := h.service.DeleteComment(ctx.Request.Context(), commentId, user.ID); err != nil {
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	ctx.Status(http.StatusNoContent)
-}
-
-func (h *PostHandler) getComments(ctx *gin.Context) {
-	postId := ctx.Param("id")
-	cursor, limit := h.getPagination(ctx)
-
-	comments, nextCursor, err := h.service.GetComments(ctx.Request.Context(), postId, cursor, limit)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(comments, nextCursor))
-}
-
-func (h *PostHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
+func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if !ok {
 		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
@@ -234,7 +164,7 @@ func (h *PostHandler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
 	return user, true
 }
 
-func (h *PostHandler) getPagination(ctx *gin.Context) (string, int) {
+func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
 	cursor := ctx.Query("cursor")
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
 	if limit <= 0 {

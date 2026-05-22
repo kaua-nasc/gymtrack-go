@@ -1,4 +1,4 @@
-package internal
+package post
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
@@ -22,21 +23,21 @@ const (
 	MaxGifSize    = 5 * 1024 * 1024  // 5MB
 )
 
-type PostService struct {
-	repo         *PostRepository
-	identity     *IdentityService
-	trainingPlan *TrainingPlanClient
+type Service struct {
+	repo         *Repository
+	identity     *domain.IdentityService
+	trainingPlan *domain.TrainingPlanClient
 }
 
-func NewPostService(repo *PostRepository, identity *IdentityService, trainingPlan *TrainingPlanClient) *PostService {
-	return &PostService{
+func NewService(repo *Repository, identity *domain.IdentityService, trainingPlan *domain.TrainingPlanClient) *Service {
+	return &Service{
 		repo:         repo,
 		identity:     identity,
 		trainingPlan: trainingPlan,
 	}
 }
 
-func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId string) error {
+func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId string) error {
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -50,7 +51,7 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 	})
 
 	// Validate training plan existence (if applicable)
-	if post.EntityType != nil && *post.EntityType == TrainingPlanPost && post.EntityId != nil {
+	if post.EntityType != nil && *post.EntityType == domain.TrainingPlanPost && post.EntityId != nil {
 		g.Go(func() error {
 			plan, err := s.trainingPlan.FindPlan(ctx, *post.EntityId, token)
 			if err != nil {
@@ -89,7 +90,7 @@ func (s *PostService) CreatePost(ctx context.Context, post *Post, authorId strin
 	return nil
 }
 
-func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit int) ([]Post, string, error) {
+func (s *Service) GetFeed(ctx context.Context, userId, cursor string, limit int) ([]domain.Post, string, error) {
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
@@ -105,7 +106,7 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 		plansIDsMap := make(map[string]bool)
 		for _, p := range posts {
 			authorIDsMap[p.AuthorId] = true
-			if p.EntityType != nil && *p.EntityType == TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
+			if p.EntityType != nil && *p.EntityType == domain.TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
 				plansIDsMap[*p.EntityId] = true
 			}
 		}
@@ -160,7 +161,7 @@ func (s *PostService) GetFeed(ctx context.Context, userId, cursor string, limit 
 	return posts, nextCursor, nil
 }
 
-func (s *PostService) sanitizePost(p *Post) {
+func (s *Service) sanitizePost(p *domain.Post) {
 	if p == nil {
 		return
 	}
@@ -181,7 +182,7 @@ func (s *PostService) sanitizePost(p *Post) {
 	}
 }
 
-func (s *PostService) UpdatePost(ctx context.Context, postId, userId, content string) error {
+func (s *Service) UpdatePost(ctx context.Context, postId, userId, content string) error {
 	post, err := s.repo.FindById(postId)
 	if err != nil {
 		return err
@@ -200,7 +201,7 @@ func (s *PostService) UpdatePost(ctx context.Context, postId, userId, content st
 	return s.repo.Update(post)
 }
 
-func (s *PostService) DeletePost(ctx context.Context, postId, userId string) error {
+func (s *Service) DeletePost(ctx context.Context, postId, userId string) error {
 	post, err := s.repo.FindById(postId)
 	if err != nil {
 		return err
@@ -216,52 +217,7 @@ func (s *PostService) DeletePost(ctx context.Context, postId, userId string) err
 	return s.repo.Delete(postId)
 }
 
-func (s *PostService) ToggleLike(ctx context.Context, postId, userId string) error {
-	return s.repo.ToggleLike(postId, userId)
-}
-
-func (s *PostService) AddComment(ctx context.Context, comment *Comment, authorId string) error {
-	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
-
-	// Validate author existence
-	if _, err := s.identity.FindUser(ctx, authorId, token); err != nil {
-		return fmt.Errorf("failed to verify author existence: %w", err)
-	}
-
-	id, err := utils.GenerateUUIDV7(ctx)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now().UTC()
-	comment.Id = id
-	comment.AuthorId = authorId
-	comment.CreatedAt = now
-	comment.UpdatedAt = now
-	if err := s.repo.AddComment(comment); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *PostService) DeleteComment(ctx context.Context, commentId, userId string) error {
-	comment, err := s.repo.FindCommentById(commentId)
-	if err != nil {
-		return err
-	}
-	if comment == nil {
-		return fmt.Errorf("comment not found")
-	}
-
-	if comment.AuthorId != userId {
-		return fmt.Errorf("you are not the author of this comment")
-	}
-
-	return s.repo.DeleteComment(commentId)
-}
-
-func (s *PostService) UploadMedia(ctx context.Context, authorId string, files []io.Reader, filenames []string) ([]string, error) {
+func (s *Service) UploadMedia(ctx context.Context, authorId string, files []io.Reader, filenames []string) ([]string, error) {
 	if len(files) > MaxMediaFiles {
 		return nil, fmt.Errorf("maximum of %d files allowed", MaxMediaFiles)
 	}
@@ -309,39 +265,4 @@ func (s *PostService) UploadMedia(ctx context.Context, authorId string, files []
 	}
 
 	return mediaUrls, nil
-}
-
-func (s *PostService) GetComments(ctx context.Context, postId, cursor string, limit int) ([]Comment, string, error) {
-	var decodedCursor *utils.CursorData
-	utils.DecodeCursor(cursor, &decodedCursor)
-
-	comments, rawNextCursor, err := s.repo.GetComments(postId, decodedCursor, limit)
-	if err != nil {
-		return nil, "", err
-	}
-
-	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
-
-	if len(comments) > 0 {
-		authorIDsMap := make(map[string]bool)
-		for _, c := range comments {
-			authorIDsMap[c.AuthorId] = true
-		}
-		var authorIDs []string
-		for id := range authorIDsMap {
-			authorIDs = append(authorIDs, id)
-		}
-
-		authorsMap, err := s.identity.ListUser(ctx, authorIDs, token)
-		if err == nil {
-			for i := range comments {
-				if author, ok := authorsMap[comments[i].AuthorId]; ok {
-					comments[i].Author = author
-				}
-			}
-		}
-	}
-
-	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
-	return comments, nextCursor, nil
 }

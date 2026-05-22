@@ -10,7 +10,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/comment"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/like"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/post"
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
@@ -27,7 +30,12 @@ func NewDatabase() (*sql.DB, error) {
 	return db.NewConnection(dsn)
 }
 
-func NewHTTPServer(lc fx.Lifecycle, handler *internal.PostHandler) *gin.Engine {
+func NewHTTPServer(
+	lc fx.Lifecycle,
+	postHandler *post.Handler,
+	likeHandler *like.Handler,
+	commentHandler *comment.Handler,
+) *gin.Engine {
 	port := os.Getenv("SOCIAL_PORT")
 	if port == "" {
 		port = os.Getenv("PORT")
@@ -47,7 +55,9 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.PostHandler) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	handler.RegisterRoutes(r)
+	postHandler.RegisterRoutes(r)
+	likeHandler.RegisterRoutes(r)
+	commentHandler.RegisterRoutes(r)
 
 	server := &http.Server{
 		Addr:    port,
@@ -76,13 +86,20 @@ func main() {
 		cache.Module,
 		fx.Provide(
 			NewDatabase,
-			internal.NewIdentityService,
-			internal.NewTrainingPlanClient,
-			internal.NewPostRepository,
-			internal.NewPostService,
-			internal.NewPostHandler,
+			domain.NewIdentityService,
+			domain.NewTrainingPlanClient,
+			post.NewRepository,
+			post.NewService,
+			post.NewHandler,
+			like.NewRepository,
+			like.NewService,
+			like.NewHandler,
+			comment.NewRepository,
+			comment.NewService,
+			comment.NewHandler,
 			NewHTTPServer,
 		),
 		fx.Invoke(func(*gin.Engine) {}),
 	).Run()
 }
+
