@@ -3,7 +3,6 @@ package followers
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -35,7 +34,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 func (h *Handler) ListFollower(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListFollower(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -70,7 +69,7 @@ func (h *Handler) ListFollower(ctx *gin.Context) {
 
 func (h *Handler) ListFollowing(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListFollowing(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -132,7 +131,7 @@ func (h *Handler) CountFollowing(ctx *gin.Context) {
 func (h *Handler) FollowUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -149,7 +148,7 @@ func (h *Handler) FollowUser(ctx *gin.Context) {
 func (h *Handler) UnfollowUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -161,23 +160,4 @@ func (h *Handler) UnfollowUser(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }

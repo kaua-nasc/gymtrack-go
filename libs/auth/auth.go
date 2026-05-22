@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type UserContextKeyType string
@@ -142,4 +144,23 @@ func RolesMiddleware(allowedTypes ...UserType) gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+func GetAuthUser(ctx *gin.Context) (AuthUser, bool) {
+	user, ok := ctx.Value(string(UserContextKey)).(AuthUser)
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
+		return AuthUser{}, false
+	}
+
+	return user, true
+}
+
+func GetPagination(ctx *gin.Context) (string, int) {
+	cursor := ctx.Query("cursor")
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	if limit <= 0 {
+		limit = 20
+	}
+	return cursor, limit
 }

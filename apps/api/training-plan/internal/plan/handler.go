@@ -3,7 +3,6 @@ package plan
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
@@ -51,7 +50,7 @@ func (h *Handler) CreatePlan(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -68,7 +67,7 @@ func (h *Handler) CreatePlan(ctx *gin.Context) {
 
 func (h *Handler) ListPlan(ctx *gin.Context) {
 	authorId := ctx.Param("authorId")
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {
@@ -225,23 +224,4 @@ func (h *Handler) ListPlansByIds(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, res)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }

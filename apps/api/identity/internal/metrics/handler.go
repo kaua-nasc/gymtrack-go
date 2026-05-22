@@ -3,7 +3,6 @@ package metrics
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -64,7 +63,7 @@ func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
 }
 
 func (h *Handler) FindLastBodyMeasurementNote(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -90,7 +89,7 @@ func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 		id = user.ID
 	}
 
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -126,14 +125,14 @@ func (h *Handler) AddWeightLogNote(ctx *gin.Context) {
 func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 	id := ctx.Param("id")
 	if id == "" {
-		user, ok := h.getAuthUser(ctx)
+		user, ok := auth.GetAuthUser(ctx)
 		if !ok {
 			return
 		}
 		id = user.ID
 	}
 
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -146,7 +145,7 @@ func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 }
 
 func (h *Handler) AddGoalMetric(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -177,11 +176,11 @@ func (h *Handler) AddGoalMetric(ctx *gin.Context) {
 }
 
 func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
@@ -195,7 +194,7 @@ func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
 
 func (h *Handler) ListGoalsMetricById(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -205,23 +204,4 @@ func (h *Handler) ListGoalsMetricById(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(goals, nextCursor))
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }

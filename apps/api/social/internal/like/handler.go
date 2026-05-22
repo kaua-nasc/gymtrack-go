@@ -26,7 +26,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 func (h *Handler) toggleLike(ctx *gin.Context) {
 	postId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -37,14 +37,4 @@ func (h *Handler) toggleLike(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"message": "success"})
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
 }

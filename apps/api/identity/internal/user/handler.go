@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -56,7 +55,7 @@ func (h *Handler) ListUsers(ctx *gin.Context) {
 func (h *Handler) GetUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -77,7 +76,7 @@ func (h *Handler) GetUser(ctx *gin.Context) {
 }
 
 func (h *Handler) UpdateProfile(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -112,7 +111,7 @@ func (h *Handler) UpdateProfile(ctx *gin.Context) {
 }
 
 func (h *Handler) ChangePassword(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -150,7 +149,7 @@ func (h *Handler) ChangePassword(ctx *gin.Context) {
 }
 
 func (h *Handler) UploadProfilePicture(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -179,7 +178,7 @@ func (h *Handler) UploadProfilePicture(ctx *gin.Context) {
 }
 
 func (h *Handler) RemoveProfilePicture(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -194,7 +193,7 @@ func (h *Handler) RemoveProfilePicture(ctx *gin.Context) {
 }
 
 func (h *Handler) ChangeToTrainer(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -218,7 +217,7 @@ func (h *Handler) ChangeToTrainer(ctx *gin.Context) {
 }
 
 func (h *Handler) ChangeToClient(ctx *gin.Context) {
-	userVal, ok := h.getAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -230,23 +229,4 @@ func (h *Handler) ChangeToClient(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	userVal, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return auth.AuthUser{}, false
-	}
-
-	return userVal, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }

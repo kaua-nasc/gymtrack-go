@@ -31,7 +31,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 func (h *Handler) AddFeedback(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -53,14 +53,4 @@ func (h *Handler) AddFeedback(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
 }

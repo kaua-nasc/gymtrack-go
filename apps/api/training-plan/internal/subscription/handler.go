@@ -35,12 +35,13 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 		plans.POST("/subscriptions/:id/days/:dayId/complete", h.CompleteDay)
 		plans.GET("/subscriptions/days/resume", h.ListWeeklyDayProgress)
+		plans.GET("/subscriptions/days/next", h.ListSubscription)
 	}
 }
 
 func (h *Handler) ListSubscription(ctx *gin.Context) {
 	userId := ctx.Param("userId")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -61,7 +62,7 @@ func (h *Handler) ListSubscription(ctx *gin.Context) {
 
 func (h *Handler) ListSubscriptionByUserId(ctx *gin.Context) {
 	userId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -77,7 +78,7 @@ func (h *Handler) ListSubscriptionByUserId(ctx *gin.Context) {
 
 func (h *Handler) Subscribe(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -112,7 +113,7 @@ func (h *Handler) ChangeSubscriptionStatus(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -138,7 +139,7 @@ func (h *Handler) ChangeSubscriptionPrivacy(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -154,7 +155,7 @@ func (h *Handler) ChangeSubscriptionPrivacy(ctx *gin.Context) {
 
 func (h *Handler) Unsubscribe(ctx *gin.Context) {
 	id := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -171,7 +172,7 @@ func (h *Handler) Unsubscribe(ctx *gin.Context) {
 func (h *Handler) CompleteDay(ctx *gin.Context) {
 	subsId := ctx.Param("id")
 	dayId := ctx.Param("dayId")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -186,7 +187,7 @@ func (h *Handler) CompleteDay(ctx *gin.Context) {
 }
 
 func (h *Handler) ListWeeklyDayProgress(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -199,14 +200,4 @@ func (h *Handler) ListWeeklyDayProgress(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, progress)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
 }

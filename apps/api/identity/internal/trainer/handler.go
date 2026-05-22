@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
@@ -36,7 +35,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 }
 
 func (h *Handler) CreateTrainerCode(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -60,7 +59,7 @@ func (h *Handler) CreateTrainerCode(ctx *gin.Context) {
 }
 
 func (h *Handler) LinkTrainer(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -88,7 +87,7 @@ func (h *Handler) LinkTrainer(ctx *gin.Context) {
 }
 
 func (h *Handler) UnlinkTrainer(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -103,12 +102,12 @@ func (h *Handler) UnlinkTrainer(ctx *gin.Context) {
 }
 
 func (h *Handler) ListStudents(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListStudents(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
@@ -130,23 +129,4 @@ func (h *Handler) UnlinkStudent(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }

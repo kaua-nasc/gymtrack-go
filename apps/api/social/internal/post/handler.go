@@ -3,7 +3,6 @@ package post
 import (
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
@@ -46,7 +45,7 @@ func (h *Handler) createPost(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -60,7 +59,7 @@ func (h *Handler) createPost(ctx *gin.Context) {
 }
 
 func (h *Handler) uploadMedia(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -102,7 +101,7 @@ func (h *Handler) uploadMedia(ctx *gin.Context) {
 
 func (h *Handler) updatePost(ctx *gin.Context) {
 	postId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -125,7 +124,7 @@ func (h *Handler) updatePost(ctx *gin.Context) {
 
 func (h *Handler) deletePost(ctx *gin.Context) {
 	postId := ctx.Param("id")
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -139,12 +138,12 @@ func (h *Handler) deletePost(ctx *gin.Context) {
 }
 
 func (h *Handler) getFeed(ctx *gin.Context) {
-	user, ok := h.getAuthUser(ctx)
+	user, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	cursor, limit := h.getPagination(ctx)
+	cursor, limit := auth.GetPagination(ctx)
 	posts, nextCursor, err := h.service.GetFeed(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
@@ -152,23 +151,4 @@ func (h *Handler) getFeed(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
-}
-
-func (h *Handler) getAuthUser(ctx *gin.Context) (auth.AuthUser, bool) {
-	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if !ok {
-		ctx.JSON(http.StatusUnauthorized, utils.NewErrorResponse("unauthorized"))
-		return auth.AuthUser{}, false
-	}
-
-	return user, true
-}
-
-func (h *Handler) getPagination(ctx *gin.Context) (string, int) {
-	cursor := ctx.Query("cursor")
-	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
-	if limit <= 0 {
-		limit = 20
-	}
-	return cursor, limit
 }
