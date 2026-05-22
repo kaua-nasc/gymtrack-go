@@ -10,7 +10,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/exerciselog"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/feedback"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/plan"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
 	logutil "github.com/kaua-nasc/gymtrack-go/libs/log"
@@ -25,7 +29,13 @@ func NewDatabase() (*sql.DB, error) {
 	return db.NewConnection(dsn)
 }
 
-func NewHTTPServer(lc fx.Lifecycle, handler *internal.TrainingPlanHandler) *gin.Engine {
+func NewHTTPServer(
+	lc fx.Lifecycle,
+	planHandler *plan.Handler,
+	subHandler *subscription.Handler,
+	feedbackHandler *feedback.Handler,
+	logHandler *exerciselog.Handler,
+) *gin.Engine {
 	port := os.Getenv("TRAINING_PLAN_PORT")
 	if port == "" {
 		panic("TRAINING_PLAN_PORT not found")
@@ -42,7 +52,14 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.TrainingPlanHandler) *gin.
 		MaxAge:           12 * time.Hour,
 	}))
 
-	handler.RegisterRoutes(r)
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "training-plan"})
+	})
+
+	planHandler.RegisterRoutes(r)
+	subHandler.RegisterRoutes(r)
+	feedbackHandler.RegisterRoutes(r)
+	logHandler.RegisterRoutes(r)
 
 	server := &http.Server{
 		Addr:    port,
@@ -70,13 +87,23 @@ func main() {
 	fx.New(
 		fx.Provide(
 			NewDatabase,
-			internal.NewTrainingPlanRepository,
-			internal.NewIdentityService,
-			internal.NewLocalStorageService,
-			internal.NewTrainingPlanService,
-			internal.NewTrainingPlanHandler,
+			domain.NewIdentityService,
+			domain.NewLocalStorageService,
+			plan.NewRepository,
+			plan.NewService,
+			plan.NewHandler,
+			subscription.NewRepository,
+			subscription.NewService,
+			subscription.NewHandler,
+			feedback.NewRepository,
+			feedback.NewService,
+			feedback.NewHandler,
+			exerciselog.NewRepository,
+			exerciselog.NewService,
+			exerciselog.NewHandler,
 			NewHTTPServer,
 		),
 		fx.Invoke(func(*gin.Engine) {}),
 	).Run()
 }
+
