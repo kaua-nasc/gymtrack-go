@@ -10,7 +10,11 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/auth"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/followers"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/metrics"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/trainer"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/user"
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 	"github.com/kaua-nasc/gymtrack-go/libs/config"
 	"github.com/kaua-nasc/gymtrack-go/libs/db"
@@ -27,7 +31,14 @@ func NewDatabase() (*sql.DB, error) {
 	return db.NewConnection(dsn)
 }
 
-func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
+func NewHTTPServer(
+	lc fx.Lifecycle,
+	authHandler *auth.Handler,
+	userHandler *user.Handler,
+	trainerHandler *trainer.Handler,
+	followersHandler *followers.Handler,
+	metricsHandler *metrics.Handler,
+) *gin.Engine {
 	port := os.Getenv("IDENTITY_PORT")
 	if port == "" {
 		panic("IDENTITY_PORT not found")
@@ -44,7 +55,11 @@ func NewHTTPServer(lc fx.Lifecycle, handler *internal.UserHandler) *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	handler.RegisterRoutes(r)
+	authHandler.RegisterRoutes(r)
+	userHandler.RegisterRoutes(r)
+	trainerHandler.RegisterRoutes(r)
+	followersHandler.RegisterRoutes(r)
+	metricsHandler.RegisterRoutes(r)
 
 	server := &http.Server{
 		Addr:    port,
@@ -73,9 +88,21 @@ func main() {
 		cache.Module,
 		fx.Provide(
 			NewDatabase,
-			internal.NewUserRepository,
-			internal.NewUserService,
-			internal.NewUserHandler,
+			auth.NewRepository,
+			auth.NewService,
+			auth.NewHandler,
+			user.NewRepository,
+			user.NewService,
+			user.NewHandler,
+			trainer.NewRepository,
+			trainer.NewService,
+			trainer.NewHandler,
+			followers.NewRepository,
+			followers.NewService,
+			followers.NewHandler,
+			metrics.NewRepository,
+			metrics.NewService,
+			metrics.NewHandler,
 			NewHTTPServer,
 		),
 		fx.Invoke(func(*gin.Engine) {}),

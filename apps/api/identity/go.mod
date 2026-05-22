@@ -6,7 +6,6 @@ require (
 	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/kaua-nasc/gymtrack-go/libs/utils v0.0.0-00010101000000-000000000000
 	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/cache v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/config v0.0.0-20260512003624-4a3773363858
@@ -14,10 +13,10 @@ require (
 	github.com/kaua-nasc/gymtrack-go/libs/email v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/storage v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/utils v0.0.0-00010101000000-000000000000
 	github.com/lib/pq v1.12.3
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
-	golang.org/x/crypto v0.51.0
 )
 
 require (
@@ -25,7 +24,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -38,6 +36,8 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	golang.org/x/crypto v0.51.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
