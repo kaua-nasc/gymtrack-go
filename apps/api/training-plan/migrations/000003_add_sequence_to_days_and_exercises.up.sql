@@ -1,0 +1,2 @@
+ALTER TABLE public.days ADD COLUMN "sequence" INT NOT NULL DEFAULT 0;
+ALTER TABLE public.exercises ADD COLUMN "sequence" INT NOT NULL DEFAULT 0;

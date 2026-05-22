@@ -35,7 +35,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 		plans.POST("/subscriptions/:id/days/:dayId/complete", h.CompleteDay)
 		plans.GET("/subscriptions/days/resume", h.ListWeeklyDayProgress)
-		plans.GET("/subscriptions/days/next", h.ListSubscription)
+		plans.GET("/subscriptions/days/next", h.FindNextDay)
 	}
 }
 
@@ -193,6 +193,22 @@ func (h *Handler) ListWeeklyDayProgress(ctx *gin.Context) {
 	}
 
 	progress, err := h.srv.ListWeeklyDayProgress(ctx.Request.Context(), user.ID)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly day progress", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list weekly day progress"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, progress)
+}
+
+func (h *Handler) FindNextDay(ctx *gin.Context) {
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	progress, err := h.srv.FindNextDay(ctx.Request.Context(), user.ID)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly day progress", slog.Any("error", err), slog.String("user_id", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list weekly day progress"))

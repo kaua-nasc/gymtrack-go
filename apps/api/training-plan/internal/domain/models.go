@@ -126,6 +126,7 @@ type Day struct {
 	UpdatedAt      time.Time `json:"updatedAt"`
 	Name           string    `json:"name" validate:"required,min=1,max=255"`
 	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
+	Sequence       int       `json:"sequence"`
 
 	// Relations
 	TrainingPlan    *TrainingPlan     `json:"trainingPlan,omitempty"`
@@ -145,6 +146,7 @@ type Exercise struct {
 	RepsNumber  int          `json:"repsNumber" validate:"required,min=1"`
 	Description *string      `json:"description,omitempty"`
 	Observation *string      `json:"observation,omitempty"`
+	Sequence    int          `json:"sequence"`
 
 	// Relations
 	Day *Day `json:"day,omitempty"`

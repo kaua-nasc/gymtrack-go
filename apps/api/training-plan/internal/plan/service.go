@@ -80,21 +80,23 @@ func (s *Service) CreatePlan(ctx context.Context, plan domain.TrainingPlan, user
 	}
 
 	// 4. Save nested days and exercises (Cascade)
-	for _, day := range plan.Days {
-		day.TrainingPlanId = *plan.Id
-		day.CreatedAt = now
-		day.UpdatedAt = now
-		if err := s.repo.CreateDay(ctx, &day); err != nil {
+	for dayIdx := range plan.Days {
+		plan.Days[dayIdx].TrainingPlanId = *plan.Id
+		plan.Days[dayIdx].CreatedAt = now
+		plan.Days[dayIdx].UpdatedAt = now
+		plan.Days[dayIdx].Sequence = dayIdx
+		if err := s.repo.CreateDay(ctx, &plan.Days[dayIdx]); err != nil {
 			slog.ErrorContext(ctx, "failed to save plan day", slog.String("plan_id", *plan.Id), slog.Any("error", err))
 			return nil, fmt.Errorf("could not save plan day: %w", err)
 		}
 
-		for _, exercise := range day.Exercises {
-			exercise.DayId = day.Id
-			exercise.CreatedAt = now
-			exercise.UpdatedAt = now
-			if err := s.repo.CreateExercise(ctx, &exercise); err != nil {
-				slog.ErrorContext(ctx, "failed to save exercise", slog.String("day_id", day.Id), slog.Any("error", err))
+		for exerciseIdx := range plan.Days[dayIdx].Exercises {
+			plan.Days[dayIdx].Exercises[exerciseIdx].DayId = plan.Days[dayIdx].Id
+			plan.Days[dayIdx].Exercises[exerciseIdx].CreatedAt = now
+			plan.Days[dayIdx].Exercises[exerciseIdx].UpdatedAt = now
+			plan.Days[dayIdx].Exercises[exerciseIdx].Sequence = exerciseIdx
+			if err := s.repo.CreateExercise(ctx, &plan.Days[dayIdx].Exercises[exerciseIdx]); err != nil {
+				slog.ErrorContext(ctx, "failed to save exercise", slog.String("day_id", plan.Days[dayIdx].Id), slog.Any("error", err))
 				return nil, fmt.Errorf("could not save exercise: %w", err)
 			}
 		}

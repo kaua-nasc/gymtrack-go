@@ -21,11 +21,16 @@ type Repository interface {
 	CreateSubscriptionProgress(ctx context.Context, p *domain.PlanDayProgress) error
 	CountSubscriptionProgress(ctx context.Context, subsId string) (int, error)
 	ListWeeklyDayProgress(ctx context.Context, userId string) ([]domain.PlanDayProgress, error)
+	FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error)
 	GetSubscriptionEligibility(ctx context.Context, planId, userId string) (alreadySubscribed bool, isComplete bool, err error)
 	CreateAccessRequest(ctx context.Context, req *domain.PlanAccessRequest) error
 	CreateInvite(ctx context.Context, i *domain.PlanInvite) error
 	AddParticipant(ctx context.Context, p *domain.PlanParticipant) error
 	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
+	FindActiveSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
+	FindFirstDay(ctx context.Context, planId string) (*domain.Day, error)
+	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
+	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
 }
 
 type PostgresRepository struct {
@@ -269,4 +274,168 @@ func (r *PostgresRepository) IsParticipant(ctx context.Context, planId, userId s
 		return false, fmt.Errorf("could not check participant status: %w", err)
 	}
 	return exists, nil
+}
+
+func (r *PostgresRepository) FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error) {
+	query := `
+		SELECT progress.id, progress."dayId", progress."planSubscriptionId", progress.status, progress."createdAt", progress."updatedAt"
+		FROM plan_day_progress progress
+		JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
+		WHERE subs."userId" = $1 
+		  AND progress."deletedAt" IS NULL 
+		  AND subs."deletedAt" IS NULL
+		ORDER BY 
+			progress."updatedAt" DESC
+		LIMIT 1`
+
+	var p domain.PlanDayProgress
+
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&p.Id, &p.DayId, &p.PlanSubscriptionId, &p.Status, &p.CreatedAt, &p.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find subscription: %w", err)
+	}
+	return &p, nil
+}
+
+func (r *PostgresRepository) FindActiveSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error) {
+	query := `
+		SELECT 
+			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type",
+			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt"
+		FROM plan_subscription subs 
+		LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id 
+		WHERE subs."userId" = $1 
+		  AND subs.status NOT IN ('COMPLETED', 'CANCELED') 
+		  AND subs."deletedAt" IS NULL 
+		  AND plans."deletedAt" IS NULL
+		ORDER BY subs."createdAt" DESC
+		LIMIT 1`
+
+	var c domain.PlanSubscription
+	c.TrainingPlan = &domain.TrainingPlan{}
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(
+		&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
+		&c.TrainingPlan.Id, &c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays,
+		&c.TrainingPlan.Type, &c.TrainingPlan.Visibility, &c.TrainingPlan.Level, &c.TrainingPlan.Observation,
+		&c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions, &c.TrainingPlan.ImageUrl,
+		&c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find active subscription: %w", err)
+	}
+
+	return &c, nil
+}
+
+func (r *PostgresRepository) loadExercisesForDay(ctx context.Context, dayId string) ([]domain.Exercise, error) {
+	query := `
+		SELECT 
+			id, name, "dayId", type, "setsNumber", "repsNumber", 
+			description, observation, sequence, "createdAt", "updatedAt"
+		FROM exercises 
+		WHERE "dayId" = $1 AND "deletedAt" IS NULL
+		ORDER BY sequence ASC, "createdAt" ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, dayId)
+	if err != nil {
+		return nil, fmt.Errorf("could not load exercises: %w", err)
+	}
+	defer rows.Close()
+
+	exercises := make([]domain.Exercise, 0)
+	for rows.Next() {
+		var e domain.Exercise
+		err := rows.Scan(
+			&e.Id, &e.Name, &e.DayId, &e.Type, &e.SetsNumber, &e.RepsNumber,
+			&e.Description, &e.Observation, &e.Sequence, &e.CreatedAt, &e.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		exercises = append(exercises, e)
+	}
+	return exercises, nil
+}
+
+func (r *PostgresRepository) FindFirstDay(ctx context.Context, planId string) (*domain.Day, error) {
+	query := `
+		SELECT id, name, "trainingPlanId", sequence, "createdAt", "updatedAt"
+		FROM days
+		WHERE "trainingPlanId" = $1 AND "deletedAt" IS NULL
+		ORDER BY sequence ASC, "createdAt" ASC
+		LIMIT 1`
+
+	var d domain.Day
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(&d.Id, &d.Name, &d.TrainingPlanId, &d.Sequence, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find first day: %w", err)
+	}
+
+	exercises, err := r.loadExercisesForDay(ctx, d.Id)
+	if err != nil {
+		return nil, err
+	}
+	d.Exercises = exercises
+
+	return &d, nil
+}
+
+func (r *PostgresRepository) FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error) {
+	query := `
+		SELECT id, name, "trainingPlanId", sequence, "createdAt", "updatedAt"
+		FROM days
+		WHERE "trainingPlanId" = $1 AND sequence > $2 AND "deletedAt" IS NULL
+		ORDER BY sequence ASC, "createdAt" ASC
+		LIMIT 1`
+
+	var d domain.Day
+	err := r.db.QueryRowContext(ctx, query, planId, currentSequence).Scan(&d.Id, &d.Name, &d.TrainingPlanId, &d.Sequence, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find next day in sequence: %w", err)
+	}
+
+	exercises, err := r.loadExercisesForDay(ctx, d.Id)
+	if err != nil {
+		return nil, err
+	}
+	d.Exercises = exercises
+
+	return &d, nil
+}
+
+func (r *PostgresRepository) FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error) {
+	query := `
+		SELECT id, name, "trainingPlanId", sequence, "createdAt", "updatedAt"
+		FROM days
+		WHERE id = $1 AND "deletedAt" IS NULL
+		LIMIT 1`
+
+	var d domain.Day
+	err := r.db.QueryRowContext(ctx, query, dayId).Scan(&d.Id, &d.Name, &d.TrainingPlanId, &d.Sequence, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find day: %w", err)
+	}
+
+	exercises, err := r.loadExercisesForDay(ctx, d.Id)
+	if err != nil {
+		return nil, err
+	}
+	d.Exercises = exercises
+
+	return &d, nil
 }
