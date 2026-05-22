@@ -24,6 +24,9 @@ func (h *PostHandler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
 	})
+	r.GET("/health2", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "identity"})
+	})
 	social := r.Group("/social")
 	social.Use(auth.AuthMiddleware())
 	{
