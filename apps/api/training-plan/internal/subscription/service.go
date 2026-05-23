@@ -208,6 +208,10 @@ func (s *Service) CompleteDay(ctx context.Context, subsId, userId, dayId string)
 		return errors.New("subscription not found")
 	}
 
+	if sub.Status == domain.Completed || sub.Status == domain.Canceled {
+		return fmt.Errorf("não é possível modificar o progresso de uma inscrição concluída ou cancelada")
+	}
+
 	if sub.Status == domain.NotStarted {
 		if err := s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.InProgress); err != nil {
 			return err
@@ -250,6 +254,10 @@ func (s *Service) CancelDay(ctx context.Context, subsId, userId, dayId string) e
 		return errors.New("subscription not found")
 	}
 
+	if sub.Status == domain.Completed || sub.Status == domain.Canceled {
+		return fmt.Errorf("não é possível modificar o progresso de uma inscrição concluída ou cancelada")
+	}
+
 	if sub.Status == domain.NotStarted {
 		if err := s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.InProgress); err != nil {
 			return err
@@ -290,6 +298,10 @@ func (s *Service) StartDay(ctx context.Context, subsId, userId, dayId string) er
 	if sub == nil {
 		slog.WarnContext(ctx, "subscription not found for day start", slog.String("subscription_id", subsId), slog.String("user_id", userId))
 		return errors.New("subscription not found")
+	}
+
+	if sub.Status == domain.Completed || sub.Status == domain.Canceled {
+		return fmt.Errorf("não é possível modificar o progresso de uma inscrição concluída ou cancelada")
 	}
 
 	if sub.Status == domain.NotStarted {
