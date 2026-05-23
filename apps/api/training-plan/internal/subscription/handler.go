@@ -168,7 +168,7 @@ func (h *Handler) Unsubscribe(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) CompleteDay(ctx *gin.Context) {
@@ -185,7 +185,7 @@ func (h *Handler) CompleteDay(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) CancelDay(ctx *gin.Context) {
@@ -202,7 +202,7 @@ func (h *Handler) CancelDay(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) StartDay(ctx *gin.Context) {
@@ -219,7 +219,7 @@ func (h *Handler) StartDay(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) ListWeeklyDayProgress(ctx *gin.Context) {
