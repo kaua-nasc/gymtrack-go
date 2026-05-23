@@ -17,3 +17,7 @@ main
 .idea/
 
 conductor
+
+# AI
+.agents
+skills-lock.json
