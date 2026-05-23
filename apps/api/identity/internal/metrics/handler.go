@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -43,6 +44,10 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
 	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Note string `json:"note" binding:"required"`
@@ -53,7 +58,11 @@ func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.srv.AddBodyMeasurementNote(ctx.Request.Context(), id, body.Note); err != nil {
+	if err := h.srv.AddBodyMeasurementNote(ctx.Request.Context(), userVal.ID, id, body.Note); err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to add body measurement note", slog.Any("error", err), slog.String("measurement_id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add note"})
 		return
@@ -63,14 +72,18 @@ func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
 }
 
 func (h *Handler) FindLastBodyMeasurementNote(ctx *gin.Context) {
-	user, ok := auth.GetAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	measurement, err := h.srv.FindLastBodyMeasurementNote(ctx.Request.Context(), user.ID)
+	measurement, err := h.srv.FindLastBodyMeasurementNote(ctx.Request.Context(), userVal.ID, userVal.ID)
 	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to fetch last measurement", slog.Any("error", err), slog.String("user_id", user.ID))
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to fetch last measurement", slog.Any("error", err), slog.String("user_id", userVal.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch last measurement"})
 		return
 	}
@@ -80,19 +93,22 @@ func (h *Handler) FindLastBodyMeasurementNote(ctx *gin.Context) {
 
 func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
 	if id == "" {
-		user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-		if !ok {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-			return
-		}
-		id = user.ID
+		id = userVal.ID
 	}
 
 	cursor, limit := utils.GetPagination(ctx)
 
-	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), id, cursor, limit)
+	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), userVal.ID, id, cursor, limit)
 	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to list body measurements", slog.Any("error", err), slog.String("user_id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list measurements"})
 		return
@@ -103,6 +119,10 @@ func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 
 func (h *Handler) AddWeightLogNote(ctx *gin.Context) {
 	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
 
 	var body struct {
 		Note string `json:"note" binding:"required"`
@@ -113,7 +133,11 @@ func (h *Handler) AddWeightLogNote(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.srv.AddWeightLogNote(ctx.Request.Context(), id, body.Note); err != nil {
+	if err := h.srv.AddWeightLogNote(ctx.Request.Context(), userVal.ID, id, body.Note); err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to add weight log note", slog.Any("error", err), slog.String("log_id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add note"})
 		return
@@ -124,18 +148,22 @@ func (h *Handler) AddWeightLogNote(ctx *gin.Context) {
 
 func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
 	if id == "" {
-		user, ok := auth.GetAuthUser(ctx)
-		if !ok {
-			return
-		}
-		id = user.ID
+		id = userVal.ID
 	}
 
 	cursor, limit := utils.GetPagination(ctx)
 
-	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), id, cursor, limit)
+	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), userVal.ID, id, cursor, limit)
 	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to list weight logs", slog.Any("error", err), slog.String("user_id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list weight logs"})
 		return
@@ -145,7 +173,7 @@ func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 }
 
 func (h *Handler) AddGoalMetric(ctx *gin.Context) {
-	user, ok := auth.GetAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
@@ -161,13 +189,17 @@ func (h *Handler) AddGoalMetric(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.srv.AddGoalMetric(ctx.Request.Context(), &domain.MetricGoal{
-		UserId:      user.ID,
+	if err := h.srv.AddGoalMetric(ctx.Request.Context(), userVal.ID, &domain.MetricGoal{
+		UserId:      userVal.ID,
 		Type:        body.Type,
 		TargetValue: body.TargetValue,
 		Deadline:    &body.Deadline,
 	}); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to add goal metric", slog.Any("error", err), slog.String("user_id", user.ID))
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to add goal metric", slog.Any("error", err), slog.String("user_id", userVal.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add goal metric"})
 		return
 	}
@@ -176,15 +208,19 @@ func (h *Handler) AddGoalMetric(ctx *gin.Context) {
 }
 
 func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
-	user, ok := auth.GetAuthUser(ctx)
+	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
 	cursor, limit := utils.GetPagination(ctx)
 
-	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID, cursor, limit)
+	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), userVal.ID, userVal.ID, cursor, limit)
 	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to list goals", slog.Any("error", err), slog.String("user_id", user.ID))
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to list goals", slog.Any("error", err), slog.String("user_id", userVal.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
 		return
 	}
@@ -194,10 +230,18 @@ func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
 
 func (h *Handler) ListGoalsMetricById(ctx *gin.Context) {
 	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
 	cursor, limit := utils.GetPagination(ctx)
 
-	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), id, cursor, limit)
+	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), userVal.ID, id, cursor, limit)
 	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to list goals by id", slog.Any("error", err), slog.String("user_id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
 		return

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
@@ -18,6 +19,7 @@ type Repository interface {
 	LinkTrainer(ctx context.Context, relation domain.TrainerStudentRelation) error
 	UnlinkTrainer(ctx context.Context, studentId string) error
 	ListStudents(ctx context.Context, trainerId string, cursor *utils.CursorData, limit int) ([]*domain.User, *utils.CursorData, error)
+	GetTrainerLinkDate(ctx context.Context, trainerId, studentId string) (*time.Time, error)
 }
 
 type PostgresRepository struct {
@@ -244,4 +246,17 @@ func (r *PostgresRepository) ListStudents(ctx context.Context, trainerId string,
 	}
 
 	return users, nextCursor, nil
+}
+
+func (r *PostgresRepository) GetTrainerLinkDate(ctx context.Context, trainerId, studentId string) (*time.Time, error) {
+	query := `SELECT "linkedAt" FROM trainer_student_relationships WHERE "trainerId" = $1 AND "studentId" = $2 AND "deletedAt" IS NULL LIMIT 1`
+	var linkedAt time.Time
+	err := r.db.QueryRowContext(ctx, query, trainerId, studentId).Scan(&linkedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &linkedAt, nil
 }

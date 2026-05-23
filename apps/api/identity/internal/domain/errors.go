@@ -13,4 +13,7 @@ var (
 	ErrTrainerNotFound    = errors.New("trainer not found")
 	ErrAlreadyVerified    = errors.New("email already verified")
 	ErrNotVerified        = errors.New("user not verified")
+	ErrUnauthorizedAccess = errors.New("unauthorized access to this data")
+	ErrUnauthorizedTrainerAccess = errors.New("trainer does not have an active link with this student")
+	ErrPrivacySettingsForbidden = errors.New("student privacy settings do not allow this action")
 )

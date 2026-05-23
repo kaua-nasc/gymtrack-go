@@ -13,11 +13,13 @@ import (
 
 type Repository interface {
 	AddBodyMeasurementNote(ctx context.Context, id, note string) error
+	FindBodyMeasurement(ctx context.Context, id string) (*domain.BodyMeasurement, error)
 	FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error)
-	ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error)
+	ListBodyMeasurements(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error)
 	AddWeightLogNote(ctx context.Context, id, note string) error
-	ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error)
-	ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
+	FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error)
+	ListGoalsMetric(ctx context.Context, id string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error)
+	ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
 	AddGoalMetric(ctx context.Context, g domain.MetricGoal) error
 }
 
@@ -42,6 +44,19 @@ func (r *PostgresRepository) AddBodyMeasurementNote(ctx context.Context, id, not
 	return nil
 }
 
+func (r *PostgresRepository) FindBodyMeasurement(ctx context.Context, id string) (*domain.BodyMeasurement, error) {
+	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE id = $1 AND "deletedAt" IS NULL`
+	var m domain.BodyMeasurement
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find body measurement: %w", err)
+	}
+	return &m, nil
+}
+
 func (r *PostgresRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 AND "deletedAt" IS NULL ORDER BY "measuredAt" DESC LIMIT 1`
 	var m domain.BodyMeasurement
@@ -55,14 +70,19 @@ func (r *PostgresRepository) FindLastBodyMeasurementNote(ctx context.Context, us
 	return &m, nil
 }
 
-func (r *PostgresRepository) ListBodyMeasurements(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error) {
+func (r *PostgresRepository) ListBodyMeasurements(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, userId)
 
+	if since != nil {
+		query += fmt.Sprintf(` AND "createdAt" >= $%d`, len(args)+1)
+		args = append(args, *since)
+	}
+
 	if cursor != nil {
-		query += ` AND ("createdAt", id) < ($2, $3)`
+		query += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, len(args)+1, len(args)+2)
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
@@ -106,14 +126,32 @@ func (r *PostgresRepository) AddWeightLogNote(ctx context.Context, id, note stri
 	return nil
 }
 
-func (r *PostgresRepository) ListGoalsMetric(ctx context.Context, id string, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error) {
+func (r *PostgresRepository) FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error) {
+	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE id = $1 AND "deletedAt" IS NULL`
+	var l domain.WeightLog
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&l.ID, &l.CreatedAt, &l.UpdatedAt, &l.Weight, &l.MeasuredAt, &l.UserId, &l.TrainerNote, &l.TrainerNoteAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find weight log: %w", err)
+	}
+	return &l, nil
+}
+
+func (r *PostgresRepository) ListGoalsMetric(ctx context.Context, id string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, id)
 
+	if since != nil {
+		query += fmt.Sprintf(` AND "createdAt" >= $%d`, len(args)+1)
+		args = append(args, *since)
+	}
+
 	if cursor != nil {
-		query += ` AND ("createdAt", id) < ($2, $3)`
+		query += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, len(args)+1, len(args)+2)
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 
@@ -148,14 +186,19 @@ func (r *PostgresRepository) ListGoalsMetric(ctx context.Context, id string, cur
 	return goals, nextCursor, nil
 }
 
-func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error) {
+func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error) {
 	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
 	var args []interface{}
 	args = append(args, userId)
 
+	if since != nil {
+		query += fmt.Sprintf(` AND "createdAt" >= $%d`, len(args)+1)
+		args = append(args, *since)
+	}
+
 	if cursor != nil {
-		query += ` AND ("createdAt", id) < ($2, $3)`
+		query += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, len(args)+1, len(args)+2)
 		args = append(args, cursor.CreatedAt, cursor.ID)
 	}
 

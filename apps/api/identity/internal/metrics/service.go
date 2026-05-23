@@ -6,30 +6,98 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/trainer"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/user"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
-	repo Repository
+	repo        Repository
+	userRepo    user.Repository
+	trainerRepo trainer.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, userRepo user.Repository, trainerRepo trainer.Repository) *Service {
+	return &Service{
+		repo:        repo,
+		userRepo:    userRepo,
+		trainerRepo: trainerRepo,
+	}
 }
 
-func (s *Service) AddBodyMeasurementNote(ctx context.Context, id, note string) error {
+func (s *Service) checkPrivacy(ctx context.Context, requesterId, userId string, checkFn func(*domain.UserPrivacySettings) bool) (*time.Time, error) {
+	if requesterId == userId {
+		return nil, nil
+	}
+
+	linkedAt, err := s.trainerRepo.GetTrainerLinkDate(ctx, requesterId, userId)
+	if err != nil {
+		return nil, err
+	}
+	if linkedAt == nil {
+		return nil, domain.ErrUnauthorizedTrainerAccess
+	}
+
+	privacy, err := s.userRepo.GetPrivacySettings(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	if privacy != nil && !checkFn(privacy) {
+		return nil, domain.ErrPrivacySettingsForbidden
+	}
+
+	return linkedAt, nil
+}
+
+func (s *Service) AddBodyMeasurementNote(ctx context.Context, requesterId, id, note string) error {
+	m, err := s.repo.FindBodyMeasurement(ctx, id)
+	if err != nil {
+		return err
+	}
+	if m == nil {
+		return domain.ErrUserNotFound
+	}
+
+	if _, err := s.checkPrivacy(ctx, requesterId, m.UserId, func(p *domain.UserPrivacySettings) bool {
+		return p.AllowTrainerNotes
+	}); err != nil {
+		return err
+	}
+
 	return s.repo.AddBodyMeasurementNote(ctx, id, note)
 }
 
-func (s *Service) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error) {
+func (s *Service) FindLastBodyMeasurementNote(ctx context.Context, requesterId, userId string) (*domain.BodyMeasurement, error) {
+	if _, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareBodyMeasurements
+	}); err != nil {
+		return nil, err
+	}
+
 	return s.repo.FindLastBodyMeasurementNote(ctx, userId)
 }
 
-func (s *Service) ListBodyMeasurements(ctx context.Context, userId, cursor string, limit int) ([]*domain.BodyMeasurement, string, error) {
+func (s *Service) ListBodyMeasurements(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.BodyMeasurement, string, error) {
+	linkedAt, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareBodyMeasurements
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
-	measurements, rawNextCursor, err := s.repo.ListBodyMeasurements(ctx, userId, decodedCursor, limit)
+	var since *time.Time
+	if linkedAt != nil {
+		privacy, _ := s.userRepo.GetPrivacySettings(ctx, userId)
+		if privacy != nil && !privacy.SharePastDataWithTrainer {
+			since = linkedAt
+		}
+	}
+
+	measurements, rawNextCursor, err := s.repo.ListBodyMeasurements(ctx, userId, since, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -38,11 +106,29 @@ func (s *Service) ListBodyMeasurements(ctx context.Context, userId, cursor strin
 	return measurements, nextCursorStr, nil
 }
 
-func (s *Service) AddWeightLogNote(ctx context.Context, id, note string) error {
+func (s *Service) AddWeightLogNote(ctx context.Context, requesterId, id, note string) error {
+	l, err := s.repo.FindWeightLog(ctx, id)
+	if err != nil {
+		return err
+	}
+	if l == nil {
+		return domain.ErrUserNotFound
+	}
+
+	if _, err := s.checkPrivacy(ctx, requesterId, l.UserId, func(p *domain.UserPrivacySettings) bool {
+		return p.AllowTrainerNotes
+	}); err != nil {
+		return err
+	}
+
 	return s.repo.AddWeightLogNote(ctx, id, note)
 }
 
-func (s *Service) AddGoalMetric(ctx context.Context, goal *domain.MetricGoal) error {
+func (s *Service) AddGoalMetric(ctx context.Context, requesterId string, goal *domain.MetricGoal) error {
+	if requesterId != goal.UserId {
+		return domain.ErrUnauthorizedAccess
+	}
+
 	now := time.Now().UTC()
 	newId, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
@@ -57,11 +143,26 @@ func (s *Service) AddGoalMetric(ctx context.Context, goal *domain.MetricGoal) er
 	return s.repo.AddGoalMetric(ctx, *goal)
 }
 
-func (s *Service) ListGoalsMetric(ctx context.Context, userId, cursor string, limit int) ([]*domain.MetricGoal, string, error) {
+func (s *Service) ListGoalsMetric(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.MetricGoal, string, error) {
+	linkedAt, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareMetricGoals
+	})
+	if err != nil {
+		return nil, "", err
+	}
+
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
-	goals, rawNextCursor, err := s.repo.ListGoalsMetric(ctx, userId, decodedCursor, limit)
+	var since *time.Time
+	if linkedAt != nil {
+		privacy, _ := s.userRepo.GetPrivacySettings(ctx, userId)
+		if privacy != nil && !privacy.SharePastDataWithTrainer {
+			since = linkedAt
+		}
+	}
+
+	goals, rawNextCursor, err := s.repo.ListGoalsMetric(ctx, userId, since, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -70,15 +171,30 @@ func (s *Service) ListGoalsMetric(ctx context.Context, userId, cursor string, li
 	return goals, nextCursorStr, nil
 }
 
-func (s *Service) ListWeightLogs(ctx context.Context, userId, cursor string, limit int) ([]*domain.WeightLog, string, error) {
+func (s *Service) ListWeightLogs(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.WeightLog, string, error) {
 	slog.InfoContext(ctx, "listing weight logs", slog.String("user_id", userId), slog.Int("limit", limit))
+
+	linkedAt, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareWeightLogs
+	})
+	if err != nil {
+		return nil, "", err
+	}
 
 	var decodedCursor *utils.CursorData
 	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
 		slog.WarnContext(ctx, "failed to decode cursor for weight history", slog.String("cursor", cursor), slog.Any("error", err))
 	}
 
-	logs, rawNextCursor, err := s.repo.ListWeightLogs(ctx, userId, decodedCursor, limit)
+	var since *time.Time
+	if linkedAt != nil {
+		privacy, _ := s.userRepo.GetPrivacySettings(ctx, userId)
+		if privacy != nil && !privacy.SharePastDataWithTrainer {
+			since = linkedAt
+		}
+	}
+
+	logs, rawNextCursor, err := s.repo.ListWeightLogs(ctx, userId, since, decodedCursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list weight history", slog.String("user_id", userId), slog.Any("error", err))
 		return nil, "", err
