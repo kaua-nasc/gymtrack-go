@@ -92,21 +92,35 @@ func (s *Service) UpdateProfile(
 	return s.repo.Update(ctx, u)
 }
 
-func (s *Service) GetUser(ctx context.Context, id string, userId string) (*domain.User, error) {
-	u, err := s.repo.Find(ctx, id, userId)
+func (s *Service) GetUser(ctx context.Context, id string, requesterId string) (*domain.User, error) {
+	u, err := s.repo.Find(ctx, id, requesterId)
 	if err != nil || u == nil {
 		return u, err
 	}
+
+	if id != requesterId {
+		settings, err := s.repo.GetPrivacySettings(ctx, id)
+		if err == nil && settings != nil {
+			u.ApplyPrivacy(settings)
+		}
+	}
+
 	u.Sanitize()
 	return u, nil
 }
 
-func (s *Service) ListUsers(ctx context.Context, ids []string) ([]*domain.User, error) {
+func (s *Service) ListUsers(ctx context.Context, requesterId string, ids []string) ([]*domain.User, error) {
 	users, err := s.repo.ListByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for _, u := range users {
+		if requesterId != *u.ID {
+			settings, err := s.repo.GetPrivacySettings(ctx, *u.ID)
+			if err == nil && settings != nil {
+				u.ApplyPrivacy(settings)
+			}
+		}
 		u.Sanitize()
 	}
 	return users, nil

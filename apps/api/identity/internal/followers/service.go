@@ -6,15 +6,20 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/user"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
-	repo Repository
+	repo     Repository
+	userRepo user.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, userRepo user.Repository) *Service {
+	return &Service{
+		repo:     repo,
+		userRepo: userRepo,
+	}
 }
 
 func (s *Service) ListFollowing(ctx context.Context, id, cursor string, limit int) ([]*domain.User, string, error) {
@@ -29,6 +34,10 @@ func (s *Service) ListFollowing(ctx context.Context, id, cursor string, limit in
 	}
 
 	for _, u := range users {
+		settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
+		if err == nil && settings != nil {
+			u.ApplyPrivacy(settings)
+		}
 		u.Sanitize()
 	}
 
@@ -48,6 +57,10 @@ func (s *Service) ListFollower(ctx context.Context, id, cursor string, limit int
 	}
 
 	for _, u := range users {
+		settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
+		if err == nil && settings != nil {
+			u.ApplyPrivacy(settings)
+		}
 		u.Sanitize()
 	}
 

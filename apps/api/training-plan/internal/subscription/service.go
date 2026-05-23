@@ -60,6 +60,11 @@ func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId strin
 	}
 
 	if user.StudentOf != nil && user.StudentOf.ID == id {
+		privacy, err := s.identity.GetStudentPrivacy(ctx, userId, token)
+		if err == nil && privacy != nil && !privacy.ShareTrainingProgress {
+			return nil, domain.ErrPrivacySettingsForbidden
+		}
+
 		subs := make([]*domain.PlanSubscription, 0)
 		for _, s := range subscriptions {
 			if s.Type == domain.PrivateSubscription {

@@ -22,3 +22,13 @@ func (u *User) Sanitize() {
 		}
 	}
 }
+
+func (u *User) ApplyPrivacy(settings *UserPrivacySettings) {
+	if settings == nil {
+		return
+	}
+
+	if !settings.ShareEmail {
+		u.Email = nil
+	}
+}

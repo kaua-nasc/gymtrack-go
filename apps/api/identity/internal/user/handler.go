@@ -106,8 +106,13 @@ func (h *Handler) ListUsers(ctx *gin.Context) {
 		return
 	}
 
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
 	ids := strings.Split(idsStr, ",")
-	res, err := h.srv.ListUsers(ctx.Request.Context(), ids)
+	res, err := h.srv.ListUsers(ctx.Request.Context(), userVal.ID, ids)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list users", slog.Any("error", err), slog.String("ids", idsStr))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})

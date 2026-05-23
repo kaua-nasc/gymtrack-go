@@ -166,9 +166,8 @@ type PlanSubscription struct {
 	CompletedDaysCount *int                   `json:"completedDaysCount,omitempty"`
 
 	// Relations
-	PlanDayProgress []PlanDayProgress                `json:"planDayProgress,omitempty"`
-	TrainingPlan    *TrainingPlan                    `json:"trainingPlan,omitempty"`
-	PrivacySettings *PlanSubscriptionPrivacySettings `json:"privacySettings,omitempty"`
+	PlanDayProgress []PlanDayProgress `json:"planDayProgress,omitempty"`
+	TrainingPlan    *TrainingPlan     `json:"trainingPlan,omitempty"`
 }
 
 // PlanAccessRequest Entity
@@ -185,19 +184,6 @@ type PlanAccessRequest struct {
 }
 
 // Support Entities
-// PlanSubscriptionPrivacySettings Entity
-type PlanSubscriptionPrivacySettings struct {
-	Id                   string    `json:"id" validate:"required,uuid"`
-	CreatedAt            time.Time `json:"createdAt"`
-	UpdatedAt            time.Time `json:"updatedAt"`
-	PlanSubscriptionId   string    `json:"planSubscriptionId" validate:"required,uuid"`
-	ShareProgress        bool      `json:"shareProgress"`
-	SharePersonalMetrics bool      `json:"sharePersonalMetrics"`
-
-	// Relations
-	PlanSubscription *PlanSubscription `json:"planSubscription,omitempty"`
-}
-
 // PlanParticipant Entity
 type PlanParticipant struct {
 	Id             string    `json:"id" validate:"required,uuid"`

@@ -5,15 +5,20 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/user"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
-	repo Repository
+	repo     Repository
+	userRepo user.Repository
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, userRepo user.Repository) *Service {
+	return &Service{
+		repo:     repo,
+		userRepo: userRepo,
+	}
 }
 
 func (s *Service) CreateTrainerCode(ctx context.Context, id, code string) error {
@@ -73,9 +78,43 @@ func (s *Service) ListStudents(ctx context.Context, trainerId, cursor string, li
 	}
 
 	for _, u := range users {
+		settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
+		if err == nil && settings != nil {
+			u.ApplyPrivacy(settings)
+		}
 		u.Sanitize()
 	}
 
 	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
 	return users, nextCursorStr, nil
+}
+
+func (s *Service) GetStudentPrivacy(ctx context.Context, trainerId, studentId string) (*domain.UserPrivacySettings, error) {
+	linkedAt, err := s.repo.GetTrainerLinkDate(ctx, trainerId, studentId)
+	if err != nil {
+		return nil, err
+	}
+	if linkedAt == nil {
+		return nil, domain.ErrUnauthorizedTrainerAccess
+	}
+
+	settings, err := s.userRepo.GetPrivacySettings(ctx, studentId)
+	if err != nil {
+		return nil, err
+	}
+
+	if settings == nil {
+		return &domain.UserPrivacySettings{
+			UserId:                studentId,
+			ShareEmail:            true,
+			ShareTrainingProgress: false,
+			SharePastDataWithTrainer: false,
+			ShareBodyMeasurements: false,
+			ShareWeightLogs:       false,
+			ShareMetricGoals:      false,
+			AllowTrainerNotes:     true,
+		}, nil
+	}
+
+	return settings, nil
 }

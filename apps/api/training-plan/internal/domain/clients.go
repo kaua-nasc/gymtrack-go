@@ -66,6 +66,16 @@ type User struct {
 	TrainerOf []TrainerStudentRelation `json:"trainerOf,omitempty"`
 }
 
+type UserPrivacySettings struct {
+	ShareEmail               bool `json:"shareEmail"`
+	ShareTrainingProgress    bool `json:"shareTrainingProgress"`
+	SharePastDataWithTrainer bool `json:"sharePastDataWithTrainer"`
+	ShareBodyMeasurements    bool `json:"shareBodyMeasurements"`
+	ShareWeightLogs          bool `json:"shareWeightLogs"`
+	ShareMetricGoals         bool `json:"shareMetricGoals"`
+	AllowTrainerNotes        bool `json:"allowTrainerNotes"`
+}
+
 type TrainerStudentRelation struct {
 	ID        string `json:"id"`
 	TrainerId string `json:"trainerId"`
@@ -102,6 +112,32 @@ func (s *IdentityService) FindUser(ctx context.Context, id string, token string)
 	}
 
 	return &user, nil
+}
+
+func (s *IdentityService) GetStudentPrivacy(ctx context.Context, id string, token string) (*UserPrivacySettings, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/identity/users/trainers/students/%s/privacy", s.baseURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("identity service error: %d", resp.StatusCode)
+	}
+
+	var privacy UserPrivacySettings
+	if err := json.NewDecoder(resp.Body).Decode(&privacy); err != nil {
+		return nil, fmt.Errorf("failed to decode privacy: %w", err)
+	}
+
+	return &privacy, nil
 }
 
 func (s *IdentityService) ListUser(ctx context.Context, ids *[]string, token string) (map[string]*any, error) {

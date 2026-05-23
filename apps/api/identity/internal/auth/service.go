@@ -22,7 +22,10 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) Register(ctx context.Context, u domain.User) error {
-	existing, err := s.repo.FindByEmail(ctx, u.Email)
+	if u.Email == nil {
+		return domain.ErrInvalidCredentials
+	}
+	existing, err := s.repo.FindByEmail(ctx, *u.Email)
 	if err != nil {
 		return err
 	}
@@ -107,11 +110,11 @@ func (s *Service) SendVerificationEmail(ctx context.Context, userEmail string) e
 		return err
 	}
 
-	if err := s.repo.SaveVerificationCode(ctx, code, u.Email); err != nil {
+	if err := s.repo.SaveVerificationCode(ctx, code, *u.Email); err != nil {
 		return err
 	}
 
-	return email.Send(u.Email, email.EmailRequestContent{
+	return email.Send(*u.Email, email.EmailRequestContent{
 		Subject:   "Verificação de E-mail - Gymtrack",
 		PlainText: fmt.Sprintf("Seu código de verificação é: %s", code),
 		HTML: fmt.Sprintf(`
@@ -251,11 +254,11 @@ func (s *Service) ResetPasswordSendToken(ctx context.Context, userEmail string) 
 		return err
 	}
 
-	if err := s.repo.SaveResetCode(ctx, code, u.Email); err != nil {
+	if err := s.repo.SaveResetCode(ctx, code, *u.Email); err != nil {
 		return err
 	}
 
-	return email.Send(u.Email, email.EmailRequestContent{
+	return email.Send(*u.Email, email.EmailRequestContent{
 		Subject:   "Redefinição de Senha - Gymtrack",
 		PlainText: fmt.Sprintf("Seu código de redefinição de senha é: %s", code),
 		HTML: fmt.Sprintf(`

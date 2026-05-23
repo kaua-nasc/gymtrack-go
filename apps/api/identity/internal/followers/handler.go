@@ -47,7 +47,7 @@ func (h *Handler) ListFollower(ctx *gin.Context) {
 		Id        string          `json:"id"`
 		FirstName string          `json:"firstName"`
 		LastName  string          `json:"lastName"`
-		Email     string          `json:"email"`
+		Email     *string         `json:"email"`
 		Type      domain.UserType `json:"type"`
 		CreatedAt time.Time       `json:"createdAt"`
 	}
@@ -82,7 +82,7 @@ func (h *Handler) ListFollowing(ctx *gin.Context) {
 		Id        string          `json:"id"`
 		FirstName string          `json:"firstName"`
 		LastName  string          `json:"lastName"`
-		Email     string          `json:"email"`
+		Email     *string         `json:"email"`
 		Type      domain.UserType `json:"type"`
 		CreatedAt time.Time       `json:"createdAt"`
 	}

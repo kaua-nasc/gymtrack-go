@@ -209,7 +209,7 @@ func (h *Handler) Register(ctx *gin.Context) {
 	err := h.srv.Register(ctx.Request.Context(), domain.User{
 		FirstName: body.FirstName,
 		LastName:  body.LastName,
-		Email:     body.Email,
+		Email:     &body.Email,
 		Password:  body.Password,
 	})
 

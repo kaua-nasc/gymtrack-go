@@ -55,7 +55,7 @@ type User struct {
 	UpdatedAt         time.Time  `json:"updatedAt"`
 	FirstName         string     `json:"firstName" validate:"required,min=1,max=255"`
 	LastName          string     `json:"lastName" validate:"required,min=1,max=255"`
-	Email             string     `json:"email" validate:"required,email"`
+	Email             *string    `json:"email" validate:"required,email"`
 	Bio               *string    `json:"bio,omitempty"`
 	ProfilePictureUrl *string    `json:"profilePictureUrl,omitempty"`
 	Password          string     `json:"password" validate:"required,min=8"`

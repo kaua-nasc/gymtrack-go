@@ -29,9 +29,31 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			trainers.POST("/profile/link", h.LinkTrainer)
 			trainers.POST("/profile/unlink", h.UnlinkTrainer)
 			trainers.GET("/students", h.ListStudents)
+			trainers.GET("/students/:id/privacy", h.GetStudentPrivacy)
 			trainers.POST("/students/:id/profile/unlink", h.UnlinkStudent)
 		}
 	}
+}
+
+func (h *Handler) GetStudentPrivacy(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	res, err := h.srv.GetStudentPrivacy(ctx.Request.Context(), userVal.ID, id)
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedTrainerAccess) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to get student privacy", slog.Any("error", err), slog.String("student_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get student privacy"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (h *Handler) CreateTrainerCode(ctx *gin.Context) {

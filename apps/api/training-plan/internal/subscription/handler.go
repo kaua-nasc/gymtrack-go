@@ -1,6 +1,7 @@
 package subscription
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -69,13 +70,18 @@ func (h *Handler) ListSubscriptionByUserId(ctx *gin.Context) {
 		return
 	}
 
-	if _, err := h.srv.ListSubscriptionByUserId(ctx.Request.Context(), user.ID, userId); err != nil {
+	res, err := h.srv.ListSubscriptionByUserId(ctx.Request.Context(), user.ID, userId)
+	if err != nil {
+		if errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list subscriptions"))
 		return
 	}
 
-	ctx.Status(http.StatusNoContent)
+	ctx.JSON(http.StatusOK, res)
 }
 
 func (h *Handler) Subscribe(ctx *gin.Context) {
