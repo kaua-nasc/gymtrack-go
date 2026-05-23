@@ -140,8 +140,8 @@ func (s *Service) Unsubscribe(ctx context.Context, planId, userId string) error 
 		return errors.New("subscription not found")
 	}
 
-	if err := s.repo.DeletePlanSubscription(ctx, existing); err != nil {
-		slog.ErrorContext(ctx, "failed to delete plan subscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+	if err := s.repo.UpdateSubscriptionStatus(ctx, *existing, domain.Canceled); err != nil {
+		slog.ErrorContext(ctx, "failed to update plan subscription status to canceled", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
 		return err
 	}
 

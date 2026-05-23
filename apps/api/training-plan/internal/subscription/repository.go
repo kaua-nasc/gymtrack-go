@@ -129,7 +129,7 @@ func (r *PostgresRepository) ListWeeklyDayProgress(ctx context.Context, userId s
 }
 
 func (r *PostgresRepository) FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error) {
-	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL LIMIT 1`
+	query := `SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt" FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL ORDER BY "createdAt" DESC LIMIT 1`
 	var s domain.PlanSubscription
 	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
@@ -292,7 +292,7 @@ func (r *PostgresRepository) AddParticipant(ctx context.Context, p *domain.PlanP
 func (r *PostgresRepository) GetSubscriptionEligibility(ctx context.Context, planId, userId string) (bool, bool, error) {
 	query := `
 		SELECT 
-			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL) as already_subscribed,
+			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND status != 'CANCELED' AND "deletedAt" IS NULL) as already_subscribed,
 			EXISTS (SELECT 1 FROM days d JOIN exercises e ON d.id = e."dayId" WHERE d."trainingPlanId" = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL) as is_complete
 	`
 	var alreadySubscribed, isComplete bool
