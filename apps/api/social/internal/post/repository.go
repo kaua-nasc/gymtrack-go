@@ -100,3 +100,51 @@ func (r *Repository) Delete(id string) error {
 	_, err := r.db.Exec(query, id)
 	return err
 }
+
+func (r *Repository) FindByAuthor(authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
+	query := `
+		SELECT 
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
+			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
+			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
+			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
+		FROM posts p
+		WHERE p."authorId" = $2 AND ("deletedAt" IS NULL) AND ($3::timestamp IS NULL OR p."createdAt" < $3)
+		ORDER BY p."createdAt" DESC
+		LIMIT $4
+	`
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.CreatedAt
+	}
+
+	rows, err := r.db.Query(query, currentUserId, authorId, cursorTime, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	posts := make([]domain.Post, 0)
+	for rows.Next() {
+		var p domain.Post
+		err := rows.Scan(
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls),
+			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		posts = append(posts, p)
+	}
+
+	var nextCursor *utils.CursorData
+	if len(posts) > 0 && len(posts) == limit {
+		lastPost := posts[len(posts)-1]
+		nextCursor = &utils.CursorData{
+			ID:        *lastPost.Id,
+			CreatedAt: lastPost.CreatedAt,
+		}
+	}
+
+	return posts, nextCursor, nil
+}

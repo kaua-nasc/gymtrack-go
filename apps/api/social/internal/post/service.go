@@ -266,3 +266,54 @@ func (s *Service) UploadMedia(ctx context.Context, authorId string, files []io.R
 
 	return mediaUrls, nil
 }
+
+func (s *Service) GetPostsByAuthor(ctx context.Context, authorId, userId, cursor string, limit int) ([]domain.Post, string, error) {
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
+
+	posts, rawNextCursor, err := s.repo.FindByAuthor(authorId, userId, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
+	if len(posts) > 0 {
+		plansIDsMap := make(map[string]bool)
+		for _, p := range posts {
+			if p.EntityType != nil && *p.EntityType == domain.TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
+				plansIDsMap[*p.EntityId] = true
+			}
+		}
+		var plansIDs []string
+		for id := range plansIDsMap {
+			plansIDs = append(plansIDs, id)
+		}
+
+		g, ctx := errgroup.WithContext(ctx)
+		var plansMap map[string]any
+
+		g.Go(func() error {
+			var err error
+			plansMap, err = s.trainingPlan.ListPlans(ctx, plansIDs, token)
+			return err
+		})
+
+		if err := g.Wait(); err != nil {
+			// We might want to log the error but still return the posts even if hydration fails partially
+		}
+
+		for i := range posts {
+			s.sanitizePost(&posts[i])
+
+			if plansMap != nil && posts[i].EntityId != nil {
+				if plan, ok := plansMap[*posts[i].EntityId]; ok {
+					posts[i].Entity = plan
+				}
+			}
+		}
+	}
+
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return posts, nextCursor, nil
+}

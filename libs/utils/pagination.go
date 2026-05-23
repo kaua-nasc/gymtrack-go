@@ -4,7 +4,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // CursorData represents the structure of a pagination cursor.
@@ -45,4 +48,13 @@ func DecodeCursor(cursorStr string, target any) error {
 	}
 
 	return nil
+}
+
+func GetPagination(ctx *gin.Context) (string, int) {
+	cursor := ctx.Query("cursor")
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	if limit <= 0 {
+		limit = 20
+	}
+	return cursor, limit
 }

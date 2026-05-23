@@ -67,7 +67,7 @@ func (h *Handler) CreatePlan(ctx *gin.Context) {
 
 func (h *Handler) ListPlan(ctx *gin.Context) {
 	authorId := ctx.Param("authorId")
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {

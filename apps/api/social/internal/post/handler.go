@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	{
 		social.POST("/posts", h.createPost)
 		social.GET("/posts", h.getFeed)
+		social.GET("/posts/author/:authorId", h.getPostsByAuthor)
 		social.POST("/posts/media", h.uploadMedia)
 		social.PUT("/posts/:id", h.updatePost)
 		social.DELETE("/posts/:id", h.deletePost)
@@ -143,8 +144,25 @@ func (h *Handler) getFeed(ctx *gin.Context) {
 		return
 	}
 
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 	posts, nextCursor, err := h.service.GetFeed(ctx.Request.Context(), user.ID, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
+}
+
+func (h *Handler) getPostsByAuthor(ctx *gin.Context) {
+	authorId := ctx.Param("authorId")
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	cursor, limit := utils.GetPagination(ctx)
+	posts, nextCursor, err := h.service.GetPostsByAuthor(ctx.Request.Context(), authorId, user.ID, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return

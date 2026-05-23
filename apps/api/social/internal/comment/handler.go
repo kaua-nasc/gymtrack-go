@@ -68,7 +68,7 @@ func (h *Handler) deleteComment(ctx *gin.Context) {
 
 func (h *Handler) getComments(ctx *gin.Context) {
 	postId := ctx.Param("id")
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	comments, nextCursor, err := h.service.GetComments(ctx.Request.Context(), postId, cursor, limit)
 	if err != nil {

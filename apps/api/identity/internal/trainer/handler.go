@@ -107,7 +107,7 @@ func (h *Handler) ListStudents(ctx *gin.Context) {
 		return
 	}
 
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListStudents(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {

@@ -34,7 +34,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 func (h *Handler) ListFollower(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListFollower(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -69,7 +69,7 @@ func (h *Handler) ListFollower(ctx *gin.Context) {
 
 func (h *Handler) ListFollowing(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	users, nextCursor, err := h.srv.ListFollowing(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {

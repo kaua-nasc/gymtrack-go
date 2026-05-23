@@ -89,7 +89,7 @@ func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 		id = user.ID
 	}
 
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	measurements, nextCursor, err := h.srv.ListBodyMeasurements(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -132,7 +132,7 @@ func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 		id = user.ID
 	}
 
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	logs, nextCursor, err := h.srv.ListWeightLogs(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
@@ -180,7 +180,7 @@ func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), user.ID, cursor, limit)
 	if err != nil {
@@ -194,7 +194,7 @@ func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
 
 func (h *Handler) ListGoalsMetricById(ctx *gin.Context) {
 	id := ctx.Param("id")
-	cursor, limit := auth.GetPagination(ctx)
+	cursor, limit := utils.GetPagination(ctx)
 
 	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), id, cursor, limit)
 	if err != nil {
