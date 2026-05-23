@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	plans.Use(auth.AuthMiddleware())
 	{
 		plans.POST("/:id/feedback", h.AddFeedback)
+		plans.GET("/:id/feedback", h.ListFeedback)
 	}
 }
 
@@ -53,4 +54,23 @@ func (h *Handler) AddFeedback(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusNoContent)
+}
+
+func (h *Handler) ListFeedback(ctx *gin.Context) {
+	id := ctx.Param("id")
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("plan id is required"))
+		return
+	}
+
+	cursor, limit := utils.GetPagination(ctx)
+
+	feedbacks, nextCursor, err := h.srv.ListFeedback(ctx.Request.Context(), id, cursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list feedback", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list feedback"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(feedbacks, nextCursor))
 }

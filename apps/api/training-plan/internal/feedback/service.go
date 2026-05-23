@@ -42,3 +42,19 @@ func (s *Service) AddFeedback(ctx context.Context, planId, userId string, rating
 	}
 	return nil
 }
+
+func (s *Service) ListFeedback(ctx context.Context, planId string, cursor string, limit int) ([]domain.TrainingPlanFeedback, string, error) {
+	slog.InfoContext(ctx, "listing feedback for plan", slog.String("plan_id", planId))
+
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
+
+	feedbacks, rawNextCursor, err := s.repo.ListFeedback(ctx, planId, decodedCursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list feedback", slog.String("plan_id", planId), slog.Any("error", err))
+		return nil, "", err
+	}
+
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return feedbacks, nextCursor, nil
+}
