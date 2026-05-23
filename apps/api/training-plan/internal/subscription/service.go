@@ -162,6 +162,13 @@ func (s *Service) ChangeSubscriptionStatus(ctx context.Context, planId, userId s
 		if subscription.Status != domain.NotStarted {
 			return fmt.Errorf("o status deve ser cancelado")
 		}
+		inProgressSub, err := s.repo.FindInProgressSubscription(ctx, userId)
+		if err != nil {
+			return err
+		}
+		if inProgressSub != nil && inProgressSub.Id != subscription.Id {
+			return fmt.Errorf("o usuário já possui uma inscrição em progresso")
+		}
 	case domain.Completed:
 		if subscription.Status != domain.InProgress {
 			return fmt.Errorf("o status deve ser cancelado")
@@ -201,28 +208,118 @@ func (s *Service) CompleteDay(ctx context.Context, subsId, userId, dayId string)
 		return errors.New("subscription not found")
 	}
 
-	id, err := utils.GenerateUUIDV7(ctx)
-	if err != nil {
-		return err
-	}
-	now := time.Now().UTC()
-	progress := &domain.PlanDayProgress{
-		Id:                 *id,
-		DayId:              dayId,
-		PlanSubscriptionId: sub.Id,
-		Status:             domain.DayCompleted,
-		CreatedAt:          now,
-		UpdatedAt:          now,
+	if sub.Status == domain.NotStarted {
+		if err := s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.InProgress); err != nil {
+			return err
+		}
 	}
 
-	if err := s.repo.CreateSubscriptionProgress(ctx, progress); err != nil {
-		slog.ErrorContext(ctx, "failed to create subscription progress", slog.Any("error", err))
+	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
+	if err != nil || progress == nil {
+		slog.ErrorContext(ctx, "failed to find subscription progress for day completion", slog.Any("error", err))
+		return err
+	}
+
+	if err := s.repo.UpdateSubscriptionProgressStatus(ctx, progress.Id, domain.DayCompleted); err != nil {
+		slog.ErrorContext(ctx, "failed to update subscription progress", slog.Any("error", err))
 		return err
 	}
 
 	progressQuantity, err := s.repo.CountSubscriptionProgress(ctx, sub.Id)
 	if err == nil && progressQuantity == sub.TrainingPlan.TimeInDays {
 		s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.Completed)
+	}
+
+	return nil
+}
+
+func (s *Service) CancelDay(ctx context.Context, subsId, userId, dayId string) error {
+	slog.InfoContext(ctx, "canceling plan day", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.String("day_id", dayId))
+
+	sub, err := s.repo.FindSubscription(ctx, subsId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find subscription for day completion", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.Any("error", err))
+		return err
+	}
+	if sub == nil {
+		slog.WarnContext(ctx, "subscription not found for day completion", slog.String("subscription_id", subsId), slog.String("user_id", userId))
+		return errors.New("subscription not found")
+	}
+
+	if sub.Status == domain.NotStarted {
+		if err := s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.InProgress); err != nil {
+			return err
+		}
+	}
+
+	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
+	if err != nil || progress == nil {
+		slog.ErrorContext(ctx, "failed to find subscription progress for day completion", slog.Any("error", err))
+		return err
+	}
+
+	if err := s.repo.UpdateSubscriptionProgressStatus(ctx, progress.Id, domain.DayCanceled); err != nil {
+		slog.ErrorContext(ctx, "failed to update subscription progress", slog.Any("error", err))
+		return err
+	}
+
+	progressQuantity, err := s.repo.CountSubscriptionProgress(ctx, sub.Id)
+	if err == nil && progressQuantity == sub.TrainingPlan.TimeInDays {
+		s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.Completed)
+	}
+
+	return nil
+}
+
+func (s *Service) StartDay(ctx context.Context, subsId, userId, dayId string) error {
+	slog.InfoContext(ctx, "starting plan day", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.String("day_id", dayId))
+
+	sub, err := s.repo.FindSubscription(ctx, subsId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find subscription for day start", slog.String("subscription_id", subsId), slog.String("user_id", userId), slog.Any("error", err))
+		return err
+	}
+	if sub == nil {
+		slog.WarnContext(ctx, "subscription not found for day start", slog.String("subscription_id", subsId), slog.String("user_id", userId))
+		return errors.New("subscription not found")
+	}
+
+	if sub.Status == domain.NotStarted {
+		if err := s.ChangeSubscriptionStatus(ctx, sub.TrainingPlanId, sub.UserId, domain.InProgress); err != nil {
+			return err
+		}
+	}
+
+	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find subscription progress for day start", slog.Any("error", err))
+		return err
+	}
+
+	if progress != nil {
+		if err := s.repo.UpdateSubscriptionProgressStatus(ctx, progress.Id, domain.DayInProgress); err != nil {
+			slog.ErrorContext(ctx, "failed to update subscription progress", slog.Any("error", err))
+			return err
+		}
+	} else {
+		id, err := utils.GenerateUUIDV7(ctx)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		newProgress := &domain.PlanDayProgress{
+			Id:                 *id,
+			DayId:              dayId,
+			PlanSubscriptionId: sub.Id,
+			Status:             domain.DayInProgress,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		}
+
+		if err := s.repo.CreateSubscriptionProgress(ctx, newProgress); err != nil {
+			slog.ErrorContext(ctx, "failed to create subscription progress", slog.Any("error", err))
+			return err
+		}
 	}
 
 	return nil

@@ -34,6 +34,8 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/:id/subscriptions/send", h.ChangeSubscriptionStatus)
 		plans.POST("/:id/subscriptions/privacy", h.ChangeSubscriptionPrivacy)
 		plans.POST("/subscriptions/:id/days/:dayId/complete", h.CompleteDay)
+		plans.POST("/subscriptions/:id/days/:dayId/cancel", h.CancelDay)
+		plans.POST("/subscriptions/:id/days/:dayId/start", h.StartDay)
 		plans.GET("/subscriptions/days/resume", h.ListWeeklyDayProgress)
 		plans.GET("/subscriptions/days/next", h.FindNextDay)
 	}
@@ -179,6 +181,40 @@ func (h *Handler) CompleteDay(ctx *gin.Context) {
 
 	if err := h.srv.CompleteDay(ctx.Request.Context(), subsId, user.ID, dayId); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to complete day", slog.Any("error", err), slog.String("subscription_id", subsId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (h *Handler) CancelDay(ctx *gin.Context) {
+	subsId := ctx.Param("id")
+	dayId := ctx.Param("dayId")
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if err := h.srv.CancelDay(ctx.Request.Context(), subsId, user.ID, dayId); err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to cancel day", slog.Any("error", err), slog.String("subscription_id", subsId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
+}
+
+func (h *Handler) StartDay(ctx *gin.Context) {
+	subsId := ctx.Param("id")
+	dayId := ctx.Param("dayId")
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if err := h.srv.StartDay(ctx.Request.Context(), subsId, user.ID, dayId); err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to start day", slog.Any("error", err), slog.String("subscription_id", subsId), slog.String("day_id", dayId), slog.String("user_id", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

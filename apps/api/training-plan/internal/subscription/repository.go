@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
@@ -19,6 +20,8 @@ type Repository interface {
 	UpdateSubscriptionStatus(ctx context.Context, s domain.PlanSubscription, status domain.PlanSubscriptionStatus) error
 	UpdateSubscriptionPrivacy(ctx context.Context, s domain.PlanSubscription, status domain.PlanSubscriptionType) error
 	CreateSubscriptionProgress(ctx context.Context, p *domain.PlanDayProgress) error
+	FindSubscriptionProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error)
+	UpdateSubscriptionProgressStatus(ctx context.Context, id string, status domain.PlanDayProgressStatus) error
 	CountSubscriptionProgress(ctx context.Context, subsId string) (int, error)
 	ListWeeklyDayProgress(ctx context.Context, userId string) ([]domain.PlanDayProgress, error)
 	FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error)
@@ -28,6 +31,7 @@ type Repository interface {
 	AddParticipant(ctx context.Context, p *domain.PlanParticipant) error
 	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
 	FindActiveSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
+	FindInProgressSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
 	FindFirstDay(ctx context.Context, planId string) (*domain.Day, error)
 	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
 	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
@@ -205,6 +209,7 @@ func (r *PostgresRepository) DeletePlanSubscription(ctx context.Context, s *doma
 }
 
 func (r *PostgresRepository) CreateSubscriptionProgress(ctx context.Context, p *domain.PlanDayProgress) error {
+	slog.InfoContext(ctx, "creating subscription progress", slog.String("progressId", p.Id), slog.String("subsId", p.PlanSubscriptionId), slog.String("dayId", p.DayId), slog.String("status", string(p.Status)))
 	query := `INSERT INTO plan_day_progress (id, "dayId", "planSubscriptionId", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := r.db.ExecContext(ctx, query, p.Id, p.DayId, p.PlanSubscriptionId, p.Status, p.CreatedAt, p.UpdatedAt)
 	if err != nil {
@@ -213,8 +218,40 @@ func (r *PostgresRepository) CreateSubscriptionProgress(ctx context.Context, p *
 	return nil
 }
 
+func (r *PostgresRepository) FindSubscriptionProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error) {
+	slog.InfoContext(ctx, "searching for subscription progress", slog.String("subsId", subsId), slog.String("dayId", dayId))
+	query := `SELECT id, "dayId", "planSubscriptionId", status, "createdAt", "updatedAt" 
+	          FROM plan_day_progress 
+	          WHERE "planSubscriptionId" = $1 AND "dayId" = $2 AND "deletedAt" IS NULL 
+	          LIMIT 1`
+	
+	var p domain.PlanDayProgress
+	err := r.db.QueryRowContext(ctx, query, subsId, dayId).Scan(
+		&p.Id, &p.DayId, &p.PlanSubscriptionId, &p.Status, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.InfoContext(ctx, "subscription progress not found in db", slog.String("subsId", subsId), slog.String("dayId", dayId))
+			return nil, nil
+		}
+		slog.ErrorContext(ctx, "error querying subscription progress", slog.Any("error", err), slog.String("subsId", subsId), slog.String("dayId", dayId))
+		return nil, fmt.Errorf("could not find subscription progress: %w", err)
+	}
+	slog.InfoContext(ctx, "subscription progress found in db", slog.String("progressId", p.Id), slog.String("status", string(p.Status)), slog.String("subsId", subsId), slog.String("dayId", dayId))
+	return &p, nil
+}
+
+func (r *PostgresRepository) UpdateSubscriptionProgressStatus(ctx context.Context, id string, status domain.PlanDayProgressStatus) error {
+	query := `UPDATE plan_day_progress SET status = $1, "updatedAt" = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, status, id)
+	if err != nil {
+		return fmt.Errorf("could not update subscription progress status: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresRepository) CountSubscriptionProgress(ctx context.Context, subsId string) (int, error) {
-	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NULL AND "planSubscriptionId" = $1`
+	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NULL AND "planSubscriptionId" = $1 AND status IN ('COMPLETED', 'CANCELLED')`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, subsId).Scan(&count)
@@ -331,6 +368,24 @@ func (r *PostgresRepository) FindActiveSubscription(ctx context.Context, userId 
 	}
 
 	return &c, nil
+}
+
+func (r *PostgresRepository) FindInProgressSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error) {
+	query := `
+		SELECT id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt"
+		FROM plan_subscription
+		WHERE "userId" = $1 AND status = 'IN_PROGRESS' AND "deletedAt" IS NULL
+		LIMIT 1`
+
+	var s domain.PlanSubscription
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&s.Id, &s.TrainingPlanId, &s.UserId, &s.Status, &s.Type, &s.CreatedAt, &s.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find in progress subscription: %w", err)
+	}
+	return &s, nil
 }
 
 func (r *PostgresRepository) loadExercisesForDay(ctx context.Context, dayId string) ([]domain.Exercise, error) {
