@@ -214,10 +214,14 @@ func (s *Service) CompleteDay(ctx context.Context, subsId, userId, dayId string)
 		}
 	}
 
-	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
-	if err != nil || progress == nil {
+	progress, err := s.repo.FindInProgressDayProgress(ctx, sub.Id, dayId)
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription progress for day completion", slog.Any("error", err))
 		return err
+	}
+
+	if progress == nil {
+		return errors.New("treino não iniciado para este dia")
 	}
 
 	if err := s.repo.UpdateSubscriptionProgressStatus(ctx, progress.Id, domain.DayCompleted); err != nil {
@@ -252,10 +256,14 @@ func (s *Service) CancelDay(ctx context.Context, subsId, userId, dayId string) e
 		}
 	}
 
-	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
-	if err != nil || progress == nil {
+	progress, err := s.repo.FindInProgressDayProgress(ctx, sub.Id, dayId)
+	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription progress for day completion", slog.Any("error", err))
 		return err
+	}
+
+	if progress == nil {
+		return errors.New("treino não iniciado para este dia")
 	}
 
 	if err := s.repo.UpdateSubscriptionProgressStatus(ctx, progress.Id, domain.DayCanceled); err != nil {
@@ -290,7 +298,7 @@ func (s *Service) StartDay(ctx context.Context, subsId, userId, dayId string) er
 		}
 	}
 
-	progress, err := s.repo.FindSubscriptionProgress(ctx, sub.Id, dayId)
+	progress, err := s.repo.FindInProgressDayProgress(ctx, sub.Id, dayId)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to find subscription progress for day start", slog.Any("error", err))
 		return err

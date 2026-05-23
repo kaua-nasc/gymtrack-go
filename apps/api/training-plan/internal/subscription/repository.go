@@ -20,7 +20,7 @@ type Repository interface {
 	UpdateSubscriptionStatus(ctx context.Context, s domain.PlanSubscription, status domain.PlanSubscriptionStatus) error
 	UpdateSubscriptionPrivacy(ctx context.Context, s domain.PlanSubscription, status domain.PlanSubscriptionType) error
 	CreateSubscriptionProgress(ctx context.Context, p *domain.PlanDayProgress) error
-	FindSubscriptionProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error)
+	FindInProgressDayProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error)
 	UpdateSubscriptionProgressStatus(ctx context.Context, id string, status domain.PlanDayProgressStatus) error
 	CountSubscriptionProgress(ctx context.Context, subsId string) (int, error)
 	ListWeeklyDayProgress(ctx context.Context, userId string) ([]domain.PlanDayProgress, error)
@@ -218,11 +218,11 @@ func (r *PostgresRepository) CreateSubscriptionProgress(ctx context.Context, p *
 	return nil
 }
 
-func (r *PostgresRepository) FindSubscriptionProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error) {
-	slog.InfoContext(ctx, "searching for subscription progress", slog.String("subsId", subsId), slog.String("dayId", dayId))
+func (r *PostgresRepository) FindInProgressDayProgress(ctx context.Context, subsId, dayId string) (*domain.PlanDayProgress, error) {
+	slog.InfoContext(ctx, "searching for in-progress day progress", slog.String("subsId", subsId), slog.String("dayId", dayId))
 	query := `SELECT id, "dayId", "planSubscriptionId", status, "createdAt", "updatedAt" 
 	          FROM plan_day_progress 
-	          WHERE "planSubscriptionId" = $1 AND "dayId" = $2 AND "deletedAt" IS NULL 
+	          WHERE "planSubscriptionId" = $1 AND "dayId" = $2 AND status = 'IN_PROGRESS' AND "deletedAt" IS NULL 
 	          LIMIT 1`
 	
 	var p domain.PlanDayProgress
@@ -231,13 +231,13 @@ func (r *PostgresRepository) FindSubscriptionProgress(ctx context.Context, subsI
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			slog.InfoContext(ctx, "subscription progress not found in db", slog.String("subsId", subsId), slog.String("dayId", dayId))
+			slog.InfoContext(ctx, "in-progress day progress not found in db", slog.String("subsId", subsId), slog.String("dayId", dayId))
 			return nil, nil
 		}
-		slog.ErrorContext(ctx, "error querying subscription progress", slog.Any("error", err), slog.String("subsId", subsId), slog.String("dayId", dayId))
-		return nil, fmt.Errorf("could not find subscription progress: %w", err)
+		slog.ErrorContext(ctx, "error querying in-progress day progress", slog.Any("error", err), slog.String("subsId", subsId), slog.String("dayId", dayId))
+		return nil, fmt.Errorf("could not find in-progress day progress: %w", err)
 	}
-	slog.InfoContext(ctx, "subscription progress found in db", slog.String("progressId", p.Id), slog.String("status", string(p.Status)), slog.String("subsId", subsId), slog.String("dayId", dayId))
+	slog.InfoContext(ctx, "in-progress day progress found in db", slog.String("progressId", p.Id), slog.String("status", string(p.Status)), slog.String("subsId", subsId), slog.String("dayId", dayId))
 	return &p, nil
 }
 
