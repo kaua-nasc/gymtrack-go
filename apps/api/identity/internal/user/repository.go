@@ -17,6 +17,8 @@ type Repository interface {
 	ChangeUserType(ctx context.Context, u domain.User, newType domain.UserType) error
 	RemoveProfilePicture(ctx context.Context, userId string) error
 	ChangeProfileImage(ctx context.Context, u domain.User, pictureUrl string) error
+	GetPrivacySettings(ctx context.Context, userId string) (*domain.UserPrivacySettings, error)
+	UpsertPrivacySettings(ctx context.Context, settings domain.UserPrivacySettings) error
 }
 
 type PostgresRepository struct {
@@ -186,4 +188,57 @@ func (r *PostgresRepository) ChangeProfileImage(ctx context.Context, u domain.Us
 		return fmt.Errorf("could not change profile image: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresRepository) GetPrivacySettings(ctx context.Context, userId string) (*domain.UserPrivacySettings, error) {
+	query := `
+		SELECT 
+			id, "createdAt", "updatedAt", "shareEmail", "shareTrainingProgress", 
+			"sharePastDataWithTrainer", "shareBodyMeasurements", "shareWeightLogs", 
+			"shareMetricGoals", "allowTrainerNotes", "userId"
+		FROM user_privacy_settings 
+		WHERE "userId" = $1 AND "deletedAt" IS NULL`
+
+	var s domain.UserPrivacySettings
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(
+		&s.ID, &s.CreatedAt, &s.UpdatedAt, &s.ShareEmail, &s.ShareTrainingProgress,
+		&s.SharePastDataWithTrainer, &s.ShareBodyMeasurements, &s.ShareWeightLogs,
+		&s.ShareMetricGoals, &s.AllowTrainerNotes, &s.UserId,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &s, nil
+}
+
+func (r *PostgresRepository) UpsertPrivacySettings(ctx context.Context, s domain.UserPrivacySettings) error {
+	query := `
+		INSERT INTO user_privacy_settings (
+			"shareEmail", "shareTrainingProgress", "sharePastDataWithTrainer", 
+			"shareBodyMeasurements", "shareWeightLogs", "shareMetricGoals", 
+			"allowTrainerNotes", "userId", "updatedAt", "deletedAt"
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NULL)
+		ON CONFLICT ("userId") DO UPDATE SET
+			"shareEmail" = EXCLUDED."shareEmail",
+			"shareTrainingProgress" = EXCLUDED."shareTrainingProgress",
+			"sharePastDataWithTrainer" = EXCLUDED."sharePastDataWithTrainer",
+			"shareBodyMeasurements" = EXCLUDED."shareBodyMeasurements",
+			"shareWeightLogs" = EXCLUDED."shareWeightLogs",
+			"shareMetricGoals" = EXCLUDED."shareMetricGoals",
+			"allowTrainerNotes" = EXCLUDED."allowTrainerNotes",
+			"updatedAt" = NOW(),
+			"deletedAt" = NULL`
+
+	_, err := r.db.ExecContext(ctx, query,
+		s.ShareEmail, s.ShareTrainingProgress, s.SharePastDataWithTrainer,
+		s.ShareBodyMeasurements, s.ShareWeightLogs, s.ShareMetricGoals,
+		s.AllowTrainerNotes, s.UserId,
+	)
+
+	return err
 }

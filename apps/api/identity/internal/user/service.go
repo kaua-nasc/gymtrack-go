@@ -164,3 +164,63 @@ func (s *Service) UploadProfilePicture(ctx context.Context, id string, file io.R
 
 	return s.repo.ChangeProfileImage(ctx, *userVal, filename)
 }
+
+func (s *Service) GetPrivacySettings(ctx context.Context, userId string) (*domain.UserPrivacySettings, error) {
+	u, err := s.repo.Find(ctx, userId, "")
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, domain.ErrUserNotFound
+	}
+
+	settings, err := s.repo.GetPrivacySettings(ctx, userId)
+	if err != nil {
+		return nil, err
+	}
+
+	if settings == nil {
+		// Default settings if not created yet
+		return &domain.UserPrivacySettings{
+			UserId:                userId,
+			ShareEmail:            true,
+			ShareTrainingProgress: false,
+			SharePastDataWithTrainer: false,
+			ShareBodyMeasurements: false,
+			ShareWeightLogs:       false,
+			ShareMetricGoals:      false,
+			AllowTrainerNotes:     true,
+		}, nil
+	}
+
+	return settings, nil
+}
+
+func (s *Service) UpdatePrivacySettings(
+	ctx context.Context,
+	userId string,
+	shareEmail, shareTrainingProgress, sharePastDataWithTrainer,
+	shareBodyMeasurements, shareWeightLogs, shareMetricGoals,
+	allowTrainerNotes bool,
+) error {
+	u, err := s.repo.Find(ctx, userId, "")
+	if err != nil {
+		return err
+	}
+	if u == nil {
+		return domain.ErrUserNotFound
+	}
+
+	settings := domain.UserPrivacySettings{
+		UserId:                   userId,
+		ShareEmail:               shareEmail,
+		ShareTrainingProgress:    shareTrainingProgress,
+		SharePastDataWithTrainer: sharePastDataWithTrainer,
+		ShareBodyMeasurements:    shareBodyMeasurements,
+		ShareWeightLogs:          shareWeightLogs,
+		ShareMetricGoals:         shareMetricGoals,
+		AllowTrainerNotes:        allowTrainerNotes,
+	}
+
+	return s.repo.UpsertPrivacySettings(ctx, settings)
+}

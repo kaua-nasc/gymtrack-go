@@ -142,13 +142,16 @@ type UserFollows struct {
 
 // UserPrivacySettings Entity
 type UserPrivacySettings struct {
-	ID                       string    `json:"id" validate:"required,uuid"`
+	ID                       string    `json:"id"`
 	CreatedAt                time.Time `json:"createdAt"`
 	UpdatedAt                time.Time `json:"updatedAt"`
-	ShareName                bool      `json:"shareName"`
 	ShareEmail               bool      `json:"shareEmail"`
 	ShareTrainingProgress    bool      `json:"shareTrainingProgress"`
 	SharePastDataWithTrainer bool      `json:"sharePastDataWithTrainer"`
+	ShareBodyMeasurements    bool      `json:"shareBodyMeasurements"`
+	ShareWeightLogs          bool      `json:"shareWeightLogs"`
+	ShareMetricGoals         bool      `json:"shareMetricGoals"`
+	AllowTrainerNotes        bool      `json:"allowTrainerNotes"`
 	UserId                   string    `json:"userId" validate:"required,uuid"`
 
 	// Relations

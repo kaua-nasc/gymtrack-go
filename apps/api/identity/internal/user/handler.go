@@ -31,7 +31,72 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		protected.DELETE("/profile/picture", h.RemoveProfilePicture)
 		protected.POST("/profile/upgrade", h.ChangeToTrainer)
 		protected.POST("/profile/downgrade", h.ChangeToClient)
+
+		// Privacy routes
+		protected.GET("/profile/privacy", h.GetPrivacySettings)
+		protected.PUT("/profile/privacy", h.UpdatePrivacySettings)
 	}
+}
+
+func (h *Handler) GetPrivacySettings(ctx *gin.Context) {
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	res, err := h.srv.GetPrivacySettings(ctx.Request.Context(), userVal.ID)
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to get privacy settings", slog.Any("error", err), slog.String("user_id", userVal.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get privacy settings"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) UpdatePrivacySettings(ctx *gin.Context) {
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		ShareEmail               bool `json:"shareEmail"`
+		ShareTrainingProgress    bool `json:"shareTrainingProgress"`
+		SharePastDataWithTrainer bool `json:"sharePastDataWithTrainer"`
+		ShareBodyMeasurements    bool `json:"shareBodyMeasurements"`
+		ShareWeightLogs          bool `json:"shareWeightLogs"`
+		ShareMetricGoals         bool `json:"shareMetricGoals"`
+		AllowTrainerNotes        bool `json:"allowTrainerNotes"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.srv.UpdatePrivacySettings(
+		ctx.Request.Context(), userVal.ID,
+		body.ShareEmail, body.ShareTrainingProgress, body.SharePastDataWithTrainer,
+		body.ShareBodyMeasurements, body.ShareWeightLogs, body.ShareMetricGoals,
+		body.AllowTrainerNotes,
+	)
+
+	if err != nil {
+		if errors.Is(err, domain.ErrUserNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to update privacy settings", slog.Any("error", err), slog.String("user_id", userVal.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update privacy settings"})
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) ListUsers(ctx *gin.Context) {
