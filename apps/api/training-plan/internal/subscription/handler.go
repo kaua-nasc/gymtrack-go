@@ -246,8 +246,8 @@ func (h *Handler) FindNextDay(ctx *gin.Context) {
 
 	progress, err := h.srv.FindNextDay(ctx.Request.Context(), user.ID)
 	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to list weekly day progress", slog.Any("error", err), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list weekly day progress"))
+		slog.ErrorContext(ctx.Request.Context(), "failed to find next day", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to find next day"))
 		return
 	}
 

@@ -392,7 +392,8 @@ func (r *PostgresRepository) loadExercisesForDay(ctx context.Context, dayId stri
 	query := `
 		SELECT 
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
-			description, observation, sequence, "createdAt", "updatedAt"
+			description, observation, sequence, "createdAt", "updatedAt",
+			"videoUrl", "imageUrl"
 		FROM exercises 
 		WHERE "dayId" = $1 AND "deletedAt" IS NULL
 		ORDER BY sequence ASC, "createdAt" ASC`
@@ -409,6 +410,7 @@ func (r *PostgresRepository) loadExercisesForDay(ctx context.Context, dayId stri
 		err := rows.Scan(
 			&e.Id, &e.Name, &e.DayId, &e.Type, &e.SetsNumber, &e.RepsNumber,
 			&e.Description, &e.Observation, &e.Sequence, &e.CreatedAt, &e.UpdatedAt,
+			&e.VideoUrl, &e.ImageUrl,
 		)
 		if err != nil {
 			return nil, err

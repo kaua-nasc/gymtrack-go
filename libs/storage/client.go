@@ -34,3 +34,11 @@ func UploadBuffer(ctx context.Context, filename string, bytes []byte) error {
 
 	return nil
 }
+
+func GetBlobURL(filename string) *string {
+	uri := os.Getenv("AZURE_STORAGE_URL")
+
+	url := fmt.Sprintf("%s/%s", uri, filename)
+
+	return &url
+}

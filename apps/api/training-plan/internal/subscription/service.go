@@ -407,6 +407,13 @@ func (s *Service) FindNextDay(ctx context.Context, userId string) (*domain.PlanD
 		return nil, err
 	}
 
+	if lastProgress != nil {
+		now := time.Now().UTC()
+		if lastProgress.UpdatedAt.Year() == now.Year() && lastProgress.UpdatedAt.YearDay() == now.YearDay() {
+			return nil, nil
+		}
+	}
+
 	var targetDay *domain.Day
 
 	if lastProgress == nil {

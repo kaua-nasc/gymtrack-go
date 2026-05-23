@@ -136,17 +136,19 @@ type Day struct {
 
 // Exercise Entity
 type Exercise struct {
-	Id          string       `json:"id" validate:"required,uuid"`
+	Id          string       `json:"id" validate:"required,uuid" form:"id"`
 	CreatedAt   time.Time    `json:"createdAt"`
 	UpdatedAt   time.Time    `json:"updatedAt"`
-	Name        string       `json:"name" validate:"required,min=1,max=255"`
-	DayId       string       `json:"dayId" validate:"required,uuid"`
-	Type        ExerciseType `json:"type" validate:"required"`
-	SetsNumber  int          `json:"setsNumber" validate:"required,min=1"`
-	RepsNumber  int          `json:"repsNumber" validate:"required,min=1"`
-	Description *string      `json:"description,omitempty"`
-	Observation *string      `json:"observation,omitempty"`
-	Sequence    int          `json:"sequence"`
+	Name        string       `json:"name" validate:"required,min=1,max=255" form:"name"`
+	DayId       string       `json:"dayId" validate:"required,uuid" form:"dayId"`
+	Type        ExerciseType `json:"type" validate:"required" form:"type"`
+	SetsNumber  int          `json:"setsNumber" validate:"required,min=1" form:"setsNumber"`
+	RepsNumber  int          `json:"repsNumber" validate:"required,min=1" form:"repsNumber"`
+	Description *string      `json:"description,omitempty" form:"description"`
+	Observation *string      `json:"observation,omitempty" form:"observation"`
+	Sequence    int          `json:"sequence" form:"sequence"`
+	VideoUrl    *string      `json:"videoUrl,omitempty" form:"videoUrl"`
+	ImageUrl    *string      `json:"imageUrl,omitempty" form:"imageUrl"`
 
 	// Relations
 	Day *Day `json:"day,omitempty"`

@@ -88,7 +88,6 @@ func main() {
 		fx.Provide(
 			NewDatabase,
 			domain.NewIdentityService,
-			domain.NewLocalStorageService,
 			plan.NewRepository,
 			plan.NewService,
 			plan.NewHandler,

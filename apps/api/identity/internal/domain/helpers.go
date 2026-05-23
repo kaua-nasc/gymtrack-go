@@ -1,16 +1,15 @@
 package domain
 
 import (
-	"os"
 	"strings"
+
+	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 )
 
 func (u *User) Sanitize() {
 	u.Password = ""
 	if u.ProfilePictureUrl != nil && *u.ProfilePictureUrl != "" && !strings.HasPrefix(*u.ProfilePictureUrl, "http") {
-		uri := os.Getenv("AZURE_STORAGE_URL")
-		fullUrl := uri + "/" + *u.ProfilePictureUrl
-		u.ProfilePictureUrl = &fullUrl
+		u.ProfilePictureUrl = storage.GetBlobURL(*u.ProfilePictureUrl)
 	}
 
 	if u.StudentOf != nil && u.StudentOf.Trainer != nil {

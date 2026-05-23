@@ -1,10 +1,12 @@
 module github.com/kaua-nasc/gymtrack-go/apps/api/training-plan
 
-go 1.26.2
+go 1.26.3
 
 replace github.com/kaua-nasc/gymtrack-go/libs/db => ../../../libs/db
 
 replace github.com/kaua-nasc/gymtrack-go/libs/auth => ../../../libs/auth
+
+replace github.com/kaua-nasc/gymtrack-go/libs/storage => ../../../libs/storage
 
 require (
 	github.com/gin-gonic/gin v1.12.0
@@ -13,6 +15,7 @@ require (
 	github.com/kaua-nasc/gymtrack-go/libs/config v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/db v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/storage v0.0.0-00010101000000-000000000000
 	github.com/kaua-nasc/gymtrack-go/libs/utils v0.0.0-00010101000000-000000000000
 	github.com/lib/pq v1.12.3
 	go.uber.org/fx v1.24.0
@@ -20,6 +23,9 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
 )

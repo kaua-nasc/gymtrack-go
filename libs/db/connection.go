@@ -19,8 +19,8 @@ func NewConnection(dsn string) (*sql.DB, error) {
 	}
 
 	// Connection Pool Settings
-	db.SetMaxOpenConns(15)
-	db.SetMaxIdleConns(15)
+	db.SetMaxOpenConns(5)
+	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(0) // Connections are reused forever if not closed by the DB
 
 	return db, nil

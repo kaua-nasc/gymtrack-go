@@ -9,6 +9,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/log"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
+	"io"
 )
 
 type Handler struct {
@@ -39,6 +40,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.DELETE("/:id/days/:dayId", h.DeleteDay)
 
 		plans.POST("/:id/days/:dayId/exercises", h.CreateExercise)
+		plans.POST("/:id/days/:dayId/exercises/:exerciseId/media", h.UploadExerciseMedia)
 		plans.DELETE("/:id/days/:dayId/exercises/:exerciseId", h.DeleteExercise)
 	}
 }
@@ -182,7 +184,72 @@ func (h *Handler) CreateExercise(ctx *gin.Context) {
 		return
 	}
 
-	ctx.Status(http.StatusCreated)
+	ctx.JSON(http.StatusCreated, exercise)
+}
+
+func (h *Handler) UploadExerciseMedia(ctx *gin.Context) {
+	exerciseId := ctx.Param("exerciseId")
+	if exerciseId == "" {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("exercise id is required"))
+		return
+	}
+
+	var videoFile *domain.UploadFile
+	var imageFile *domain.UploadFile
+
+	// Try to read video file
+	vFile, err := ctx.FormFile("video")
+	if err == nil && vFile != nil {
+		if vFile.Size > 20*1024*1024 {
+			ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("video file size exceeds 20MB limit (approx. 1 minute of video)"))
+			return
+		}
+		f, err := vFile.Open()
+		if err == nil {
+			defer f.Close()
+			data, err := io.ReadAll(f)
+			if err == nil {
+				videoFile = &domain.UploadFile{
+					Data:     data,
+					Filename: vFile.Filename,
+				}
+			}
+		}
+	}
+
+	// Try to read image file
+	iFile, err := ctx.FormFile("image")
+	if err == nil && iFile != nil {
+		if iFile.Size > 5*1024*1024 {
+			ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("image file size exceeds 5MB limit"))
+			return
+		}
+		f, err := iFile.Open()
+		if err == nil {
+			defer f.Close()
+			data, err := io.ReadAll(f)
+			if err == nil {
+				imageFile = &domain.UploadFile{
+					Data:     data,
+					Filename: iFile.Filename,
+				}
+			}
+		}
+	}
+
+	if videoFile == nil && imageFile == nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("no media files (video or image) provided"))
+		return
+	}
+
+	_, _, err = h.srv.UploadExerciseMedia(ctx.Request.Context(), exerciseId, videoFile, imageFile)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to upload exercise media", slog.Any("error", err), slog.String("exerciseId", exerciseId))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to upload exercise media"))
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) DeleteDay(ctx *gin.Context) {

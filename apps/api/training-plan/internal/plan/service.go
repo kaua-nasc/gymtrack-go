@@ -7,9 +7,12 @@ import (
 	"log/slog"
 	"time"
 
+	"path/filepath"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"golang.org/x/sync/errgroup"
 )
@@ -17,19 +20,16 @@ import (
 type Service struct {
 	repo     Repository
 	identity *domain.IdentityService
-	storage  domain.StorageService
 	validate *validator.Validate
 }
 
 func NewService(
 	repo Repository,
 	identity *domain.IdentityService,
-	storage domain.StorageService,
 ) *Service {
 	return &Service{
 		repo:     repo,
 		identity: identity,
-		storage:  storage,
 		validate: validator.New(),
 	}
 }
@@ -140,6 +140,37 @@ func (s *Service) CreateExercise(ctx context.Context, e *domain.Exercise) error 
 	}
 
 	return nil
+}
+
+func (s *Service) UploadExerciseMedia(ctx context.Context, exerciseId string, videoFile *domain.UploadFile, imageFile *domain.UploadFile) (*string, *string, error) {
+	var videoUrl *string
+	var imageUrl *string
+
+	if videoFile != nil {
+		ext := filepath.Ext(videoFile.Filename)
+		videoPath := fmt.Sprintf("exercises/%s/video%s", exerciseId, ext)
+		if err := storage.UploadBuffer(ctx, videoPath, videoFile.Data); err != nil {
+			return nil, nil, fmt.Errorf("failed to upload video: %w", err)
+		}
+		url := storage.GetBlobURL(videoPath)
+		videoUrl = url
+	}
+
+	if imageFile != nil {
+		ext := filepath.Ext(imageFile.Filename)
+		imagePath := fmt.Sprintf("exercises/%s/image%s", exerciseId, ext)
+		if err := storage.UploadBuffer(ctx, imagePath, imageFile.Data); err != nil {
+			return nil, nil, fmt.Errorf("failed to upload image: %w", err)
+		}
+		url := storage.GetBlobURL(imagePath)
+		imageUrl = url
+	}
+
+	if err := s.repo.UpdateExerciseMedia(ctx, exerciseId, videoUrl, imageUrl); err != nil {
+		return nil, nil, fmt.Errorf("failed to update exercise media in repository: %w", err)
+	}
+
+	return videoUrl, imageUrl, nil
 }
 
 func (s *Service) DeleteDay(ctx context.Context, id string) error {

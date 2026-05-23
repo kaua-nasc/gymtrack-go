@@ -146,31 +146,7 @@ func (s *IdentityService) GetAuthorIdFromPlan(ctx context.Context, id string) (b
 	return false, nil
 }
 
-type StorageService interface {
-	GenerateURL(ctx context.Context, path string) string
-	Upload(ctx context.Context, path string, file []byte) error
-	Delete(ctx context.Context, path string) error
-	Copy(ctx context.Context, src, dst string) error
-}
-
-type LocalStorageService struct{}
-
-func NewLocalStorageService() StorageService {
-	return &LocalStorageService{}
-}
-
-func (s *LocalStorageService) GenerateURL(ctx context.Context, path string) string {
-	return "http://localhost:3333/uploads/" + path
-}
-
-func (s *LocalStorageService) Upload(ctx context.Context, path string, file []byte) error {
-	return nil
-}
-
-func (s *LocalStorageService) Delete(ctx context.Context, path string) error {
-	return nil
-}
-
-func (s *LocalStorageService) Copy(ctx context.Context, src, dst string) error {
-	return nil
+type UploadFile struct {
+	Data     []byte
+	Filename string
 }

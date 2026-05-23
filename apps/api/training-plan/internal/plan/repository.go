@@ -16,6 +16,7 @@ type Repository interface {
 	CountByAuthor(ctx context.Context, authorId string) (int, error)
 	CreateDay(ctx context.Context, d *domain.Day) error
 	CreateExercise(ctx context.Context, e *domain.Exercise) error
+	UpdateExerciseMedia(ctx context.Context, id string, videoUrl *string, imageUrl *string) error
 	DeleteDay(ctx context.Context, id string) error
 	DeleteExercise(ctx context.Context, id string) error
 	Find(ctx context.Context, id string) (*domain.TrainingPlan, error)
@@ -149,6 +150,8 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 									'description', e.description,
 									'observation', e.observation,
 									'sequence', e.sequence,
+									'videoUrl', e."videoUrl",
+									'imageUrl', e."imageUrl",
 									'createdAt', e."createdAt"::timestamptz,
 									'updatedAt', e."updatedAt"::timestamptz
 								) ORDER BY e.sequence ASC, e."createdAt" ASC
@@ -327,15 +330,26 @@ func (r *PostgresRepository) CreateExercise(ctx context.Context, e *domain.Exerc
 	query := `
 		INSERT INTO exercises (
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
-			description, observation, "createdAt", "updatedAt", sequence
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+			description, observation, "createdAt", "updatedAt", sequence,
+			"videoUrl", "imageUrl"
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
 
 	_, err := r.db.ExecContext(ctx, query,
 		e.Id, e.Name, e.DayId, e.Type, e.SetsNumber, e.RepsNumber,
 		e.Description, e.Observation, e.CreatedAt, e.UpdatedAt, e.Sequence,
+		e.VideoUrl, e.ImageUrl,
 	)
 	if err != nil {
 		return fmt.Errorf("could not create exercise: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) UpdateExerciseMedia(ctx context.Context, id string, videoUrl *string, imageUrl *string) error {
+	query := `UPDATE exercises SET "videoUrl" = $1, "imageUrl" = $2, "updatedAt" = NOW() WHERE id = $3 AND "deletedAt" IS NULL`
+	_, err := r.db.ExecContext(ctx, query, videoUrl, imageUrl, id)
+	if err != nil {
+		return fmt.Errorf("could not update exercise media: %w", err)
 	}
 	return nil
 }
@@ -344,7 +358,8 @@ func (r *PostgresRepository) ListExercisesByDay(ctx context.Context, dayID strin
 	query := `
 		SELECT 
 			id, name, "dayId", type, "setsNumber", "repsNumber", 
-			description, observation, "createdAt", "updatedAt", sequence 
+			description, observation, "createdAt", "updatedAt", sequence,
+			"videoUrl", "imageUrl"
 		FROM exercises 
 		WHERE "dayId" = $1 AND "deletedAt" IS NULL
 		ORDER BY sequence ASC, "createdAt" ASC`
@@ -361,6 +376,7 @@ func (r *PostgresRepository) ListExercisesByDay(ctx context.Context, dayID strin
 		if err := rows.Scan(
 			&e.Id, &e.Name, &e.DayId, &e.Type, &e.SetsNumber, &e.RepsNumber,
 			&e.Description, &e.Observation, &e.CreatedAt, &e.UpdatedAt, &e.Sequence,
+			&e.VideoUrl, &e.ImageUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -373,7 +389,8 @@ func (r *PostgresRepository) ListExercisesByPlan(ctx context.Context, planID str
 	query := `
 		SELECT 
 			e.id, e.name, e."dayId", e.type, e."setsNumber", e."repsNumber", 
-			e.description, e.observation, e."createdAt", e."updatedAt", e.sequence 
+			e.description, e.observation, e."createdAt", e."updatedAt", e.sequence,
+			e."videoUrl", e."imageUrl"
 		FROM exercises e
 		INNER JOIN days d ON e."dayId" = d.id
 		WHERE d."trainingPlanId" = $1 AND e."deletedAt" IS NULL AND d."deletedAt" IS NULL
@@ -391,6 +408,7 @@ func (r *PostgresRepository) ListExercisesByPlan(ctx context.Context, planID str
 		if err := rows.Scan(
 			&e.Id, &e.Name, &e.DayId, &e.Type, &e.SetsNumber, &e.RepsNumber,
 			&e.Description, &e.Observation, &e.CreatedAt, &e.UpdatedAt, &e.Sequence,
+			&e.VideoUrl, &e.ImageUrl,
 		); err != nil {
 			return nil, err
 		}
