@@ -3,21 +3,23 @@ module github.com/kaua-nasc/gymtrack-go/apps/api/identity
 go 1.26.3
 
 require (
-	github.com/gin-contrib/cors v1.7.7
+	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
-	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260523221655-53bf912a6d9c
 	github.com/kaua-nasc/gymtrack-go/libs/cache v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/config v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/db v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/email v0.0.0-20260512003624-4a3773363858
-	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260523221655-53bf912a6d9c
 	github.com/kaua-nasc/gymtrack-go/libs/storage v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/utils v0.0.0-00010101000000-000000000000
 	github.com/lib/pq v1.12.3
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
 )
+
+require github.com/stretchr/objx v0.5.2 // indirect
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
@@ -49,12 +51,12 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
 	github.com/redis/go-redis/v9 v9.19.0 // indirect
-	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/mock v0.6.0
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	golang.org/x/arch v0.27.0 // indirect

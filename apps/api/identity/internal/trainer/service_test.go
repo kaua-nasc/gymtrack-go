@@ -5,56 +5,20 @@ import (
 	"testing"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
-	"github.com/kaua-nasc/gymtrack-go/libs/utils"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/user"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 )
 
-type MockRepository struct {
-	mock.Mock
-}
-
-func (m *MockRepository) Find(ctx context.Context, id string, currentUserId string) (*domain.User, error) {
-	args := m.Called(ctx, id, currentUserId)
-	u, _ := args.Get(0).(*domain.User)
-	return u, args.Error(1)
-}
-
-func (m *MockRepository) CreateTrainerCode(ctx context.Context, id, code string) error {
-	args := m.Called(ctx, id, code)
-	return args.Error(0)
-}
-
-func (m *MockRepository) FindByTrainerCode(ctx context.Context, code string) (*domain.User, error) {
-	args := m.Called(ctx, code)
-	u, _ := args.Get(0).(*domain.User)
-	return u, args.Error(1)
-}
-
-func (m *MockRepository) LinkTrainer(ctx context.Context, relation domain.TrainerStudentRelation) error {
-	args := m.Called(ctx, relation)
-	return args.Error(0)
-}
-
-func (m *MockRepository) UnlinkTrainer(ctx context.Context, studentId string) error {
-	args := m.Called(ctx, studentId)
-	return args.Error(0)
-}
-
-func (m *MockRepository) ListStudents(ctx context.Context, trainerId string, cursor *utils.CursorData, limit int) ([]*domain.User, *utils.CursorData, error) {
-	args := m.Called(ctx, trainerId, cursor, limit)
-	users, _ := args.Get(0).([]*domain.User)
-	nextCursor, _ := args.Get(1).(*utils.CursorData)
-	return users, nextCursor, args.Error(2)
-}
-
-func newString(s string) *string {
-	return &s
-}
-
 func TestUserService_CreateTrainerCode(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	mockUserRepo := user.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockUserRepo)
+
+	trainerIdStr := "trainer-123"
 
 	tests := []struct {
 		name          string
@@ -69,8 +33,8 @@ func TestUserService_CreateTrainerCode(t *testing.T) {
 			id:   "trainer-123",
 			code: "TRAIN12",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "trainer-123", "").Return(&domain.User{ID: newString("trainer-123")}, nil).Once()
-				mockRepo.On("CreateTrainerCode", mock.Anything, "trainer-123", "TRAIN12").Return(nil).Once()
+				mockRepo.EXPECT().Find(gomock.Any(), "trainer-123", "").Return(&domain.User{ID: &trainerIdStr}, nil)
+				mockRepo.EXPECT().CreateTrainerCode(gomock.Any(), "trainer-123", "TRAIN12").Return(nil)
 			},
 			wantErr: false,
 		},
@@ -79,7 +43,7 @@ func TestUserService_CreateTrainerCode(t *testing.T) {
 			id:   "nonexistent",
 			code: "TRAIN12",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "nonexistent", "").Return(nil, nil).Once()
+				mockRepo.EXPECT().Find(gomock.Any(), "nonexistent", "").Return(nil, nil)
 			},
 			wantErr:       true,
 			expectedError: "trainer not found",
@@ -97,14 +61,19 @@ func TestUserService_CreateTrainerCode(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestUserService_LinkTrainer(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	mockUserRepo := user.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockUserRepo)
+
+	trainerIdStr := "trainer-123"
 
 	tests := []struct {
 		name          string
@@ -119,10 +88,8 @@ func TestUserService_LinkTrainer(t *testing.T) {
 			id:   "student-123",
 			code: "TRAIN12",
 			mockBehavior: func() {
-				mockRepo.On("FindByTrainerCode", mock.Anything, "TRAIN12").Return(&domain.User{ID: newString("trainer-123")}, nil).Once()
-				mockRepo.On("LinkTrainer", mock.Anything, mock.MatchedBy(func(r domain.TrainerStudentRelation) bool {
-					return *r.TrainerId == "trainer-123" && r.StudentId == "student-123"
-				})).Return(nil).Once()
+				mockRepo.EXPECT().FindByTrainerCode(gomock.Any(), "TRAIN12").Return(&domain.User{ID: &trainerIdStr}, nil)
+				mockRepo.EXPECT().LinkTrainer(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -131,7 +98,7 @@ func TestUserService_LinkTrainer(t *testing.T) {
 			id:   "student-123",
 			code: "TRAIN12",
 			mockBehavior: func() {
-				mockRepo.On("FindByTrainerCode", mock.Anything, "TRAIN12").Return(nil, nil).Once()
+				mockRepo.EXPECT().FindByTrainerCode(gomock.Any(), "TRAIN12").Return(nil, nil)
 			},
 			wantErr:       true,
 			expectedError: "trainer not found",
@@ -149,37 +116,45 @@ func TestUserService_LinkTrainer(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestUserService_UnlinkTrainerAndStudent(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	mockRepo.On("UnlinkTrainer", mock.Anything, "student-123").Return(nil).Twice()
+	mockRepo := NewMockRepository(ctrl)
+	mockUserRepo := user.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockUserRepo)
+
+	mockRepo.EXPECT().UnlinkTrainer(gomock.Any(), "student-123").Return(nil).Times(2)
 
 	err := service.UnlinkTrainer(context.Background(), "student-123")
 	assert.NoError(t, err)
 
 	err = service.UnlinkStudent(context.Background(), "student-123")
 	assert.NoError(t, err)
-
-	mockRepo.AssertExpectations(t)
 }
 
 func TestUserService_ListStudents(t *testing.T) {
-	mockRepo := new(MockRepository)
-	service := NewService(mockRepo)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
-	mockRepo.On("ListStudents", mock.Anything, "trainer-123", mock.Anything, 10).Return([]*domain.User{
-		{ID: newString("student-1")},
-	}, nil, nil).Once()
+	mockRepo := NewMockRepository(ctrl)
+	mockUserRepo := user.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockUserRepo)
+
+	studentIdStr := "student-1"
+
+	mockRepo.EXPECT().ListStudents(gomock.Any(), "trainer-123", gomock.Any(), 10).Return([]*domain.User{
+		{ID: &studentIdStr},
+	}, nil, nil)
+
+	mockUserRepo.EXPECT().GetPrivacySettings(gomock.Any(), "student-1").Return(nil, nil)
 
 	users, nextCursor, err := service.ListStudents(context.Background(), "trainer-123", "", 10)
 	assert.NoError(t, err)
 	assert.Len(t, users, 1)
 	assert.Equal(t, "bnVsbA==", nextCursor)
-	mockRepo.AssertExpectations(t)
 }

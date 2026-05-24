@@ -196,14 +196,14 @@ func (s *Service) GetPrivacySettings(ctx context.Context, userId string) (*domai
 	if settings == nil {
 		// Default settings if not created yet
 		return &domain.UserPrivacySettings{
-			UserId:                userId,
-			ShareEmail:            true,
-			ShareTrainingProgress: false,
+			UserId:                   userId,
+			ShareEmail:               true,
+			ShareTrainingProgress:    false,
 			SharePastDataWithTrainer: false,
-			ShareBodyMeasurements: false,
-			ShareWeightLogs:       false,
-			ShareMetricGoals:      false,
-			AllowTrainerNotes:     true,
+			ShareBodyMeasurements:    false,
+			ShareWeightLogs:          false,
+			ShareMetricGoals:         false,
+			AllowTrainerNotes:        true,
 		}, nil
 	}
 

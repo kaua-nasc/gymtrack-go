@@ -8,47 +8,14 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"go.uber.org/mock/gomock"
 )
 
-type MockRepository struct {
-	mock.Mock
-}
-
-func (m *MockRepository) Find(ctx context.Context, id string, currentUserId string) (*domain.User, error) {
-	args := m.Called(ctx, id, currentUserId)
-	user, _ := args.Get(0).(*domain.User)
-	return user, args.Error(1)
-}
-
-func (m *MockRepository) Update(ctx context.Context, u *domain.User) error {
-	args := m.Called(ctx, u)
-	return args.Error(0)
-}
-
-func (m *MockRepository) ListByIDs(ctx context.Context, ids []string) ([]*domain.User, error) {
-	args := m.Called(ctx, ids)
-	users, _ := args.Get(0).([]*domain.User)
-	return users, args.Error(1)
-}
-
-func (m *MockRepository) ChangeUserType(ctx context.Context, u domain.User, newType domain.UserType) error {
-	args := m.Called(ctx, u, newType)
-	return args.Error(0)
-}
-
-func (m *MockRepository) RemoveProfilePicture(ctx context.Context, userId string) error {
-	args := m.Called(ctx, userId)
-	return args.Error(0)
-}
-
-func (m *MockRepository) ChangeProfileImage(ctx context.Context, u domain.User, pictureUrl string) error {
-	args := m.Called(ctx, u, pictureUrl)
-	return args.Error(0)
-}
-
 func TestService_ChangePassword(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	hashedPassword, _ := auth.HashArgon2Password("oldpassword123")
@@ -68,12 +35,15 @@ func TestService_ChangePassword(t *testing.T) {
 			currentPassword: "oldpassword123",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId, Password: hashedPassword, IsVerified: true}, nil).Once()
-				mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *domain.User) bool {
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr, Password: hashedPassword, IsVerified: true}, nil)
+				mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, u *domain.User) error {
 					ok, _ := auth.VerifyArgon2Password("newpassword123", u.Password)
-					return ok
-				})).Return(nil).Once()
+					if !ok {
+						return domain.ErrInvalidCredentials
+					}
+					return nil
+				})
 			},
 			wantErr: false,
 		},
@@ -83,8 +53,8 @@ func TestService_ChangePassword(t *testing.T) {
 			currentPassword: "oldpassword123",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId, Password: hashedPassword, IsVerified: false}, nil).Once()
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr, Password: hashedPassword, IsVerified: false}, nil)
 			},
 			wantErr:       true,
 			expectedError: "user not verified",
@@ -95,8 +65,8 @@ func TestService_ChangePassword(t *testing.T) {
 			currentPassword: "wrongpassword",
 			newPassword:     "newpassword123",
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId, Password: hashedPassword, IsVerified: true}, nil).Once()
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr, Password: hashedPassword, IsVerified: true}, nil)
 			},
 			wantErr:       true,
 			expectedError: "invalid credentials",
@@ -114,13 +84,15 @@ func TestService_ChangePassword(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestService_UpdateProfile(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	tests := []struct {
@@ -140,23 +112,26 @@ func TestService_UpdateProfile(t *testing.T) {
 		{
 			name:          "Success update profile",
 			id:            "user-123",
-			firstName:     new("Jane"),
-			lastName:      new("Doe"),
-			bio:           new("New bio"),
-			height:        new(175.5),
-			weightUnit:    new(domain.KG),
-			heightUnit:    new(domain.CM),
-			currentWeight: new(70.2),
+			firstName:     func(s string) *string { return &s }("Jane"),
+			lastName:      func(s string) *string { return &s }("Doe"),
+			bio:           func(s string) *string { return &s }("New bio"),
+			height:        func(f float64) *float64 { return &f }(175.5),
+			weightUnit:    func(u domain.WeightUnit) *domain.WeightUnit { return &u }(domain.KG),
+			heightUnit:    func(u domain.HeightUnit) *domain.HeightUnit { return &u }(domain.CM),
+			currentWeight: func(f float64) *float64 { return &f }(70.2),
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{
-					ID:        &userId,
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{
+					ID:        &userIdStr,
 					FirstName: "John",
 					LastName:  "Doe",
-				}, nil).Once()
-				mockRepo.On("Update", mock.Anything, mock.MatchedBy(func(u *domain.User) bool {
-					return u.FirstName == "Jane" && u.LastName == "Doe" && *u.Bio == "New bio" && *u.Height == 175.5 && u.WeightUnit == domain.KG && u.HeightUnit == domain.CM && *u.CurrentWeight == 70.2
-				})).Return(nil).Once()
+				}, nil)
+				mockRepo.EXPECT().Update(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, u *domain.User) error {
+					if u.FirstName == "Jane" && u.LastName == "Doe" && *u.Bio == "New bio" && *u.Height == 175.5 && u.WeightUnit == domain.KG && u.HeightUnit == domain.CM && *u.CurrentWeight == 70.2 {
+						return nil
+					}
+					return assert.AnError
+				})
 			},
 			wantErr: false,
 		},
@@ -164,7 +139,7 @@ func TestService_UpdateProfile(t *testing.T) {
 			name: "Error: User not found",
 			id:   "nonexistent",
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "nonexistent", "").Return(nil, nil).Once()
+				mockRepo.EXPECT().Find(gomock.Any(), "nonexistent", "").Return(nil, nil)
 			},
 			wantErr:       true,
 			expectedError: "user not found",
@@ -182,13 +157,15 @@ func TestService_UpdateProfile(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestService_GetUser(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	tests := []struct {
@@ -204,18 +181,19 @@ func TestService_GetUser(t *testing.T) {
 			id:            "user-123",
 			currentUserId: "user-456",
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "user-456").Return(&domain.User{
-					ID:                &userId,
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "user-456").Return(&domain.User{
+					ID:                &userIdStr,
 					Password:          "hashed_pass",
-					ProfilePictureUrl: new("uploads/profile.png"),
-				}, nil).Once()
+					ProfilePictureUrl: func(s string) *string { return &s }("uploads/profile.png"),
+				}, nil)
+				mockRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-123").Return(nil, nil)
 			},
 			wantErr: false,
 			expectedUser: &domain.User{
-				ID:                new("user-123"),
+				ID:                func(s string) *string { return &s }("user-123"),
 				Password:          "",
-				ProfilePictureUrl: new("/uploads/profile.png"),
+				ProfilePictureUrl: func(s string) *string { return &s }("/uploads/profile.png"),
 			},
 		},
 		{
@@ -224,18 +202,19 @@ func TestService_GetUser(t *testing.T) {
 			currentUserId: "user-456",
 			mockBehavior: func() {
 				t.Setenv("AZURE_STORAGE_URL", "https://mystorage.blob.core.windows.net")
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "user-456").Return(&domain.User{
-					ID:                &userId,
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "user-456").Return(&domain.User{
+					ID:                &userIdStr,
 					Password:          "hashed_pass",
-					ProfilePictureUrl: new("uploads/profile.png"),
-				}, nil).Once()
+					ProfilePictureUrl: func(s string) *string { return &s }("uploads/profile.png"),
+				}, nil)
+				mockRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-123").Return(nil, nil)
 			},
 			wantErr: false,
 			expectedUser: &domain.User{
-				ID:                new("user-123"),
+				ID:                func(s string) *string { return &s }("user-123"),
 				Password:          "",
-				ProfilePictureUrl: new("https://mystorage.blob.core.windows.net/uploads/profile.png"),
+				ProfilePictureUrl: func(s string) *string { return &s }("https://mystorage.blob.core.windows.net/uploads/profile.png"),
 			},
 		},
 	}
@@ -255,13 +234,15 @@ func TestService_GetUser(t *testing.T) {
 					assert.Equal(t, *tt.expectedUser.ProfilePictureUrl, *user.ProfilePictureUrl)
 				}
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestService_ListUsers(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	tests := []struct {
@@ -274,12 +255,14 @@ func TestService_ListUsers(t *testing.T) {
 			name: "Success list users",
 			ids:  []string{"user-1", "user-2"},
 			mockBehavior: func() {
-				userId1 := "user-1"
-				userId2 := "user-2"
-				mockRepo.On("ListByIDs", mock.Anything, []string{"user-1", "user-2"}).Return([]*domain.User{
-					{ID: &userId1, Password: "pass"},
-					{ID: &userId2, Password: "pass"},
-				}, nil).Once()
+				userId1Str := "user-1"
+				userId2Str := "user-2"
+				mockRepo.EXPECT().ListByIDs(gomock.Any(), []string{"user-1", "user-2"}).Return([]*domain.User{
+					{ID: &userId1Str, Password: "pass"},
+					{ID: &userId2Str, Password: "pass"},
+				}, nil)
+				mockRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-1").Return(nil, nil)
+				mockRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-2").Return(nil, nil)
 			},
 			wantErr: false,
 		},
@@ -288,7 +271,7 @@ func TestService_ListUsers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockBehavior()
-			users, err := service.ListUsers(context.Background(), tt.ids)
+			users, err := service.ListUsers(context.Background(), "requester-123", tt.ids)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -298,13 +281,15 @@ func TestService_ListUsers(t *testing.T) {
 				assert.Empty(t, users[0].Password)
 				assert.Empty(t, users[1].Password)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestService_ChangeUserType(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	tests := []struct {
@@ -320,9 +305,9 @@ func TestService_ChangeUserType(t *testing.T) {
 			id:        "user-123",
 			isTrainer: true,
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId, Type: domain.Client}, nil).Once()
-				mockRepo.On("ChangeUserType", mock.Anything, mock.Anything, domain.Trainer).Return(nil).Once()
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr, Type: domain.Client}, nil)
+				mockRepo.EXPECT().ChangeUserType(gomock.Any(), gomock.Any(), domain.Trainer).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -331,9 +316,9 @@ func TestService_ChangeUserType(t *testing.T) {
 			id:        "user-123",
 			isTrainer: false,
 			mockBehavior: func() {
-				userId := "user-123"
-				mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId, Type: domain.Trainer}, nil).Once()
-				mockRepo.On("ChangeUserType", mock.Anything, mock.Anything, domain.Client).Return(nil).Once()
+				userIdStr := "user-123"
+				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr, Type: domain.Trainer}, nil)
+				mockRepo.EXPECT().ChangeUserType(gomock.Any(), gomock.Any(), domain.Client).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -342,7 +327,7 @@ func TestService_ChangeUserType(t *testing.T) {
 			id:        "nonexistent",
 			isTrainer: true,
 			mockBehavior: func() {
-				mockRepo.On("Find", mock.Anything, "nonexistent", "").Return(nil, nil).Once()
+				mockRepo.EXPECT().Find(gomock.Any(), "nonexistent", "").Return(nil, nil)
 			},
 			wantErr:       true,
 			expectedError: "user not found",
@@ -365,34 +350,34 @@ func TestService_ChangeUserType(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			mockRepo.AssertExpectations(t)
 		})
 	}
 }
 
 func TestService_ProfilePicture(t *testing.T) {
-	mockRepo := new(MockRepository)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
 	service := NewService(mockRepo)
 
 	// Test RemoveProfilePicture
-	mockRepo.On("RemoveProfilePicture", mock.Anything, "user-123").Return(nil).Once()
+	mockRepo.EXPECT().RemoveProfilePicture(gomock.Any(), "user-123").Return(nil)
 	err := service.RemoveProfilePicture(context.Background(), "user-123")
 	assert.NoError(t, err)
 
 	// Test UploadProfilePicture - user not found
-	mockRepo.On("Find", mock.Anything, "nonexistent", "").Return(nil, nil).Once()
+	mockRepo.EXPECT().Find(gomock.Any(), "nonexistent", "").Return(nil, nil)
 	fileContent := bytes.NewReader([]byte("fake_image_data"))
 	err = service.UploadProfilePicture(context.Background(), "nonexistent", fileContent)
 	assert.Error(t, err)
 	assert.Equal(t, "user not found", err.Error())
 
 	// Test UploadProfilePicture - storage error because AZURE_STORAGE_CONNECTION_STRING is missing
-	userId := "user-123"
-	mockRepo.On("Find", mock.Anything, "user-123", "").Return(&domain.User{ID: &userId}, nil).Once()
+	userIdStr := "user-123"
+	mockRepo.EXPECT().Find(gomock.Any(), "user-123", "").Return(&domain.User{ID: &userIdStr}, nil)
 	t.Setenv("AZURE_STORAGE_CONNECTION_STRING", "") // Ensure it is empty
 	err = service.UploadProfilePicture(context.Background(), "user-123", fileContent)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "AZURE_STORAGE_CONNECTION_STRING env variable not found")
-
-	mockRepo.AssertExpectations(t)
 }

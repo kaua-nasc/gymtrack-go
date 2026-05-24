@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=user
 type Repository interface {
 	Find(ctx context.Context, id string, currentUserId string) (*domain.User, error)
 	Update(ctx context.Context, u *domain.User) error

@@ -12,6 +12,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=trainer
 type Repository interface {
 	Find(ctx context.Context, id string, currentUserId string) (*domain.User, error)
 	CreateTrainerCode(ctx context.Context, id, code string) error

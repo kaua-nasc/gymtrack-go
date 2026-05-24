@@ -23,6 +23,9 @@ jobs:
           go-version: "1.26"
           cache: true
 
+      - name: Generate Mocks
+        run: go generate ./apps/api/identity/...
+
       - name: Run App Tests
         run: go test -v ./apps/api/identity/...
 

@@ -13,6 +13,7 @@ import (
 	"github.com/lib/pq"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=followers
 type Repository interface {
 	ListByIDs(ctx context.Context, ids []string) ([]*domain.User, error)
 	FollowUser(ctx context.Context, f domain.UserFollows) error

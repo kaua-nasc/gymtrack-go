@@ -11,6 +11,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/cache"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=auth
 type Repository interface {
 	FindByEmail(ctx context.Context, email string) (*domain.User, error)
 	Create(ctx context.Context, u *domain.User) error

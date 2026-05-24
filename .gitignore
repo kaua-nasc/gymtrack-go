@@ -11,6 +11,7 @@ main
 *.out
 *.prof
 *.test
+mock_*.go
 
 # IDEs
 .vscode/

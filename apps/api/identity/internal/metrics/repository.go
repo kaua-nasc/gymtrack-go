@@ -11,6 +11,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=metrics
 type Repository interface {
 	AddBodyMeasurementNote(ctx context.Context, id, note string) error
 	FindBodyMeasurement(ctx context.Context, id string) (*domain.BodyMeasurement, error)

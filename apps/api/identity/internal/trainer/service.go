@@ -105,14 +105,14 @@ func (s *Service) GetStudentPrivacy(ctx context.Context, trainerId, studentId st
 
 	if settings == nil {
 		return &domain.UserPrivacySettings{
-			UserId:                studentId,
-			ShareEmail:            true,
-			ShareTrainingProgress: false,
+			UserId:                   studentId,
+			ShareEmail:               true,
+			ShareTrainingProgress:    false,
 			SharePastDataWithTrainer: false,
-			ShareBodyMeasurements: false,
-			ShareWeightLogs:       false,
-			ShareMetricGoals:      false,
-			AllowTrainerNotes:     true,
+			ShareBodyMeasurements:    false,
+			ShareWeightLogs:          false,
+			ShareMetricGoals:         false,
+			AllowTrainerNotes:        true,
 		}, nil
 	}
 
