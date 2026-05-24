@@ -40,13 +40,25 @@ jobs:
           go-version: "1.26"
           cache: true
 
+      - name: Generate Identity Mocks
+        if: steps.filter.outputs.identity == 'true'
+        run: go generate ./apps/api/identity/...
+
       - name: Run Identity Tests
         if: steps.filter.outputs.identity == 'true'
         run: go test -v ./apps/api/identity/...
 
+      - name: Generate Training Plan Mocks
+        if: steps.filter.outputs.training-plan == 'true'
+        run: go generate ./apps/api/training-plan/...
+
       - name: Run Training Plan Tests
         if: steps.filter.outputs.training-plan == 'true'
         run: go test -v ./apps/api/training-plan/...
+
+      - name: Generate Social Mocks
+        if: steps.filter.outputs.social == 'true'
+        run: go generate ./apps/api/social/...
 
       - name: Run Social Tests
         if: steps.filter.outputs.social == 'true'
