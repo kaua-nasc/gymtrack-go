@@ -102,4 +102,3 @@ func main() {
 		fx.Invoke(func(*gin.Engine) {}),
 	).Run()
 }
-

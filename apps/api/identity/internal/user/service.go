@@ -10,6 +10,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
@@ -234,6 +235,14 @@ func (s *Service) UpdatePrivacySettings(
 		ShareWeightLogs:          shareWeightLogs,
 		ShareMetricGoals:         shareMetricGoals,
 		AllowTrainerNotes:        allowTrainerNotes,
+	}
+
+	id, err := utils.GenerateUUIDV7(ctx)
+	if err != nil {
+		return err
+	}
+	if settings.ID == "" {
+		settings.ID = *id
 	}
 
 	return s.repo.UpsertPrivacySettings(ctx, settings)

@@ -220,10 +220,10 @@ func (r *PostgresRepository) GetPrivacySettings(ctx context.Context, userId stri
 func (r *PostgresRepository) UpsertPrivacySettings(ctx context.Context, s domain.UserPrivacySettings) error {
 	query := `
 		INSERT INTO user_privacy_settings (
-			"shareEmail", "shareTrainingProgress", "sharePastDataWithTrainer", 
+			id, "shareEmail", "shareTrainingProgress", "sharePastDataWithTrainer", 
 			"shareBodyMeasurements", "shareWeightLogs", "shareMetricGoals", 
 			"allowTrainerNotes", "userId", "updatedAt", "deletedAt"
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NULL)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NULL)
 		ON CONFLICT ("userId") DO UPDATE SET
 			"shareEmail" = EXCLUDED."shareEmail",
 			"shareTrainingProgress" = EXCLUDED."shareTrainingProgress",
@@ -236,7 +236,7 @@ func (r *PostgresRepository) UpsertPrivacySettings(ctx context.Context, s domain
 			"deletedAt" = NULL`
 
 	_, err := r.db.ExecContext(ctx, query,
-		s.ShareEmail, s.ShareTrainingProgress, s.SharePastDataWithTrainer,
+		s.ID, s.ShareEmail, s.ShareTrainingProgress, s.SharePastDataWithTrainer,
 		s.ShareBodyMeasurements, s.ShareWeightLogs, s.ShareMetricGoals,
 		s.AllowTrainerNotes, s.UserId,
 	)
