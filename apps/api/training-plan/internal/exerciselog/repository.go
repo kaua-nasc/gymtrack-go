@@ -9,6 +9,7 @@ import (
 	"github.com/lib/pq"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=exerciselog
 type Repository interface {
 	LogExercise(ctx context.Context, l *domain.ExerciseLog) error
 }

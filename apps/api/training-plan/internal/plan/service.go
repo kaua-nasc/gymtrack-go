@@ -19,13 +19,13 @@ import (
 
 type Service struct {
 	repo     Repository
-	identity *domain.IdentityService
+	identity domain.IdentityClient
 	validate *validator.Validate
 }
 
 func NewService(
 	repo Repository,
-	identity *domain.IdentityService,
+	identity domain.IdentityClient,
 ) *Service {
 	return &Service{
 		repo:     repo,

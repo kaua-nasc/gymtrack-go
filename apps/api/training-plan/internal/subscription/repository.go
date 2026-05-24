@@ -11,6 +11,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=subscription
 type Repository interface {
 	ListSubscription(ctx context.Context, userId string) ([]*domain.PlanSubscription, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)

@@ -9,6 +9,7 @@ import (
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=feedback
 type Repository interface {
 	AddFeedback(ctx context.Context, f *domain.TrainingPlanFeedback) error
 	ListFeedback(ctx context.Context, planId string, cursor *utils.CursorData, limit int) ([]domain.TrainingPlanFeedback, *utils.CursorData, error)

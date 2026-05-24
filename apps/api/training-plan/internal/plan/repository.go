@@ -11,6 +11,7 @@ import (
 	"github.com/lib/pq"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=plan
 type Repository interface {
 	Create(ctx context.Context, p *domain.TrainingPlan) error
 	CountByAuthor(ctx context.Context, authorId string) (int, error)

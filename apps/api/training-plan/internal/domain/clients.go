@@ -9,12 +9,21 @@ import (
 	"strings"
 )
 
+//go:generate go run go.uber.org/mock/mockgen -source=clients.go -destination=mock_clients.go -package=domain
+type IdentityClient interface {
+	ExistsUser(ctx context.Context, id string, token string) (bool, error)
+	FindUser(ctx context.Context, id string, token string) (*User, error)
+	GetStudentPrivacy(ctx context.Context, id string, token string) (*UserPrivacySettings, error)
+	ListUser(ctx context.Context, ids *[]string, token string) (map[string]*any, error)
+	GetAuthorIdFromPlan(ctx context.Context, id string) (bool, error)
+}
+
 type IdentityService struct {
 	baseURL    string
 	httpClient *http.Client
 }
 
-func NewIdentityService() *IdentityService {
+func NewIdentityService() IdentityClient {
 	identityAPI := os.Getenv("IDENTITY_API_URL")
 
 	if identityAPI == "" {
