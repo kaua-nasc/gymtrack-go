@@ -15,12 +15,102 @@ type IdentityClient interface {
 	ListUser(ctx context.Context, ids []string, token string) (map[string]any, error)
 }
 
+type IdentityService struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+func NewIdentityService() IdentityClient {
+	identityAPI := os.Getenv("IDENTITY_API_URL")
+
+	if identityAPI == "" {
+		// Default for local development if not provided
+		identityAPI = "http://localhost:8080"
+	}
+
+	return &IdentityService{
+		baseURL:    identityAPI,
+		httpClient: &http.Client{},
+	}
+}
+
+func (s *IdentityService) FindUser(ctx context.Context, id string, token string) (any, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/identity/users/%s", s.baseURL, id), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("identity service error: %d", resp.StatusCode)
+	}
+
+	var user any
+	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+		return nil, fmt.Errorf("failed to decode user: %w", err)
+	}
+
+	return user, nil
+}
+
+func (s *IdentityService) ListUser(ctx context.Context, ids []string, token string) (map[string]any, error) {
+	if len(ids) == 0 {
+		return map[string]any{}, nil
+	}
+
+	url := fmt.Sprintf("%s/identity/users?ids=%s", s.baseURL, strings.Join(ids, ","))
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("identity service error: %d", resp.StatusCode)
+	}
+
+	var users []map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]any)
+	for _, u := range users {
+		id, _ := u["id"].(string)
+		result[id] = u
+	}
+
+	return result, nil
+}
+
 type TrainingPlanClient interface {
 	FindPlan(ctx context.Context, id string, token string) (any, error)
 	ListPlans(ctx context.Context, ids []string, token string) (map[string]any, error)
 }
 
-type trainingPlanClient struct {
+type trainingPlanClientImpl struct {
 	baseURL    string
 	httpClient *http.Client
 }
@@ -32,13 +122,13 @@ func NewTrainingPlanClient() TrainingPlanClient {
 		apiURL = "http://localhost:8081"
 	}
 
-	return &trainingPlanClient{
+	return &trainingPlanClientImpl{
 		baseURL:    apiURL,
 		httpClient: &http.Client{},
 	}
 }
 
-func (s *trainingPlanClient) FindPlan(ctx context.Context, id string, token string) (any, error) {
+func (s *trainingPlanClientImpl) FindPlan(ctx context.Context, id string, token string) (any, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/training-plans/%s", s.baseURL, id), nil)
 	if err != nil {
 		return nil, err
@@ -70,7 +160,7 @@ func (s *trainingPlanClient) FindPlan(ctx context.Context, id string, token stri
 	return plan, nil
 }
 
-func (s *trainingPlanClient) ListPlans(ctx context.Context, ids []string, token string) (map[string]any, error) {
+func (s *trainingPlanClientImpl) ListPlans(ctx context.Context, ids []string, token string) (map[string]any, error) {
 	if len(ids) == 0 {
 		return map[string]any{}, nil
 	}
