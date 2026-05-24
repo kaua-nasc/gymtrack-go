@@ -11,11 +11,11 @@ import (
 )
 
 type Service struct {
-	repo     *Repository
-	identity *domain.IdentityService
+	repo     Repository
+	identity domain.IdentityClient
 }
 
-func NewService(repo *Repository, identity *domain.IdentityService) *Service {
+func NewService(repo Repository, identity domain.IdentityClient) *Service {
 	return &Service{
 		repo:     repo,
 		identity: identity,
@@ -40,7 +40,7 @@ func (s *Service) AddComment(ctx context.Context, comment *domain.Comment, autho
 	comment.AuthorId = authorId
 	comment.CreatedAt = now
 	comment.UpdatedAt = now
-	if err := s.repo.AddComment(comment); err != nil {
+	if err := s.repo.AddComment(ctx, comment); err != nil {
 		return err
 	}
 
@@ -48,7 +48,7 @@ func (s *Service) AddComment(ctx context.Context, comment *domain.Comment, autho
 }
 
 func (s *Service) DeleteComment(ctx context.Context, commentId, userId string) error {
-	comment, err := s.repo.FindCommentById(commentId)
+	comment, err := s.repo.FindCommentById(ctx, commentId)
 	if err != nil {
 		return err
 	}
@@ -60,14 +60,14 @@ func (s *Service) DeleteComment(ctx context.Context, commentId, userId string) e
 		return fmt.Errorf("you are not the author of this comment")
 	}
 
-	return s.repo.DeleteComment(commentId)
+	return s.repo.DeleteComment(ctx, commentId)
 }
 
 func (s *Service) GetComments(ctx context.Context, postId, cursor string, limit int) ([]domain.Comment, string, error) {
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
-	comments, rawNextCursor, err := s.repo.GetComments(postId, decodedCursor, limit)
+	comments, rawNextCursor, err := s.repo.GetComments(ctx, postId, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}

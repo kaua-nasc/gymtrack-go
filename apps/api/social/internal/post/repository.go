@@ -1,6 +1,7 @@
 package post
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
@@ -8,24 +9,34 @@ import (
 	"github.com/lib/pq"
 )
 
-type Repository struct {
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=post
+type Repository interface {
+	Create(ctx context.Context, post *domain.Post) error
+	FindAll(ctx context.Context, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
+	FindById(ctx context.Context, id string) (*domain.Post, error)
+	Update(ctx context.Context, post *domain.Post) error
+	Delete(ctx context.Context, id string) error
+	FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
+}
+
+type PostgresRepository struct {
 	db *sql.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *sql.DB) Repository {
+	return &PostgresRepository{db: db}
 }
 
-func (r *Repository) Create(post *domain.Post) error {
+func (r *PostgresRepository) Create(ctx context.Context, post *domain.Post) error {
 	query := `
         INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls")
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `
-	_, err := r.db.Exec(query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType, pq.Array(post.MediaUrls))
+	_, err := r.db.ExecContext(ctx, query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType, pq.Array(post.MediaUrls))
 	return err
 }
 
-func (r *Repository) FindAll(currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
+func (r *PostgresRepository) FindAll(ctx context.Context, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
 			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
@@ -42,7 +53,7 @@ func (r *Repository) FindAll(currentUserId string, cursor *utils.CursorData, lim
 		cursorTime = cursor.CreatedAt
 	}
 
-	rows, err := r.db.Query(query, currentUserId, cursorTime, limit)
+	rows, err := r.db.QueryContext(ctx, query, currentUserId, cursorTime, limit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -73,13 +84,13 @@ func (r *Repository) FindAll(currentUserId string, cursor *utils.CursorData, lim
 	return posts, nextCursor, nil
 }
 
-func (r *Repository) FindById(id string) (*domain.Post, error) {
+func (r *PostgresRepository) FindById(ctx context.Context, id string) (*domain.Post, error) {
 	query := `
 		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls"
 		FROM posts WHERE id = $1 AND "deletedAt" IS NULL
 	`
 	var p domain.Post
-	err := r.db.QueryRow(query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls))
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls))
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -89,19 +100,19 @@ func (r *Repository) FindById(id string) (*domain.Post, error) {
 	return &p, nil
 }
 
-func (r *Repository) Update(post *domain.Post) error {
+func (r *PostgresRepository) Update(ctx context.Context, post *domain.Post) error {
 	query := `UPDATE posts SET content = $1, "updatedAt" = $2 WHERE id = $3`
-	_, err := r.db.Exec(query, post.Content, post.UpdatedAt, *post.Id)
+	_, err := r.db.ExecContext(ctx, query, post.Content, post.UpdatedAt, *post.Id)
 	return err
 }
 
-func (r *Repository) Delete(id string) error {
+func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE posts SET "deletedAt" = NOW() WHERE id = $1`
-	_, err := r.db.Exec(query, id)
+	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
-func (r *Repository) FindByAuthor(authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
+func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
 			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
@@ -118,7 +129,7 @@ func (r *Repository) FindByAuthor(authorId, currentUserId string, cursor *utils.
 		cursorTime = cursor.CreatedAt
 	}
 
-	rows, err := r.db.Query(query, currentUserId, authorId, cursorTime, limit)
+	rows, err := r.db.QueryContext(ctx, query, currentUserId, authorId, cursorTime, limit)
 	if err != nil {
 		return nil, nil, err
 	}

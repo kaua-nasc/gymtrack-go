@@ -1,36 +1,34 @@
 package like
 
 import (
+	"context"
 	"database/sql"
-
-	"github.com/google/uuid"
 )
 
-type Repository struct {
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=like
+type Repository interface {
+	ToggleLike(ctx context.Context, postId, userId string) error
+}
+
+type PostgresRepository struct {
 	db *sql.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *sql.DB) Repository {
+	return &PostgresRepository{db: db}
 }
 
-func (r *Repository) ToggleLike(postId, userId string) error {
-	var likeId string
-	queryCheck := `SELECT id FROM public.post_likes WHERE "postId" = $1 AND "userId" = $2`
-	err := r.db.QueryRow(queryCheck, postId, userId).Scan(&likeId)
-
-	if err == sql.ErrNoRows {
-		// Like
-		id := uuid.New().String()
-		queryInsert := `INSERT INTO public.post_likes (id, "userId", "postId") VALUES ($1, $2, $3)`
-		_, err = r.db.Exec(queryInsert, id, userId, postId)
-		return err
-	} else if err != nil {
-		return err
-	}
-
-	// Unlike
-	queryDelete := `DELETE FROM public.post_likes WHERE id = $1`
-	_, err = r.db.Exec(queryDelete, likeId)
+func (r *PostgresRepository) ToggleLike(ctx context.Context, postId, userId string) error {
+	query := `
+		DO $$
+		BEGIN
+			IF EXISTS (SELECT 1 FROM post_likes WHERE "postId" = $1 AND "userId" = $2) THEN
+				DELETE FROM post_likes WHERE "postId" = $1 AND "userId" = $2;
+			ELSE
+				INSERT INTO post_likes ("postId", "userId") VALUES ($1, $2);
+			END IF;
+		END $$;
+	`
+	_, err := r.db.ExecContext(ctx, query, postId, userId)
 	return err
 }

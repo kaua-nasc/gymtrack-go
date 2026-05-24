@@ -1,33 +1,39 @@
 package comment
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
-type Repository struct {
+//go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=comment
+type Repository interface {
+	AddComment(ctx context.Context, comment *domain.Comment) error
+	FindCommentById(ctx context.Context, id string) (*domain.Comment, error)
+	DeleteComment(ctx context.Context, id string) error
+	GetComments(ctx context.Context, postId string, cursor *utils.CursorData, limit int) ([]domain.Comment, *utils.CursorData, error)
+}
+
+type PostgresRepository struct {
 	db *sql.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
-	return &Repository{db: db}
+func NewRepository(db *sql.DB) Repository {
+	return &PostgresRepository{db: db}
 }
 
-func (r *Repository) AddComment(comment *domain.Comment) error {
-	query := `
-		INSERT INTO public.post_comments (id, "createdAt", "updatedAt", "content", "authorId", "postId")
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`
-	_, err := r.db.Exec(query, comment.Id, comment.CreatedAt, comment.UpdatedAt, comment.Content, comment.AuthorId, comment.PostId)
+func (r *PostgresRepository) AddComment(ctx context.Context, comment *domain.Comment) error {
+	query := `INSERT INTO post_comments (id, "createdAt", "updatedAt", "postId", "authorId", content) VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.db.ExecContext(ctx, query, *comment.Id, comment.CreatedAt, comment.UpdatedAt, comment.PostId, comment.AuthorId, comment.Content)
 	return err
 }
 
-func (r *Repository) FindCommentById(id string) (*domain.Comment, error) {
-	query := `SELECT id, "createdAt", "updatedAt", content, "authorId", "postId" FROM public.post_comments WHERE id = $1 AND "deletedAt" IS NULL`
+func (r *PostgresRepository) FindCommentById(ctx context.Context, id string) (*domain.Comment, error) {
+	query := `SELECT id, "createdAt", "updatedAt", "postId", "authorId", content FROM post_comments WHERE id = $1`
 	var c domain.Comment
-	err := r.db.QueryRow(query, id).Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.Content, &c.AuthorId, &c.PostId)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.PostId, &c.AuthorId, &c.Content)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -37,19 +43,18 @@ func (r *Repository) FindCommentById(id string) (*domain.Comment, error) {
 	return &c, nil
 }
 
-func (r *Repository) DeleteComment(id string) error {
-	query := `UPDATE public.post_comments SET "deletedAt" = NOW() WHERE id = $1`
-	_, err := r.db.Exec(query, id)
+func (r *PostgresRepository) DeleteComment(ctx context.Context, id string) error {
+	query := `DELETE FROM post_comments WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }
 
-func (r *Repository) GetComments(postId string, cursor *utils.CursorData, limit int) ([]domain.Comment, *utils.CursorData, error) {
+func (r *PostgresRepository) GetComments(ctx context.Context, postId string, cursor *utils.CursorData, limit int) ([]domain.Comment, *utils.CursorData, error) {
 	query := `
-		SELECT id, "createdAt", "updatedAt", content, "authorId", "postId"
-		FROM public.post_comments
-		WHERE "postId" = $1 AND "deletedAt" IS NULL
-		AND ($2::timestamp IS NULL OR "createdAt" > $2)
-		ORDER BY "createdAt" ASC
+		SELECT id, "createdAt", "updatedAt", "postId", "authorId", content 
+		FROM post_comments 
+		WHERE "postId" = $1 AND ($2::timestamp IS NULL OR "createdAt" < $2)
+		ORDER BY "createdAt" DESC
 		LIMIT $3
 	`
 	var cursorTime interface{}
@@ -57,7 +62,7 @@ func (r *Repository) GetComments(postId string, cursor *utils.CursorData, limit 
 		cursorTime = cursor.CreatedAt
 	}
 
-	rows, err := r.db.Query(query, postId, cursorTime, limit)
+	rows, err := r.db.QueryContext(ctx, query, postId, cursorTime, limit)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,7 +71,7 @@ func (r *Repository) GetComments(postId string, cursor *utils.CursorData, limit 
 	comments := make([]domain.Comment, 0)
 	for rows.Next() {
 		var c domain.Comment
-		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.Content, &c.AuthorId, &c.PostId)
+		err := rows.Scan(&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.PostId, &c.AuthorId, &c.Content)
 		if err != nil {
 			return nil, nil, err
 		}

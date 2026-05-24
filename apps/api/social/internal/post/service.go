@@ -24,12 +24,12 @@ const (
 )
 
 type Service struct {
-	repo         *Repository
-	identity     *domain.IdentityService
-	trainingPlan *domain.TrainingPlanClient
+	repo         Repository
+	identity     domain.IdentityClient
+	trainingPlan domain.TrainingPlanClient
 }
 
-func NewService(repo *Repository, identity *domain.IdentityService, trainingPlan *domain.TrainingPlanClient) *Service {
+func NewService(repo Repository, identity domain.IdentityClient, trainingPlan domain.TrainingPlanClient) *Service {
 	return &Service{
 		repo:         repo,
 		identity:     identity,
@@ -83,7 +83,7 @@ func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId st
 		post.MediaUrls = []string{}
 	}
 
-	if err := s.repo.Create(post); err != nil {
+	if err := s.repo.Create(ctx, post); err != nil {
 		return err
 	}
 
@@ -94,7 +94,7 @@ func (s *Service) GetFeed(ctx context.Context, userId, cursor string, limit int)
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
-	posts, rawNextCursor, err := s.repo.FindAll(userId, decodedCursor, limit)
+	posts, rawNextCursor, err := s.repo.FindAll(ctx, userId, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
@@ -183,7 +183,7 @@ func (s *Service) sanitizePost(p *domain.Post) {
 }
 
 func (s *Service) UpdatePost(ctx context.Context, postId, userId, content string) error {
-	post, err := s.repo.FindById(postId)
+	post, err := s.repo.FindById(ctx, postId)
 	if err != nil {
 		return err
 	}
@@ -198,11 +198,11 @@ func (s *Service) UpdatePost(ctx context.Context, postId, userId, content string
 	post.Content = content
 	post.UpdatedAt = time.Now().UTC()
 
-	return s.repo.Update(post)
+	return s.repo.Update(ctx, post)
 }
 
 func (s *Service) DeletePost(ctx context.Context, postId, userId string) error {
-	post, err := s.repo.FindById(postId)
+	post, err := s.repo.FindById(ctx, postId)
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (s *Service) DeletePost(ctx context.Context, postId, userId string) error {
 		return fmt.Errorf("you are not the author of this post")
 	}
 
-	return s.repo.Delete(postId)
+	return s.repo.Delete(ctx, postId)
 }
 
 func (s *Service) UploadMedia(ctx context.Context, authorId string, files []io.Reader, filenames []string) ([]string, error) {
@@ -271,7 +271,7 @@ func (s *Service) GetPostsByAuthor(ctx context.Context, authorId, userId, cursor
 	var decodedCursor *utils.CursorData
 	utils.DecodeCursor(cursor, &decodedCursor)
 
-	posts, rawNextCursor, err := s.repo.FindByAuthor(authorId, userId, decodedCursor, limit)
+	posts, rawNextCursor, err := s.repo.FindByAuthor(ctx, authorId, userId, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
