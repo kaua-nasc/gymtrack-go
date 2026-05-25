@@ -4,12 +4,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"io"
+
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/log"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
-	"io"
 )
 
 type Handler struct {
@@ -60,7 +61,7 @@ func (h *Handler) CreatePlan(ctx *gin.Context) {
 	_, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("authorId", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create plan"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -74,7 +75,7 @@ func (h *Handler) ListPlan(ctx *gin.Context) {
 	plans, nextCursor, err := h.srv.ListPlan(ctx.Request.Context(), authorId, cursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list plans", slog.Any("error", err), slog.String("authorId", authorId))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list plans"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -97,7 +98,7 @@ func (h *Handler) UpdatePlan(ctx *gin.Context) {
 	updatedPlan, err := h.srv.UpdatePlan(ctx.Request.Context(), id, plan)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to update plan", slog.Any("error", err), slog.String("plan_id", id))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to update plan"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -109,7 +110,7 @@ func (h *Handler) DeletePlan(ctx *gin.Context) {
 
 	if err := h.srv.DeletePlan(ctx.Request.Context(), id); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to delete plan", slog.Any("error", err), slog.String("plan_id", id))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to delete plan"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -126,7 +127,7 @@ func (h *Handler) ExistsPlan(ctx *gin.Context) {
 	exists, err := h.srv.ExistsPlan(ctx.Request.Context(), id)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to check plan existence", slog.Any("error", err), slog.String("plan_id", id))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to check plan existence"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -143,7 +144,7 @@ func (h *Handler) GetPlan(ctx *gin.Context) {
 	plan, err := h.srv.GetPlan(ctx.Request.Context(), id)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to get plan", slog.Any("error", err), slog.String("plan_id", id))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to get plan"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -164,7 +165,7 @@ func (h *Handler) CreateDay(ctx *gin.Context) {
 
 	if err := h.srv.CreateDay(ctx.Request.Context(), &day); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create day", slog.Any("error", err))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create day"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -180,7 +181,7 @@ func (h *Handler) CreateExercise(ctx *gin.Context) {
 
 	if err := h.srv.CreateExercise(ctx.Request.Context(), &exercise); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create exercise", slog.Any("error", err))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to create exercise"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -245,7 +246,7 @@ func (h *Handler) UploadExerciseMedia(ctx *gin.Context) {
 	_, _, err = h.srv.UploadExerciseMedia(ctx.Request.Context(), exerciseId, videoFile, imageFile)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to upload exercise media", slog.Any("error", err), slog.String("exerciseId", exerciseId))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to upload exercise media"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -257,7 +258,7 @@ func (h *Handler) DeleteDay(ctx *gin.Context) {
 
 	if err := h.srv.DeleteDay(ctx.Request.Context(), dayId); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to delete day", slog.Any("error", err), slog.String("day_id", dayId))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to delete day"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
@@ -269,7 +270,7 @@ func (h *Handler) DeleteExercise(ctx *gin.Context) {
 
 	if err := h.srv.DeleteExercise(ctx.Request.Context(), id); err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to delete exercise", slog.Any("error", err), slog.String("exercise_id", id))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to delete exercise"))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}
 
