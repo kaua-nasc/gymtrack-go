@@ -52,16 +52,18 @@ func (s *Service) CreatePlan(ctx context.Context, plan domain.TrainingPlan, user
 	}
 
 	// 2. Business Rule: Clients can only have one personal plan, and it must be private
-	count, err := s.repo.CountByAuthor(ctx, user.ID)
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to count plans by author", slog.String("authorId", user.ID), slog.Any("error", err))
-		return nil, err
+	if user.Type == auth.Client {
+		count, err := s.repo.CountByAuthor(ctx, user.ID)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to count plans by author", slog.String("authorId", user.ID), slog.Any("error", err))
+			return nil, err
+		}
+		if count >= 1 {
+			slog.WarnContext(ctx, "client attempted to create more than one plan", slog.String("authorId", user.ID))
+			return nil, errors.New("clients can only have one personal training plan")
+		}
+		plan.Visibility = domain.Private
 	}
-	if count >= 1 {
-		slog.WarnContext(ctx, "client attempted to create more than one plan", slog.String("authorId", user.ID))
-		return nil, errors.New("clients can only have one personal training plan")
-	}
-	plan.Visibility = domain.Private
 
 	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
@@ -103,6 +105,89 @@ func (s *Service) CreatePlan(ctx context.Context, plan domain.TrainingPlan, user
 	}
 
 	slog.InfoContext(ctx, "training plan created successfully", slog.String("plan_id", *plan.Id))
+	return &plan, nil
+}
+
+func (s *Service) CreatePlanForStudent(ctx context.Context, studentId string, plan domain.TrainingPlan, user auth.AuthUser) (*domain.TrainingPlan, error) {
+	slog.InfoContext(ctx, "creating training plan for student", slog.String("trainerId", user.ID), slog.String("studentId", studentId))
+
+	if user.Type != auth.Trainer {
+		return nil, errors.New("only trainers can create plans for students")
+	}
+
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
+	// 1. Validate trainer-student link via identity service
+	// If this call fails or returns error, it means the trainer doesn't have access to this student
+	_, err := s.identity.GetStudentPrivacy(ctx, studentId, token)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to validate trainer-student link", slog.String("trainerId", user.ID), slog.String("studentId", studentId), slog.Any("error", err))
+		return nil, fmt.Errorf("could not validate trainer-student relation: %w", err)
+	}
+
+	// 2. Force protected visibility and set student-specific flags if needed
+	plan.Visibility = domain.Protected
+
+	// 3. Create the plan using existing logic (internal call or direct repo)
+	// We'll reuse the core creation logic but without the Client-specific checks
+	if err := s.validate.Struct(plan); err != nil {
+		return nil, err
+	}
+
+	id, err := utils.GenerateUUIDV7(ctx)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	plan.Id = id
+	plan.AuthorId = user.ID
+	plan.CreatedAt = now
+	plan.UpdatedAt = now
+
+	if err := s.repo.Create(ctx, &plan); err != nil {
+		return nil, err
+	}
+
+	// 4. Save nested days and exercises
+	for dayIdx := range plan.Days {
+		plan.Days[dayIdx].TrainingPlanId = *plan.Id
+		plan.Days[dayIdx].CreatedAt = now
+		plan.Days[dayIdx].UpdatedAt = now
+		plan.Days[dayIdx].Sequence = dayIdx
+		if err := s.repo.CreateDay(ctx, &plan.Days[dayIdx]); err != nil {
+			return nil, err
+		}
+
+		for exerciseIdx := range plan.Days[dayIdx].Exercises {
+			plan.Days[dayIdx].Exercises[exerciseIdx].DayId = plan.Days[dayIdx].Id
+			plan.Days[dayIdx].Exercises[exerciseIdx].CreatedAt = now
+			plan.Days[dayIdx].Exercises[exerciseIdx].UpdatedAt = now
+			plan.Days[dayIdx].Exercises[exerciseIdx].Sequence = exerciseIdx
+			if err := s.repo.CreateExercise(ctx, &plan.Days[dayIdx].Exercises[exerciseIdx]); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// 5. Automatic subscription for the student
+	subId, _ := utils.GenerateUUIDV7(ctx)
+	subscription := &domain.PlanSubscription{
+		Id:             *subId,
+		TrainingPlanId: *plan.Id,
+		UserId:         studentId,
+		Status:         domain.NotStarted,
+		Type:           domain.TotalAccessSubscription,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	if err := s.repo.CreateSubscription(ctx, subscription); err != nil {
+		slog.ErrorContext(ctx, "failed to auto-subscribe student to plan", slog.String("plan_id", *plan.Id), slog.String("studentId", studentId), slog.Any("error", err))
+		// We don't fail the whole request here, but it's a serious issue
+		// Actually, better to fail to ensure data consistency
+		return nil, fmt.Errorf("failed to create student subscription: %w", err)
+	}
+
 	return &plan, nil
 }
 
@@ -262,10 +347,20 @@ func (s *Service) GetPlan(ctx context.Context, id string) (*domain.TrainingPlan,
 	}
 
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
-	if ok {
-		sub, err := s.repo.FindSubscriptionByPlan(ctx, id, user.ID)
-		if err == nil && sub != nil {
-			plan.PlanSubscriptionStatus = &sub.Status
+	if !ok {
+		return nil, errors.New("unauthorized")
+	}
+
+	sub, err := s.repo.FindSubscriptionByPlan(ctx, id, user.ID)
+	if err == nil && sub != nil {
+		plan.PlanSubscriptionStatus = &sub.Status
+	}
+
+	// Access Control: Only author or subscribers can view Protected/Private plans
+	if plan.Visibility != domain.Public && plan.AuthorId != user.ID {
+		if sub == nil {
+			slog.WarnContext(ctx, "unauthorized access attempt to non-public plan", slog.String("plan_id", id), slog.String("user_id", user.ID))
+			return nil, errors.New("you are not authorized to view this training plan")
 		}
 	}
 

@@ -31,6 +31,7 @@ type Repository interface {
 	ListByIds(ctx context.Context, ids []string) ([]*domain.TrainingPlan, error)
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
+	CreateSubscription(ctx context.Context, s *domain.PlanSubscription) error
 }
 
 type PostgresRepository struct {
@@ -453,4 +454,20 @@ func (r *PostgresRepository) FindSubscriptionByPlan(ctx context.Context, planId,
 		return nil, fmt.Errorf("could not find subscription: %w", err)
 	}
 	return &s, nil
+}
+
+func (r *PostgresRepository) CreateSubscription(ctx context.Context, s *domain.PlanSubscription) error {
+	query := `
+		INSERT INTO plan_subscription (
+			id, "trainingPlanId", "userId", status, type, "createdAt", "updatedAt"
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+
+	_, err := r.db.ExecContext(ctx, query,
+		s.Id, s.TrainingPlanId, s.UserId, s.Status, s.Type, s.CreatedAt, s.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("could not create subscription: %w", err)
+	}
+
+	return nil
 }
