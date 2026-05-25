@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/storage"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
@@ -19,16 +20,19 @@ import (
 
 type Service struct {
 	repo     Repository
+	subRepo  subscription.Repository
 	identity domain.IdentityClient
 	validate *validator.Validate
 }
 
 func NewService(
 	repo Repository,
+	subRepo subscription.Repository,
 	identity domain.IdentityClient,
 ) *Service {
 	return &Service{
 		repo:     repo,
+		subRepo:  subRepo,
 		identity: identity,
 		validate: validator.New(),
 	}
@@ -181,7 +185,7 @@ func (s *Service) CreatePlanForStudent(ctx context.Context, studentId string, pl
 		UpdatedAt:      now,
 	}
 
-	if err := s.repo.CreateSubscription(ctx, subscription); err != nil {
+	if err := s.subRepo.CreatePlanSubscription(ctx, subscription); err != nil {
 		slog.ErrorContext(ctx, "failed to auto-subscribe student to plan", slog.String("plan_id", *plan.Id), slog.String("studentId", studentId), slog.Any("error", err))
 		// We don't fail the whole request here, but it's a serious issue
 		// Actually, better to fail to ensure data consistency
@@ -324,13 +328,13 @@ func (s *Service) DeletePlan(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Service) ExistsPlan(ctx context.Context, id string) (bool, error) {
-	plan, err := s.repo.Find(ctx, id)
+func (s *Service) ExistsPlan(ctx context.Context, id string, publicOnly bool) (bool, error) {
+	exists, err := s.repo.ExistsPlan(ctx, id, publicOnly)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to search for training plan", slog.String("plan_id", id), slog.Any("error", err))
+		slog.ErrorContext(ctx, "failed to search for training plan", slog.String("plan_id", id), slog.Bool("publicOnly", publicOnly), slog.Any("error", err))
 		return false, fmt.Errorf("error searching for training plan")
 	}
-	return plan != nil, nil
+	return exists, nil
 }
 
 func (s *Service) GetPlan(ctx context.Context, id string) (*domain.TrainingPlan, error) {

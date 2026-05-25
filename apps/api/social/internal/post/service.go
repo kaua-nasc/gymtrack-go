@@ -53,12 +53,12 @@ func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId st
 	// Validate training plan existence (if applicable)
 	if post.EntityType != nil && *post.EntityType == domain.TrainingPlanPost && post.EntityId != nil {
 		g.Go(func() error {
-			plan, err := s.trainingPlan.FindPlan(ctx, *post.EntityId, token)
+			exists, err := s.trainingPlan.ExistsPublicPlan(ctx, *post.EntityId, token)
 			if err != nil {
-				return fmt.Errorf("failed to verify training plan existence: %w", err)
+				return fmt.Errorf("failed to verify training plan visibility: %w", err)
 			}
-			if plan == nil {
-				return fmt.Errorf("training plan with id %s not found", *post.EntityId)
+			if !exists {
+				return fmt.Errorf("training plan with id %s not found or is not public", *post.EntityId)
 			}
 			return nil
 		})

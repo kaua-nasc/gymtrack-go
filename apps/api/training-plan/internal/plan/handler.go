@@ -153,7 +153,9 @@ func (h *Handler) ExistsPlan(ctx *gin.Context) {
 		return
 	}
 
-	exists, err := h.srv.ExistsPlan(ctx.Request.Context(), id)
+	publicOnly := ctx.Query("publicOnly") == "true"
+
+	exists, err := h.srv.ExistsPlan(ctx.Request.Context(), id, publicOnly)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to check plan existence", slog.Any("error", err), slog.String("plan_id", id))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))

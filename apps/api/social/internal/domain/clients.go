@@ -108,6 +108,7 @@ func (s *IdentityService) ListUser(ctx context.Context, ids []string, token stri
 type TrainingPlanClient interface {
 	FindPlan(ctx context.Context, id string, token string) (any, error)
 	ListPlans(ctx context.Context, ids []string, token string) (map[string]any, error)
+	ExistsPublicPlan(ctx context.Context, id string, token string) (bool, error)
 }
 
 type trainingPlanClientImpl struct {
@@ -203,4 +204,34 @@ func (s *trainingPlanClientImpl) ListPlans(ctx context.Context, ids []string, to
 	}
 
 	return result, nil
+}
+
+func (s *trainingPlanClientImpl) ExistsPublicPlan(ctx context.Context, id string, token string) (bool, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/training-plans/exists/%s?publicOnly=true", s.baseURL, id), nil)
+	if err != nil {
+		return false, err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("training-plan service error: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Exists bool `json:"exists"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return result.Exists, nil
 }
