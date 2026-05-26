@@ -58,7 +58,7 @@ func TestService_CreatePost(t *testing.T) {
 			},
 			mockBehavior: func() {
 				mockIdentity.EXPECT().FindUser(gomock.Any(), authorId, "valid-token").Return(map[string]any{"id": authorId}, nil)
-				mockPlan.EXPECT().FindPlan(gomock.Any(), planId, "valid-token").Return(map[string]any{"id": planId}, nil)
+				mockPlan.EXPECT().ExistsPublicPlan(gomock.Any(), planId, "valid-token").Return(true, nil)
 				mockRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
@@ -82,7 +82,7 @@ func TestService_CreatePost(t *testing.T) {
 			},
 			mockBehavior: func() {
 				mockIdentity.EXPECT().FindUser(gomock.Any(), authorId, "valid-token").Return(map[string]any{"id": authorId}, nil)
-				mockPlan.EXPECT().FindPlan(gomock.Any(), planId, "valid-token").Return(nil, nil)
+				mockPlan.EXPECT().ExistsPublicPlan(gomock.Any(), planId, "valid-token").Return(false, nil)
 			},
 			wantErr: true,
 		},
