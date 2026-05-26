@@ -51,7 +51,7 @@ func (h *Handler) createPost(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.CreatePost(ctx.Request.Context(), &post, user.ID); err != nil {
+	if err := h.service.CreatePost(ctx, &post, user.ID); err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

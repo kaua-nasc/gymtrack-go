@@ -366,6 +366,18 @@ func (s *Service) GetPlan(ctx context.Context, id string) (*domain.TrainingPlan,
 			slog.WarnContext(ctx, "unauthorized access attempt to non-public plan", slog.String("plan_id", id), slog.String("user_id", user.ID))
 			return nil, errors.New("you are not authorized to view this training plan")
 		}
+
+		// Rule: Protected plans from past trainers should not be visible after subscription ends
+		if plan.Visibility == domain.Protected && (sub.Status == domain.Completed || sub.Status == domain.Canceled) {
+			token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+			requester, err := s.identity.FindUser(ctx, user.ID, token)
+			if err == nil {
+				if requester.StudentOf == nil || requester.StudentOf.TrainerId != plan.AuthorId {
+					slog.WarnContext(ctx, "unauthorized access attempt to protected plan from past trainer", slog.String("plan_id", id), slog.String("user_id", user.ID))
+					return nil, errors.New("you are no longer authorized to view this training plan")
+				}
+			}
+		}
 	}
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)

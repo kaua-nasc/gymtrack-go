@@ -36,7 +36,28 @@ func (s *Service) ListSubscription(ctx context.Context, userId string) ([]*domai
 		return nil, err
 	}
 
-	return subscriptions, nil
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+	user, err := s.identity.FindUser(ctx, userId, token)
+	if err != nil {
+		slog.WarnContext(ctx, "failed to fetch user details for filtering subscriptions", slog.String("user_id", userId), slog.Any("error", err))
+		return subscriptions, nil
+	}
+
+	filteredSubs := make([]*domain.PlanSubscription, 0)
+	for _, sub := range subscriptions {
+		// If PROTECTED and (COMPLETED or CANCELED)
+		if sub.TrainingPlan != nil && sub.TrainingPlan.Visibility == domain.Protected &&
+			(sub.Status == domain.Completed || sub.Status == domain.Canceled) {
+
+			// Check if Author is current trainer
+			if user.StudentOf == nil || user.StudentOf.TrainerId != sub.TrainingPlan.AuthorId {
+				continue // Hide it
+			}
+		}
+		filteredSubs = append(filteredSubs, sub)
+	}
+
+	return filteredSubs, nil
 }
 
 func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId string) ([]*domain.PlanSubscription, error) {
