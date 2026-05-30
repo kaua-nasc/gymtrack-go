@@ -485,3 +485,7 @@ func (s *Service) FindNextDay(ctx context.Context, userId string) (*domain.PlanD
 		Status:             domain.DayInProgress,
 	}, nil
 }
+
+func (s *Service) GetEngagementSummary(ctx context.Context, userId string) (*domain.EngagementSummary, error) {
+	return s.repo.GetEngagementSummary(ctx, userId)
+}

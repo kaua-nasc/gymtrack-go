@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
@@ -37,6 +38,7 @@ type Repository interface {
 	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
 	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
 	CountActiveSubscriptionsByPlan(ctx context.Context, planId string) (int, error)
+	GetEngagementSummary(ctx context.Context, userId string) (*domain.EngagementSummary, error)
 	HasSubscription(ctx context.Context, planId, userId string) (bool, error)
 }
 
@@ -173,6 +175,107 @@ func (r *PostgresRepository) FindSubscription(ctx context.Context, id string) (*
 	c.TrainingPlan = p
 
 	return c, nil
+}
+
+func (r *PostgresRepository) GetEngagementSummary(ctx context.Context, userId string) (*domain.EngagementSummary, error) {
+	now := time.Now().UTC()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	weekday := int(today.Weekday())
+	daysSinceMonday := (weekday + 6) % 7
+	startOfWeek := today.AddDate(0, 0, -daysSinceMonday)
+	endOfWeek := startOfWeek.AddDate(0, 0, 7).Add(-time.Nanosecond)
+
+	summary := &domain.EngagementSummary{
+		ActiveDaysThisWeek: make([]string, 0),
+	}
+
+	// 1. Get Active Plan and Progress
+	query := `
+		WITH active_sub AS (
+			SELECT subs.id, subs."trainingPlanId", plans.name, plans."timeInDays"
+			FROM plan_subscription subs
+			JOIN training_plans plans ON subs."trainingPlanId" = plans.id
+			WHERE subs."userId" = $1 AND subs.status = 'IN_PROGRESS' AND subs."deletedAt" IS NULL
+			ORDER BY subs."createdAt" DESC LIMIT 1
+		),
+		completed_stats AS (
+			SELECT COUNT(*) as count
+			FROM plan_day_progress pdp
+			JOIN active_sub s ON pdp."planSubscriptionId" = s.id
+			WHERE pdp.status = 'COMPLETED' AND pdp."deletedAt" IS NULL
+		),
+		weekly_stats AS (
+			SELECT progress."updatedAt"
+			FROM plan_day_progress progress
+			JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
+			WHERE subs."userId" = $1 
+			  AND progress.status = 'COMPLETED'
+			  AND progress."updatedAt" BETWEEN $2 AND $3
+			  AND progress."deletedAt" IS NULL 
+			  AND subs."deletedAt" IS NULL
+		),
+		last_workout AS (
+			SELECT progress."updatedAt"
+			FROM plan_day_progress progress
+			JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
+			WHERE subs."userId" = $1 
+			  AND progress.status = 'COMPLETED'
+			  AND progress."deletedAt" IS NULL 
+			  AND subs."deletedAt" IS NULL
+			ORDER BY progress."updatedAt" DESC LIMIT 1
+		)
+		SELECT 
+			COALESCE((SELECT name FROM active_sub), ''),
+			COALESCE((SELECT "timeInDays" FROM active_sub), 0),
+			COALESCE((SELECT count FROM completed_stats), 0),
+			(SELECT date FROM (SELECT "updatedAt" as date FROM last_workout UNION SELECT NULL LIMIT 1) as t WHERE date IS NOT NULL OR NOT EXISTS (SELECT 1 FROM last_workout) LIMIT 1),
+			COALESCE((SELECT COUNT(DISTINCT DATE("updatedAt")) FROM weekly_stats), 0)
+	`
+
+	var planName string
+	var totalDays, completedDays, weeklyCount int
+	var lastWorkoutDate *time.Time
+
+	err := r.db.QueryRowContext(ctx, query, userId, startOfWeek, endOfWeek).Scan(
+		&planName, &totalDays, &completedDays, &lastWorkoutDate, &weeklyCount,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("could not query engagement summary: %w", err)
+	}
+
+	summary.CurrentPlanName = planName
+	summary.WeeklyFrequency = weeklyCount
+	summary.LastWorkoutDate = lastWorkoutDate
+
+	if totalDays > 0 {
+		summary.PlanProgress = (float64(completedDays) / float64(totalDays)) * 100
+		// Adherence is often calculated over a period, but here we can use overall for now
+		summary.AdherenceRate = summary.PlanProgress
+	}
+
+	// Get active days names for the week
+	activeDaysQuery := `
+		SELECT DISTINCT TO_CHAR("updatedAt", 'Day')
+		FROM plan_day_progress progress
+		JOIN plan_subscription subs ON progress."planSubscriptionId" = subs.id
+		WHERE subs."userId" = $1 
+		  AND progress.status = 'COMPLETED'
+		  AND progress."updatedAt" BETWEEN $2 AND $3
+		  AND progress."deletedAt" IS NULL 
+		  AND subs."deletedAt" IS NULL
+	`
+	rows, err := r.db.QueryContext(ctx, activeDaysQuery, userId, startOfWeek, endOfWeek)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var day string
+			if err := rows.Scan(&day); err == nil {
+				summary.ActiveDaysThisWeek = append(summary.ActiveDaysThisWeek, strings.TrimSpace(day))
+			}
+		}
+	}
+
+	return summary, nil
 }
 
 func (r *PostgresRepository) UpdateSubscriptionStatus(ctx context.Context, s domain.PlanSubscription, status domain.PlanSubscriptionStatus) error {

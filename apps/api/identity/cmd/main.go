@@ -11,6 +11,8 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/auth"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/dashboard"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/followers"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/metrics"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/trainer"
@@ -38,6 +40,7 @@ func NewHTTPServer(
 	trainerHandler *trainer.Handler,
 	followersHandler *followers.Handler,
 	metricsHandler *metrics.Handler,
+	dashboardHandler *dashboard.Handler,
 ) *gin.Engine {
 	port := os.Getenv("IDENTITY_PORT")
 	if port == "" {
@@ -60,6 +63,7 @@ func NewHTTPServer(
 	trainerHandler.RegisterRoutes(r)
 	followersHandler.RegisterRoutes(r)
 	metricsHandler.RegisterRoutes(r)
+	dashboardHandler.RegisterRoutes(r)
 
 	server := &http.Server{
 		Addr:    port,
@@ -103,6 +107,9 @@ func main() {
 			metrics.NewRepository,
 			metrics.NewService,
 			metrics.NewHandler,
+			dashboard.NewService,
+			dashboard.NewHandler,
+			domain.NewTrainingPlanService,
 			NewHTTPServer,
 		),
 		fx.Invoke(func(*gin.Engine) {}),

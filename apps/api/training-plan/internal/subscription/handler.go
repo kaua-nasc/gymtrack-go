@@ -39,7 +39,21 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.POST("/subscriptions/:id/days/:dayId/start", h.StartDay)
 		plans.GET("/subscriptions/days/resume", h.ListWeeklyDayProgress)
 		plans.GET("/subscriptions/days/next", h.FindNextDay)
+		plans.GET("/subscriptions/engagement/:id", h.GetEngagementSummary)
 	}
+}
+
+func (h *Handler) GetEngagementSummary(ctx *gin.Context) {
+	userId := ctx.Param("id")
+
+	summary, err := h.srv.GetEngagementSummary(ctx.Request.Context(), userId)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to get engagement summary", slog.Any("error", err), slog.String("user_id", userId))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to get engagement summary"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, summary)
 }
 
 func (h *Handler) ListSubscription(ctx *gin.Context) {

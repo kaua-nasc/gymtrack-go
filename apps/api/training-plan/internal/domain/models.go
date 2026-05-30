@@ -256,3 +256,12 @@ type PlanDayProgress struct {
 	Day              *Day              `json:"day,omitempty"`
 	PlanSubscription *PlanSubscription `json:"planSubscription,omitempty"`
 }
+
+type EngagementSummary struct {
+	AdherenceRate      float64    `json:"adherenceRate"`      // % of completed days vs total days in plan
+	WeeklyFrequency    int        `json:"weeklyFrequency"`    // Number of days completed in current week
+	CurrentPlanName    string     `json:"currentPlanName"`    // Name of the active training plan
+	PlanProgress       float64    `json:"planProgress"`       // % of plan completed
+	LastWorkoutDate    *time.Time `json:"lastWorkoutDate"`    // Date of the last exercise log or session
+	ActiveDaysThisWeek []string   `json:"activeDaysThisWeek"` // Days of the week (e.g., ["Monday", "Wednesday"])
+}
