@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/plan"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -17,7 +18,8 @@ func TestService_AddFeedback(t *testing.T) {
 
 	mockRepo := NewMockRepository(ctrl)
 	mockSubRepo := subscription.NewMockRepository(ctrl)
-	service := NewService(mockRepo, mockSubRepo)
+	mockPlanRepo := plan.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockSubRepo, mockPlanRepo)
 
 	msg := "Great plan!"
 
@@ -39,6 +41,8 @@ func TestService_AddFeedback(t *testing.T) {
 			mockBehavior: func() {
 				mockSubRepo.EXPECT().HasSubscription(gomock.Any(), "plan-123", "user-123").Return(true, nil)
 				mockRepo.EXPECT().AddFeedback(gomock.Any(), gomock.Any()).Return(nil)
+				mockRepo.EXPECT().GetRatingStats(gomock.Any(), "plan-123").Return(nil, 0, nil)
+				mockPlanRepo.EXPECT().UpdateRatingStats(gomock.Any(), "plan-123", gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -86,7 +90,8 @@ func TestService_ListFeedback(t *testing.T) {
 
 	mockRepo := NewMockRepository(ctrl)
 	mockSubRepo := subscription.NewMockRepository(ctrl)
-	service := NewService(mockRepo, mockSubRepo)
+	mockPlanRepo := plan.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockSubRepo, mockPlanRepo)
 
 	tests := []struct {
 		name         string
@@ -112,6 +117,63 @@ func TestService_ListFeedback(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockBehavior()
 			_, _, err := service.ListFeedback(context.Background(), tt.planId, tt.cursor, tt.limit)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestService_DeleteFeedback(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	mockSubRepo := subscription.NewMockRepository(ctrl)
+	mockPlanRepo := plan.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockSubRepo, mockPlanRepo)
+
+	tests := []struct {
+		name         string
+		feedbackId   string
+		userId       string
+		mockBehavior func()
+		wantErr      bool
+	}{
+		{
+			name:       "Success delete feedback",
+			feedbackId: "f-123",
+			userId:     "user-123",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindByID(gomock.Any(), "f-123").Return(&domain.TrainingPlanFeedback{
+					TrainingPlanId: "plan-123",
+					UserId:         "user-123",
+				}, nil)
+				mockRepo.EXPECT().Delete(gomock.Any(), "f-123").Return(nil)
+				mockRepo.EXPECT().GetRatingStats(gomock.Any(), "plan-123").Return(nil, 0, nil)
+				mockPlanRepo.EXPECT().UpdateRatingStats(gomock.Any(), "plan-123", gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:       "Not author",
+			feedbackId: "f-123",
+			userId:     "user-other",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindByID(gomock.Any(), "f-123").Return(&domain.TrainingPlanFeedback{
+					UserId: "user-123",
+				}, nil)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			err := service.DeleteFeedback(context.Background(), tt.feedbackId, tt.userId)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

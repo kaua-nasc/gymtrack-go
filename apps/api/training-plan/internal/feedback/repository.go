@@ -15,6 +15,7 @@ type Repository interface {
 	ListFeedback(ctx context.Context, planId string, cursor *utils.CursorData, limit int) ([]domain.TrainingPlanFeedback, *utils.CursorData, error)
 	FindByID(ctx context.Context, id string) (*domain.TrainingPlanFeedback, error)
 	Delete(ctx context.Context, id string) error
+	GetRatingStats(ctx context.Context, planId string) (sum *float64, count int, err error)
 }
 
 type PostgresRepository struct {
@@ -100,4 +101,15 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("could not delete feedback: %w", err)
 	}
 	return nil
+}
+
+func (r *PostgresRepository) GetRatingStats(ctx context.Context, planId string) (*float64, int, error) {
+	query := `SELECT SUM(rating), COUNT(*) FROM training_plan_feedbacks WHERE "trainingPlanId" = $1 AND "deletedAt" IS NULL`
+	var sum *float64
+	var count int
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(&sum, &count)
+	if err != nil {
+		return nil, 0, fmt.Errorf("could not get rating stats: %w", err)
+	}
+	return sum, count, nil
 }

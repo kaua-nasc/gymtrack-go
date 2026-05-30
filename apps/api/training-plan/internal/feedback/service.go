@@ -6,19 +6,22 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/plan"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
-	repo    Repository
-	subRepo subscription.Repository
+	repo     Repository
+	subRepo  subscription.Repository
+	planRepo plan.Repository
 }
 
-func NewService(repo Repository, subRepo subscription.Repository) *Service {
+func NewService(repo Repository, subRepo subscription.Repository, planRepo plan.Repository) *Service {
 	return &Service{
-		repo:    repo,
-		subRepo: subRepo,
+		repo:     repo,
+		subRepo:  subRepo,
+		planRepo: planRepo,
 	}
 }
 
@@ -52,7 +55,8 @@ func (s *Service) AddFeedback(ctx context.Context, planId, userId string, rating
 		slog.ErrorContext(ctx, "failed to add feedback", slog.String("plan_id", planId), slog.Any("error", err))
 		return err
 	}
-	return nil
+
+	return s.updatePlanRatingStats(ctx, planId)
 }
 
 func (s *Service) ListFeedback(ctx context.Context, planId string, cursor string, limit int) ([]domain.TrainingPlanFeedback, string, error) {
@@ -87,5 +91,24 @@ func (s *Service) DeleteFeedback(ctx context.Context, feedbackId, userId string)
 		return domain.ErrNotFeedbackAuthor
 	}
 
-	return s.repo.Delete(ctx, feedbackId)
+	if err := s.repo.Delete(ctx, feedbackId); err != nil {
+		return err
+	}
+
+	return s.updatePlanRatingStats(ctx, f.TrainingPlanId)
+}
+
+func (s *Service) updatePlanRatingStats(ctx context.Context, planId string) error {
+	sum, count, err := s.repo.GetRatingStats(ctx, planId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get rating stats", slog.String("plan_id", planId), slog.Any("error", err))
+		return err
+	}
+
+	if err := s.planRepo.UpdateRatingStats(ctx, planId, sum, count); err != nil {
+		slog.ErrorContext(ctx, "failed to update plan rating stats", slog.String("plan_id", planId), slog.Any("error", err))
+		return err
+	}
+
+	return nil
 }

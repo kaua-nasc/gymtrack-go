@@ -91,20 +91,22 @@ type WeeklyDayProgress struct {
 
 // TrainingPlan Entity
 type TrainingPlan struct {
-	Id               *string                `json:"id,omitempty" validate:"omitempty,uuid"`
-	CreatedAt        time.Time              `json:"createdAt"`
-	UpdatedAt        time.Time              `json:"updatedAt"`
-	Name             string                 `json:"name" validate:"required,min=3,max=255"`
-	AuthorId         string                 `json:"authorId" validate:"required,uuid"`
-	TimeInDays       int                    `json:"timeInDays" validate:"required,min=1"`
-	Type             TrainingPlanType       `json:"type" validate:"required"`
-	Visibility       TrainingPlanVisibility `json:"visibility" validate:"required"`
-	Level            TrainingPlanLevel      `json:"level" validate:"required"`
-	Observation      *string                `json:"observation,omitempty"`
-	Pathology        *string                `json:"pathology,omitempty"`
-	MaxSubscriptions *int                   `json:"maxSubscriptions,omitempty"`
-	ImageUrl         *string                `json:"imageUrl"`
-	Description      *string                `json:"description"`
+	Id                *string                `json:"id,omitempty" validate:"omitempty,uuid"`
+	CreatedAt         time.Time              `json:"createdAt"`
+	UpdatedAt         time.Time              `json:"updatedAt"`
+	Name              string                 `json:"name" validate:"required,min=3,max=255"`
+	AuthorId          string                 `json:"authorId" validate:"required,uuid"`
+	TimeInDays        int                    `json:"timeInDays" validate:"required,min=1"`
+	Type              TrainingPlanType       `json:"type" validate:"required"`
+	Visibility        TrainingPlanVisibility `json:"visibility" validate:"required"`
+	Level             TrainingPlanLevel      `json:"level" validate:"required"`
+	Observation       *string                `json:"observation,omitempty"`
+	Pathology         *string                `json:"pathology,omitempty"`
+	MaxSubscriptions  *int                   `json:"maxSubscriptions,omitempty"`
+	ImageUrl          *string                `json:"imageUrl"`
+	Description       *string                `json:"description"`
+	TotalRatingSum    *float64               `json:"totalRatingSum"`
+	TotalRatingsCount int                    `json:"totalRatingsCount"`
 
 	// Relations
 	Days                []Day                  `json:"days,omitempty"`

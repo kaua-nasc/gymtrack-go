@@ -32,6 +32,7 @@ type Repository interface {
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
 	ExistsPlan(ctx context.Context, id string, publicOnly bool) (bool, error)
+	UpdateRatingStats(ctx context.Context, planId string, sum *float64, count int) error
 }
 
 type PostgresRepository struct {
@@ -103,7 +104,8 @@ func (r *PostgresRepository) Find(ctx context.Context, id string) (*domain.Train
 		SELECT 
 			id, name, "authorId", "timeInDays", type, visibility, 
 			level, observation, pathology, "maxSubscriptions", 
-			"imageUrl", description, "createdAt", "updatedAt"
+			"imageUrl", description, "createdAt", "updatedAt",
+			"totalRatingSum", "totalRatingsCount"
 		FROM training_plans 
 		WHERE id = $1 AND "deletedAt" IS NULL
 		LIMIT 1`
@@ -113,6 +115,7 @@ func (r *PostgresRepository) Find(ctx context.Context, id string) (*domain.Train
 		&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
 		&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
 		&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+		&p.TotalRatingSum, &p.TotalRatingsCount,
 	)
 
 	if err != nil {
@@ -131,6 +134,7 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 			p.id, p.name, p."authorId", p."timeInDays", p.type, p.visibility, 
 			p.level, p.observation, p.pathology, p."maxSubscriptions", 
 			p."imageUrl", p.description, p."createdAt"::timestamptz, p."updatedAt"::timestamptz,
+			p."totalRatingSum", p."totalRatingsCount",
 			COALESCE(
 				(SELECT json_agg(
 					json_build_object(
@@ -174,6 +178,7 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 		&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
 		&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
 		&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+		&p.TotalRatingSum, &p.TotalRatingsCount,
 		&daysJSON,
 	)
 
@@ -194,7 +199,7 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 }
 
 func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error) {
-	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl" FROM training_plans WHERE 1=1`
+	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl", "totalRatingSum", "totalRatingsCount" FROM training_plans WHERE 1=1`
 
 	var args []interface{}
 
@@ -223,7 +228,7 @@ func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *
 	plans := make([]*domain.TrainingPlan, 0)
 	for rows.Next() {
 		p := &domain.TrainingPlan{}
-		err := rows.Scan(&p.Id, &p.AuthorId, &p.Name, &p.Visibility, &p.CreatedAt, &p.ImageUrl)
+		err := rows.Scan(&p.Id, &p.AuthorId, &p.Name, &p.Visibility, &p.CreatedAt, &p.ImageUrl, &p.TotalRatingSum, &p.TotalRatingsCount)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -252,7 +257,8 @@ func (r *PostgresRepository) ListByIds(ctx context.Context, ids []string) ([]*do
 		SELECT 
 			id, name, "authorId", "timeInDays", type, visibility, 
 			level, observation, pathology, "maxSubscriptions", 
-			"imageUrl", description, "createdAt", "updatedAt"
+			"imageUrl", description, "createdAt", "updatedAt",
+			"totalRatingSum", "totalRatingsCount"
 		FROM training_plans 
 		WHERE id = ANY($1) AND "deletedAt" IS NULL`
 
@@ -269,6 +275,7 @@ func (r *PostgresRepository) ListByIds(ctx context.Context, ids []string) ([]*do
 			&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
 			&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
 			&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+			&p.TotalRatingSum, &p.TotalRatingsCount,
 		)
 		if err != nil {
 			return nil, err
@@ -470,4 +477,13 @@ func (r *PostgresRepository) ExistsPlan(ctx context.Context, id string, publicOn
 	}
 
 	return exists, nil
+}
+
+func (r *PostgresRepository) UpdateRatingStats(ctx context.Context, planId string, sum *float64, count int) error {
+	query := `UPDATE training_plans SET "totalRatingSum" = $1, "totalRatingsCount" = $2 WHERE id = $3`
+	_, err := r.db.ExecContext(ctx, query, sum, count, planId)
+	if err != nil {
+		return fmt.Errorf("could not update plan rating stats: %w", err)
+	}
+	return nil
 }
