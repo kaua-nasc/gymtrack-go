@@ -320,9 +320,18 @@ func (s *Service) UpdatePlan(ctx context.Context, id string, data domain.Trainin
 }
 
 func (s *Service) DeletePlan(ctx context.Context, id string) error {
+	count, err := s.subRepo.CountActiveSubscriptionsByPlan(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to check active subscriptions: %w", err)
+	}
+
+	if count > 0 {
+		return errors.New("cannot delete a training plan with active subscriptions")
+	}
+
 	if err := s.repo.DeletePlan(ctx, id); err != nil {
-		slog.ErrorContext(ctx, "failed to save plan day", slog.Any("error", err))
-		return fmt.Errorf("could not save plan day: %w", err)
+		slog.ErrorContext(ctx, "failed to delete training plan", slog.Any("error", err))
+		return fmt.Errorf("could not delete training plan: %w", err)
 	}
 
 	return nil

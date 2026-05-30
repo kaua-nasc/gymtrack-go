@@ -36,6 +36,7 @@ type Repository interface {
 	FindFirstDay(ctx context.Context, planId string) (*domain.Day, error)
 	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
 	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
+	CountActiveSubscriptionsByPlan(ctx context.Context, planId string) (int, error)
 }
 
 type PostgresRepository struct {
@@ -225,7 +226,7 @@ func (r *PostgresRepository) FindInProgressDayProgress(ctx context.Context, subs
 	          FROM plan_day_progress 
 	          WHERE "planSubscriptionId" = $1 AND "dayId" = $2 AND status = 'IN_PROGRESS' AND "deletedAt" IS NULL 
 	          LIMIT 1`
-	
+
 	var p domain.PlanDayProgress
 	err := r.db.QueryRowContext(ctx, query, subsId, dayId).Scan(
 		&p.Id, &p.DayId, &p.PlanSubscriptionId, &p.Status, &p.CreatedAt, &p.UpdatedAt,
@@ -496,4 +497,16 @@ func (r *PostgresRepository) FindDayWithExercises(ctx context.Context, dayId str
 	d.Exercises = exercises
 
 	return &d, nil
+}
+
+func (r *PostgresRepository) CountActiveSubscriptionsByPlan(ctx context.Context, planId string) (int, error) {
+	query := `SELECT COUNT(*) FROM plan_subscription WHERE "trainingPlanId" = $1 AND status IN ('NOT_STARTED', 'IN_PROGRESS') AND "deletedAt" IS NULL`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("could not count active subscriptions: %w", err)
+	}
+
+	return count, nil
 }
