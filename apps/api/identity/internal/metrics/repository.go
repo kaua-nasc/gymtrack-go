@@ -23,6 +23,8 @@ type Repository interface {
 	FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error)
 	FindLastWeightLog(ctx context.Context, userId string) (*domain.WeightLog, error)
 	ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
+	ListWeightHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.WeightLog, error)
+	ListMeasurementsHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.BodyMeasurement, error)
 }
 
 type PostgresRepository struct {
@@ -170,6 +172,44 @@ func (r *PostgresRepository) FindLastWeightLog(ctx context.Context, userId strin
 		return nil, fmt.Errorf("could not find last weight log: %w", err)
 	}
 	return &l, nil
+}
+
+func (r *PostgresRepository) ListWeightHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.WeightLog, error) {
+	query := `SELECT id, weight, "measuredAt" FROM weight_logs WHERE "userId" = $1 AND "measuredAt" BETWEEN $2 AND $3 AND "deletedAt" IS NULL ORDER BY "measuredAt" ASC`
+	rows, err := r.db.QueryContext(ctx, query, userId, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("could not list weight history: %w", err)
+	}
+	defer rows.Close()
+
+	logs := make([]*domain.WeightLog, 0)
+	for rows.Next() {
+		l := &domain.WeightLog{}
+		if err := rows.Scan(&l.ID, &l.Weight, &l.MeasuredAt); err != nil {
+			return nil, err
+		}
+		logs = append(logs, l)
+	}
+	return logs, nil
+}
+
+func (r *PostgresRepository) ListMeasurementsHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.BodyMeasurement, error) {
+	query := `SELECT id, type, value, "measuredAt" FROM body_measurements WHERE "userId" = $1 AND "measuredAt" BETWEEN $2 AND $3 AND "deletedAt" IS NULL ORDER BY "measuredAt" ASC`
+	rows, err := r.db.QueryContext(ctx, query, userId, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("could not list measurement history: %w", err)
+	}
+	defer rows.Close()
+
+	measurements := make([]*domain.BodyMeasurement, 0)
+	for rows.Next() {
+		m := &domain.BodyMeasurement{}
+		if err := rows.Scan(&m.ID, &m.Type, &m.Value, &m.MeasuredAt); err != nil {
+			return nil, err
+		}
+		measurements = append(measurements, m)
+	}
+	return measurements, nil
 }
 
 func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error) {

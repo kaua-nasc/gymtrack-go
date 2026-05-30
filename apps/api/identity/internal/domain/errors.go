@@ -16,4 +16,5 @@ var (
 	ErrUnauthorizedAccess        = errors.New("unauthorized access to this data")
 	ErrUnauthorizedTrainerAccess = errors.New("trainer does not have an active link with this student")
 	ErrPrivacySettingsForbidden  = errors.New("student privacy settings do not allow this action")
+	ErrInvalidPeriod             = errors.New("invalid period: maximum 1 year allowed")
 )

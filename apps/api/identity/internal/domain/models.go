@@ -181,3 +181,32 @@ type EngagementSummary struct {
 	LastWorkoutDate    *time.Time `json:"lastWorkoutDate"`    // Date of the last exercise log or session
 	ActiveDaysThisWeek []string   `json:"activeDaysThisWeek"` // Days of the week (e.g., ["Monday", "Wednesday"])
 }
+
+type BiometricDashboard struct {
+	CurrentBMI   *float64                                `json:"currentBmi"`
+	Weight       *BiometricWeightSummary                 `json:"weight"`
+	Measurements map[string]*BiometricMeasurementSummary `json:"measurements"`
+	Charts       BiometricCharts                         `json:"charts"`
+}
+
+type BiometricWeightSummary struct {
+	Current     float64 `json:"current"`
+	Delta7Days  float64 `json:"delta7Days"`
+	Delta30Days float64 `json:"delta30Days"`
+	Delta90Days float64 `json:"delta90Days"`
+}
+
+type BiometricMeasurementSummary struct {
+	Current float64 `json:"current"`
+	Delta   float64 `json:"delta"` // Compared to previous entry in period
+}
+
+type BiometricCharts struct {
+	Weight       []ChartPoint            `json:"weight"`
+	Measurements map[string][]ChartPoint `json:"measurements"`
+}
+
+type ChartPoint struct {
+	Date  time.Time `json:"date"`
+	Value float64   `json:"value"`
+}
