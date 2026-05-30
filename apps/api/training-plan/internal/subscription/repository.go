@@ -37,6 +37,7 @@ type Repository interface {
 	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
 	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
 	CountActiveSubscriptionsByPlan(ctx context.Context, planId string) (int, error)
+	HasSubscription(ctx context.Context, planId, userId string) (bool, error)
 }
 
 type PostgresRepository struct {
@@ -509,4 +510,14 @@ func (r *PostgresRepository) CountActiveSubscriptionsByPlan(ctx context.Context,
 	}
 
 	return count, nil
+}
+
+func (r *PostgresRepository) HasSubscription(ctx context.Context, planId, userId string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL)`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("could not check subscription: %w", err)
+	}
+	return exists, nil
 }

@@ -1,10 +1,12 @@
 package feedback
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/log"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
@@ -48,6 +50,10 @@ func (h *Handler) AddFeedback(ctx *gin.Context) {
 	}
 
 	if err := h.srv.AddFeedback(ctx.Request.Context(), id, user.ID, body.Rating, body.Message); err != nil {
+		if errors.Is(err, domain.ErrFeedbackNotAllowed) {
+			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "failed to add feedback", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to add feedback"))
 		return

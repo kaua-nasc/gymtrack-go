@@ -6,21 +6,33 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
-	repo Repository
+	repo    Repository
+	subRepo subscription.Repository
 }
 
-func NewService(repo Repository) *Service {
+func NewService(repo Repository, subRepo subscription.Repository) *Service {
 	return &Service{
-		repo: repo,
+		repo:    repo,
+		subRepo: subRepo,
 	}
 }
 
 func (s *Service) AddFeedback(ctx context.Context, planId, userId string, rating float64, message *string) error {
 	slog.InfoContext(ctx, "adding feedback to plan", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Float64("rating", rating))
+
+	exists, err := s.subRepo.HasSubscription(ctx, planId, userId)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return domain.ErrFeedbackNotAllowed
+	}
 
 	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {

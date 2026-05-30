@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/subscription"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -15,7 +16,8 @@ func TestService_AddFeedback(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockRepository(ctrl)
-	service := NewService(mockRepo)
+	mockSubRepo := subscription.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockSubRepo)
 
 	msg := "Great plan!"
 
@@ -35,9 +37,21 @@ func TestService_AddFeedback(t *testing.T) {
 			rating:  5.0,
 			message: &msg,
 			mockBehavior: func() {
+				mockSubRepo.EXPECT().HasSubscription(gomock.Any(), "plan-123", "user-123").Return(true, nil)
 				mockRepo.EXPECT().AddFeedback(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
+		},
+		{
+			name:    "No subscription",
+			planId:  "plan-123",
+			userId:  "user-123",
+			rating:  5.0,
+			message: &msg,
+			mockBehavior: func() {
+				mockSubRepo.EXPECT().HasSubscription(gomock.Any(), "plan-123", "user-123").Return(false, nil)
+			},
+			wantErr: true,
 		},
 		{
 			name:    "Repo error",
@@ -46,6 +60,7 @@ func TestService_AddFeedback(t *testing.T) {
 			rating:  4.0,
 			message: nil,
 			mockBehavior: func() {
+				mockSubRepo.EXPECT().HasSubscription(gomock.Any(), "plan-123", "user-123").Return(true, nil)
 				mockRepo.EXPECT().AddFeedback(gomock.Any(), gomock.Any()).Return(errors.New("db error"))
 			},
 			wantErr: true,
@@ -70,7 +85,8 @@ func TestService_ListFeedback(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := NewMockRepository(ctrl)
-	service := NewService(mockRepo)
+	mockSubRepo := subscription.NewMockRepository(ctrl)
+	service := NewService(mockRepo, mockSubRepo)
 
 	tests := []struct {
 		name         string
