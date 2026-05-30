@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	{
 		plans.POST("/:id/feedback", h.AddFeedback)
 		plans.GET("/:id/feedback", h.ListFeedback)
+		plans.DELETE("/:id/feedback/:feedbackId", h.DeleteFeedback)
 	}
 }
 
@@ -79,4 +80,28 @@ func (h *Handler) ListFeedback(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(feedbacks, nextCursor))
+}
+
+func (h *Handler) DeleteFeedback(ctx *gin.Context) {
+	feedbackId := ctx.Param("feedbackId")
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	if err := h.srv.DeleteFeedback(ctx.Request.Context(), feedbackId, user.ID); err != nil {
+		if errors.Is(err, domain.ErrFeedbackNotFound) {
+			ctx.JSON(http.StatusNotFound, utils.NewErrorResponse(err.Error()))
+			return
+		}
+		if errors.Is(err, domain.ErrNotFeedbackAuthor) {
+			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to delete feedback", slog.Any("error", err), slog.String("feedback_id", feedbackId), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to delete feedback"))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }

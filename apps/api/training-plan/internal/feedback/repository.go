@@ -13,6 +13,8 @@ import (
 type Repository interface {
 	AddFeedback(ctx context.Context, f *domain.TrainingPlanFeedback) error
 	ListFeedback(ctx context.Context, planId string, cursor *utils.CursorData, limit int) ([]domain.TrainingPlanFeedback, *utils.CursorData, error)
+	FindByID(ctx context.Context, id string) (*domain.TrainingPlanFeedback, error)
+	Delete(ctx context.Context, id string) error
 }
 
 type PostgresRepository struct {
@@ -37,7 +39,7 @@ func (r *PostgresRepository) AddFeedback(ctx context.Context, f *domain.Training
 func (r *PostgresRepository) ListFeedback(ctx context.Context, planId string, cursor *utils.CursorData, limit int) ([]domain.TrainingPlanFeedback, *utils.CursorData, error) {
 	query := `SELECT id, "trainingPlanId", '' AS "userId", rating, message, "createdAt", "updatedAt" FROM training_plan_feedbacks WHERE "trainingPlanId" = $1 AND "deletedAt" IS NULL`
 
-	var args []interface{}
+	var args []any
 	args = append(args, planId)
 
 	if cursor != nil {
@@ -76,4 +78,26 @@ func (r *PostgresRepository) ListFeedback(ctx context.Context, planId string, cu
 	}
 
 	return feedbacks, nextCursor, nil
+}
+
+func (r *PostgresRepository) FindByID(ctx context.Context, id string) (*domain.TrainingPlanFeedback, error) {
+	query := `SELECT id, "trainingPlanId", "userId", rating, message, "createdAt", "updatedAt" FROM training_plan_feedbacks WHERE id = $1 AND "deletedAt" IS NULL`
+	var f domain.TrainingPlanFeedback
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&f.Id, &f.TrainingPlanId, &f.UserId, &f.Rating, &f.Message, &f.CreatedAt, &f.UpdatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find feedback: %w", err)
+	}
+	return &f, nil
+}
+
+func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
+	query := `UPDATE training_plan_feedbacks SET "deletedAt" = NOW() WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("could not delete feedback: %w", err)
+	}
+	return nil
 }

@@ -70,3 +70,22 @@ func (s *Service) ListFeedback(ctx context.Context, planId string, cursor string
 	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
 	return feedbacks, nextCursor, nil
 }
+
+func (s *Service) DeleteFeedback(ctx context.Context, feedbackId, userId string) error {
+	slog.InfoContext(ctx, "deleting feedback", slog.String("feedback_id", feedbackId), slog.String("user_id", userId))
+
+	f, err := s.repo.FindByID(ctx, feedbackId)
+	if err != nil {
+		return err
+	}
+
+	if f == nil {
+		return domain.ErrFeedbackNotFound
+	}
+
+	if f.UserId != userId {
+		return domain.ErrNotFeedbackAuthor
+	}
+
+	return s.repo.Delete(ctx, feedbackId)
+}
