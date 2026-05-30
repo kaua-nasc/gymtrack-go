@@ -30,12 +30,10 @@ func TestUserService_BodyMeasurements(t *testing.T) {
 	err := service.AddBodyMeasurementNote(context.Background(), "123", "meas-123", "Nice progress")
 	assert.NoError(t, err)
 
-	// Test FindLastBodyMeasurementNote
+	// Test FindLastBodyMeasurement
 	expectedMeasurement := &domain.BodyMeasurement{ID: "meas-123", Value: 85.5}
-	mockTrainerRepo.EXPECT().GetTrainerLinkDate(gomock.Any(), "123", "user-123").Return(&now, nil)
-	mockUserRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-123").Return(&domain.UserPrivacySettings{ShareBodyMeasurements: true}, nil)
-	mockRepo.EXPECT().FindLastBodyMeasurementNote(gomock.Any(), "user-123").Return(expectedMeasurement, nil)
-	meas, err := service.FindLastBodyMeasurementNote(context.Background(), "123", "user-123")
+	mockRepo.EXPECT().FindLastBodyMeasurement(gomock.Any(), "user-123").Return(expectedMeasurement, nil)
+	meas, err := service.FindLastBodyMeasurement(context.Background(), "user-123", "user-123")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedMeasurement, meas)
 

@@ -16,11 +16,12 @@ type Repository interface {
 	AddBodyMeasurementNote(ctx context.Context, id, note string) error
 	CreateBodyMeasurement(ctx context.Context, measurement *domain.BodyMeasurement) error
 	FindBodyMeasurement(ctx context.Context, id string) (*domain.BodyMeasurement, error)
-	FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error)
+	FindLastBodyMeasurement(ctx context.Context, userId string) (*domain.BodyMeasurement, error)
 	ListBodyMeasurements(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error)
 	AddWeightLogNote(ctx context.Context, id, note string) error
 	CreateWeightLog(ctx context.Context, log *domain.WeightLog) error
 	FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error)
+	FindLastWeightLog(ctx context.Context, userId string) (*domain.WeightLog, error)
 	ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
 }
 
@@ -67,7 +68,7 @@ func (r *PostgresRepository) FindBodyMeasurement(ctx context.Context, id string)
 	return &m, nil
 }
 
-func (r *PostgresRepository) FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error) {
+func (r *PostgresRepository) FindLastBodyMeasurement(ctx context.Context, userId string) (*domain.BodyMeasurement, error) {
 	query := `SELECT id, "createdAt", "updatedAt", "type", value, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM body_measurements WHERE "userId" = $1 AND "deletedAt" IS NULL ORDER BY "measuredAt" DESC LIMIT 1`
 	var m domain.BodyMeasurement
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(&m.ID, &m.CreatedAt, &m.UpdatedAt, &m.Type, &m.Value, &m.MeasuredAt, &m.UserId, &m.TrainerNote, &m.TrainerNoteAt)
@@ -154,6 +155,19 @@ func (r *PostgresRepository) FindWeightLog(ctx context.Context, id string) (*dom
 			return nil, nil
 		}
 		return nil, fmt.Errorf("could not find weight log: %w", err)
+	}
+	return &l, nil
+}
+
+func (r *PostgresRepository) FindLastWeightLog(ctx context.Context, userId string) (*domain.WeightLog, error) {
+	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE "userId" = $1 AND "deletedAt" IS NULL ORDER BY "measuredAt" DESC LIMIT 1`
+	var l domain.WeightLog
+	err := r.db.QueryRowContext(ctx, query, userId).Scan(&l.ID, &l.CreatedAt, &l.UpdatedAt, &l.Weight, &l.MeasuredAt, &l.UserId, &l.TrainerNote, &l.TrainerNoteAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find last weight log: %w", err)
 	}
 	return &l, nil
 }

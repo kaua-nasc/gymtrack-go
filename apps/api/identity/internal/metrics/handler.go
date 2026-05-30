@@ -25,15 +25,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	protected.Use(auth.AuthMiddleware())
 	{
 		protected.POST("/body-measurements", h.CreateBodyMeasurement)
+		protected.GET("/body-measurements/latest", h.FindLastBodyMeasurement)
+
 		protected.POST("/weight-logs", h.CreateWeightLog)
+		protected.GET("/weight-logs/latest", h.FindLastWeightLog)
 
 		trainers := protected.Group("/trainers")
 		{
-			trainers.POST("/students/:id/body-measurements", h.CreateBodyMeasurement)
-			trainers.POST("/students/:id/weight-logs", h.CreateWeightLog)
-
 			trainers.PATCH("/body-measurements/:id/notes", h.AddBodyMeasurementNote)
-			trainers.GET("/body-measurements/latest", h.FindLastBodyMeasurementNote)
 			trainers.GET("/body-measurements", h.ListBodyMeasurements)
 			trainers.GET("/students/:id/body-measurements", h.ListBodyMeasurements)
 
@@ -45,13 +44,9 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 }
 
 func (h *Handler) CreateBodyMeasurement(ctx *gin.Context) {
-	id := ctx.Param("id")
 	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
-	}
-	if id == "" {
-		id = userVal.ID
 	}
 
 	var body struct {
@@ -69,7 +64,7 @@ func (h *Handler) CreateBodyMeasurement(ctx *gin.Context) {
 		Type:       body.Type,
 		Value:      body.Value,
 		MeasuredAt: body.MeasuredAt,
-		UserId:     id,
+		UserId:     userVal.ID,
 	}
 
 	if err := h.srv.CreateBodyMeasurement(ctx.Request.Context(), userVal.ID, measurement); err != nil {
@@ -77,7 +72,7 @@ func (h *Handler) CreateBodyMeasurement(ctx *gin.Context) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
-		slog.ErrorContext(ctx.Request.Context(), "failed to create body measurement", slog.Any("error", err), slog.String("user_id", id))
+		slog.ErrorContext(ctx.Request.Context(), "failed to create body measurement", slog.Any("error", err), slog.String("user_id", userVal.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create measurement"})
 		return
 	}
@@ -114,15 +109,15 @@ func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
 	ctx.Status(http.StatusOK)
 }
 
-func (h *Handler) FindLastBodyMeasurementNote(ctx *gin.Context) {
+func (h *Handler) FindLastBodyMeasurement(ctx *gin.Context) {
 	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
 	}
 
-	measurement, err := h.srv.FindLastBodyMeasurementNote(ctx.Request.Context(), userVal.ID, userVal.ID)
+	measurement, err := h.srv.FindLastBodyMeasurement(ctx.Request.Context(), userVal.ID, userVal.ID)
 	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
@@ -161,13 +156,9 @@ func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 }
 
 func (h *Handler) CreateWeightLog(ctx *gin.Context) {
-	id := ctx.Param("id")
 	userVal, ok := auth.GetAuthUser(ctx)
 	if !ok {
 		return
-	}
-	if id == "" {
-		id = userVal.ID
 	}
 
 	var body struct {
@@ -183,7 +174,7 @@ func (h *Handler) CreateWeightLog(ctx *gin.Context) {
 	log := &domain.WeightLog{
 		Weight:     body.Weight,
 		MeasuredAt: body.MeasuredAt,
-		UserId:     id,
+		UserId:     userVal.ID,
 	}
 
 	if err := h.srv.CreateWeightLog(ctx.Request.Context(), userVal.ID, log); err != nil {
@@ -191,12 +182,32 @@ func (h *Handler) CreateWeightLog(ctx *gin.Context) {
 			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
-		slog.ErrorContext(ctx.Request.Context(), "failed to create weight log", slog.Any("error", err), slog.String("user_id", id))
+		slog.ErrorContext(ctx.Request.Context(), "failed to create weight log", slog.Any("error", err), slog.String("user_id", userVal.ID))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create weight log"})
 		return
 	}
 
 	ctx.Status(http.StatusCreated)
+}
+
+func (h *Handler) FindLastWeightLog(ctx *gin.Context) {
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	log, err := h.srv.FindLastWeightLog(ctx.Request.Context(), userVal.ID, userVal.ID)
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to fetch last weight log", slog.Any("error", err), slog.String("user_id", userVal.ID))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch last weight log"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, log)
 }
 
 func (h *Handler) AddWeightLogNote(ctx *gin.Context) {

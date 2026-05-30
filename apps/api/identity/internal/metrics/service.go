@@ -51,10 +51,8 @@ func (s *Service) checkPrivacy(ctx context.Context, requesterId, userId string, 
 }
 
 func (s *Service) CreateBodyMeasurement(ctx context.Context, requesterId string, m *domain.BodyMeasurement) error {
-	if _, err := s.checkPrivacy(ctx, requesterId, m.UserId, func(p *domain.UserPrivacySettings) bool {
-		return p.ShareBodyMeasurements // Trainers can only add if they can see
-	}); err != nil {
-		return err
+	if requesterId != m.UserId {
+		return domain.ErrUnauthorizedAccess
 	}
 
 	id, err := utils.GenerateUUIDV7String(ctx)
@@ -87,14 +85,12 @@ func (s *Service) AddBodyMeasurementNote(ctx context.Context, requesterId, id, n
 	return s.repo.AddBodyMeasurementNote(ctx, id, note)
 }
 
-func (s *Service) FindLastBodyMeasurementNote(ctx context.Context, requesterId, userId string) (*domain.BodyMeasurement, error) {
-	if _, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
-		return p.ShareBodyMeasurements
-	}); err != nil {
-		return nil, err
+func (s *Service) FindLastBodyMeasurement(ctx context.Context, requesterId, userId string) (*domain.BodyMeasurement, error) {
+	if requesterId != userId {
+		return nil, domain.ErrUnauthorizedAccess
 	}
 
-	return s.repo.FindLastBodyMeasurementNote(ctx, userId)
+	return s.repo.FindLastBodyMeasurement(ctx, userId)
 }
 
 func (s *Service) ListBodyMeasurements(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.BodyMeasurement, string, error) {
@@ -126,10 +122,8 @@ func (s *Service) ListBodyMeasurements(ctx context.Context, requesterId, userId,
 }
 
 func (s *Service) CreateWeightLog(ctx context.Context, requesterId string, l *domain.WeightLog) error {
-	if _, err := s.checkPrivacy(ctx, requesterId, l.UserId, func(p *domain.UserPrivacySettings) bool {
-		return p.ShareWeightLogs
-	}); err != nil {
-		return err
+	if requesterId != l.UserId {
+		return domain.ErrUnauthorizedAccess
 	}
 
 	id, err := utils.GenerateUUIDV7String(ctx)
@@ -160,6 +154,14 @@ func (s *Service) AddWeightLogNote(ctx context.Context, requesterId, id, note st
 	}
 
 	return s.repo.AddWeightLogNote(ctx, id, note)
+}
+
+func (s *Service) FindLastWeightLog(ctx context.Context, requesterId, userId string) (*domain.WeightLog, error) {
+	if requesterId != userId {
+		return nil, domain.ErrUnauthorizedAccess
+	}
+
+	return s.repo.FindLastWeightLog(ctx, userId)
 }
 
 func (s *Service) ListWeightLogs(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.WeightLog, string, error) {
