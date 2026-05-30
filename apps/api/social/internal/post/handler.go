@@ -2,6 +2,7 @@ package post
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,7 @@ func (h *Handler) createPost(ctx *gin.Context) {
 	}
 
 	if err := h.service.CreatePost(ctx, &post, user.ID); err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to create post", slog.Any("error", err), slog.String("authorId", user.ID))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

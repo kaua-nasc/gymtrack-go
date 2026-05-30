@@ -16,8 +16,8 @@ type Post struct {
 	AuthorId   string          `json:"-" validate:"required,uuid"`
 	Content    string          `json:"content" validate:"required"`
 	MediaUrls  []string        `json:"mediaUrls"`
-	EntityId   *string         `json:"-" validate:"omitempty,uuid"`
-	EntityType *PostEntityType `json:"-" validate:"omitempty"`
+	EntityId   *string         `json:"entityId" validate:"omitempty,uuid"`
+	EntityType *PostEntityType `json:"entityType" validate:"omitempty"`
 
 	// Relations
 	Likes    []Like    `json:"likes,omitempty"`

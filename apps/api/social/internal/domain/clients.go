@@ -222,6 +222,10 @@ func (s *trainingPlanClientImpl) ExistsPublicPlan(ctx context.Context, id string
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return false, nil
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return false, fmt.Errorf("training-plan service error: %d", resp.StatusCode)
 	}

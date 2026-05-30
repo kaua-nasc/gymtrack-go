@@ -28,7 +28,7 @@ func TestService_ListSubscription(t *testing.T) {
 			userId: "user-123",
 			mockBehavior: func() {
 				mockRepo.EXPECT().ListSubscription(gomock.Any(), "user-123").Return([]*domain.PlanSubscription{}, nil)
-				mockIdentity.EXPECT().FindUser(gomock.Any(), "user-123", "").Return(&domain.User{}, nil)
+				mockIdentity.EXPECT().FindUser(gomock.Any(), "user-123", gomock.Any()).Return(&domain.User{}, nil)
 			},
 			wantErr: false,
 		},

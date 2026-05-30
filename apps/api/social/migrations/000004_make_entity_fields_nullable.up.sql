@@ -1,0 +1,2 @@
+ALTER TABLE public.posts ALTER COLUMN "entityId" DROP NOT NULL;
+ALTER TABLE public.posts ALTER COLUMN "entityType" DROP NOT NULL;
