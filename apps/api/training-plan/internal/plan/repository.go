@@ -199,7 +199,14 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 }
 
 func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error) {
-	sqlStr := `SELECT id, "authorId", name, visibility, "createdAt", "imageUrl", "totalRatingSum", "totalRatingsCount" FROM training_plans WHERE 1=1`
+	sqlStr := `
+		SELECT 
+			id, name, "authorId", "timeInDays", type, visibility, 
+			level, observation, pathology, "maxSubscriptions", 
+			"imageUrl", description, "createdAt", "updatedAt",
+			"totalRatingSum", "totalRatingsCount"
+		FROM training_plans 
+		WHERE 1=1`
 
 	var args []interface{}
 
@@ -228,7 +235,12 @@ func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *
 	plans := make([]*domain.TrainingPlan, 0)
 	for rows.Next() {
 		p := &domain.TrainingPlan{}
-		err := rows.Scan(&p.Id, &p.AuthorId, &p.Name, &p.Visibility, &p.CreatedAt, &p.ImageUrl, &p.TotalRatingSum, &p.TotalRatingsCount)
+		err := rows.Scan(
+			&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Type, &p.Visibility,
+			&p.Level, &p.Observation, &p.Pathology, &p.MaxSubscriptions,
+			&p.ImageUrl, &p.Description, &p.CreatedAt, &p.UpdatedAt,
+			&p.TotalRatingSum, &p.TotalRatingsCount,
+		)
 		if err != nil {
 			return nil, nil, err
 		}
