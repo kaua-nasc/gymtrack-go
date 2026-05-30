@@ -55,7 +55,7 @@ func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
 			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt",
 			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELLED') AND "deletedAt" IS NULL), 0) as completed_days_count
-		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL AND plans."deletedAt" IS NULL`
+		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL`
 
 	rows, err := r.db.QueryContext(ctx, query, userId)
 	if err != nil {
