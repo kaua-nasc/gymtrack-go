@@ -24,8 +24,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	protected := r.Group("/identity/users")
 	protected.Use(auth.AuthMiddleware())
 	{
+		protected.POST("/body-measurements", h.CreateBodyMeasurement)
+		protected.POST("/weight-logs", h.CreateWeightLog)
+
 		trainers := protected.Group("/trainers")
 		{
+			trainers.POST("/students/:id/body-measurements", h.CreateBodyMeasurement)
+			trainers.POST("/students/:id/weight-logs", h.CreateWeightLog)
+
 			trainers.PATCH("/body-measurements/:id/notes", h.AddBodyMeasurementNote)
 			trainers.GET("/body-measurements/latest", h.FindLastBodyMeasurementNote)
 			trainers.GET("/body-measurements", h.ListBodyMeasurements)
@@ -34,12 +40,49 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 			trainers.PATCH("/weight-log/:id/notes", h.AddWeightLogNote)
 			trainers.GET("/weight-logs", h.ListWeightLogs)
 			trainers.GET("/students/:id/weight-logs", h.ListWeightLogs)
-
-			trainers.POST("/goals", h.AddGoalMetric)
-			trainers.GET("/goals", h.ListGoalsMetric)
-			trainers.GET("/students/:id/goals", h.ListGoalsMetricById)
 		}
 	}
+}
+
+func (h *Handler) CreateBodyMeasurement(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+	if id == "" {
+		id = userVal.ID
+	}
+
+	var body struct {
+		Type       domain.BodyMeasurementType `json:"type" binding:"required"`
+		Value      float64                    `json:"value" binding:"required"`
+		MeasuredAt time.Time                  `json:"measuredAt" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	measurement := &domain.BodyMeasurement{
+		Type:       body.Type,
+		Value:      body.Value,
+		MeasuredAt: body.MeasuredAt,
+		UserId:     id,
+	}
+
+	if err := h.srv.CreateBodyMeasurement(ctx.Request.Context(), userVal.ID, measurement); err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to create body measurement", slog.Any("error", err), slog.String("user_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create measurement"})
+		return
+	}
+
+	ctx.Status(http.StatusCreated)
 }
 
 func (h *Handler) AddBodyMeasurementNote(ctx *gin.Context) {
@@ -117,6 +160,45 @@ func (h *Handler) ListBodyMeasurements(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(measurements, nextCursor))
 }
 
+func (h *Handler) CreateWeightLog(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+	if id == "" {
+		id = userVal.ID
+	}
+
+	var body struct {
+		Weight     float64   `json:"weight" binding:"required"`
+		MeasuredAt time.Time `json:"measuredAt" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	log := &domain.WeightLog{
+		Weight:     body.Weight,
+		MeasuredAt: body.MeasuredAt,
+		UserId:     id,
+	}
+
+	if err := h.srv.CreateWeightLog(ctx.Request.Context(), userVal.ID, log); err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to create weight log", slog.Any("error", err), slog.String("user_id", id))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create weight log"})
+		return
+	}
+
+	ctx.Status(http.StatusCreated)
+}
+
 func (h *Handler) AddWeightLogNote(ctx *gin.Context) {
 	id := ctx.Param("id")
 	userVal, ok := auth.GetAuthUser(ctx)
@@ -170,82 +252,4 @@ func (h *Handler) ListWeightLogs(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(logs, nextCursor))
-}
-
-func (h *Handler) AddGoalMetric(ctx *gin.Context) {
-	userVal, ok := auth.GetAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	var body struct {
-		Type        string    `json:"type" binding:"required"`
-		TargetValue float64   `json:"targetValue" binding:"required,gt=0"`
-		Deadline    time.Time `json:"deadline" binding:"required"`
-	}
-
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := h.srv.AddGoalMetric(ctx.Request.Context(), userVal.ID, &domain.MetricGoal{
-		UserId:      userVal.ID,
-		Type:        body.Type,
-		TargetValue: body.TargetValue,
-		Deadline:    &body.Deadline,
-	}); err != nil {
-		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
-			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		slog.ErrorContext(ctx.Request.Context(), "failed to add goal metric", slog.Any("error", err), slog.String("user_id", userVal.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add goal metric"})
-		return
-	}
-
-	ctx.Status(http.StatusOK)
-}
-
-func (h *Handler) ListGoalsMetric(ctx *gin.Context) {
-	userVal, ok := auth.GetAuthUser(ctx)
-	if !ok {
-		return
-	}
-	cursor, limit := utils.GetPagination(ctx)
-
-	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), userVal.ID, userVal.ID, cursor, limit)
-	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
-			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		slog.ErrorContext(ctx.Request.Context(), "failed to list goals", slog.Any("error", err), slog.String("user_id", userVal.ID))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(goals, nextCursor))
-}
-
-func (h *Handler) ListGoalsMetricById(ctx *gin.Context) {
-	id := ctx.Param("id")
-	userVal, ok := auth.GetAuthUser(ctx)
-	if !ok {
-		return
-	}
-	cursor, limit := utils.GetPagination(ctx)
-
-	goals, nextCursor, err := h.srv.ListGoalsMetric(ctx.Request.Context(), userVal.ID, id, cursor, limit)
-	if err != nil {
-		if errors.Is(err, domain.ErrUnauthorizedAccess) || errors.Is(err, domain.ErrUnauthorizedTrainerAccess) || errors.Is(err, domain.ErrPrivacySettingsForbidden) {
-			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
-			return
-		}
-		slog.ErrorContext(ctx.Request.Context(), "failed to list goals by id", slog.Any("error", err), slog.String("user_id", id))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list goals"})
-		return
-	}
-
-	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(goals, nextCursor))
 }

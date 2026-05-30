@@ -14,14 +14,14 @@ import (
 //go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=metrics
 type Repository interface {
 	AddBodyMeasurementNote(ctx context.Context, id, note string) error
+	CreateBodyMeasurement(ctx context.Context, measurement *domain.BodyMeasurement) error
 	FindBodyMeasurement(ctx context.Context, id string) (*domain.BodyMeasurement, error)
 	FindLastBodyMeasurementNote(ctx context.Context, userId string) (*domain.BodyMeasurement, error)
 	ListBodyMeasurements(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.BodyMeasurement, *utils.CursorData, error)
 	AddWeightLogNote(ctx context.Context, id, note string) error
+	CreateWeightLog(ctx context.Context, log *domain.WeightLog) error
 	FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error)
-	ListGoalsMetric(ctx context.Context, id string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error)
 	ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
-	AddGoalMetric(ctx context.Context, g domain.MetricGoal) error
 }
 
 type PostgresRepository struct {
@@ -41,6 +41,15 @@ func (r *PostgresRepository) AddBodyMeasurementNote(ctx context.Context, id, not
 	_, err := r.db.ExecContext(ctx, query, id, note, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("could not add body measurement note: %w", err)
+	}
+	return nil
+}
+
+func (r *PostgresRepository) CreateBodyMeasurement(ctx context.Context, m *domain.BodyMeasurement) error {
+	query := `INSERT INTO body_measurements (id, "createdAt", "updatedAt", type, value, "measuredAt", "userId") VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := r.db.ExecContext(ctx, query, m.ID, m.CreatedAt, m.UpdatedAt, m.Type, m.Value, m.MeasuredAt, m.UserId)
+	if err != nil {
+		return fmt.Errorf("could not create body measurement: %w", err)
 	}
 	return nil
 }
@@ -127,6 +136,15 @@ func (r *PostgresRepository) AddWeightLogNote(ctx context.Context, id, note stri
 	return nil
 }
 
+func (r *PostgresRepository) CreateWeightLog(ctx context.Context, l *domain.WeightLog) error {
+	query := `INSERT INTO weight_logs (id, "createdAt", "updatedAt", weight, "measuredAt", "userId") VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.db.ExecContext(ctx, query, l.ID, l.CreatedAt, l.UpdatedAt, l.Weight, l.MeasuredAt, l.UserId)
+	if err != nil {
+		return fmt.Errorf("could not create weight log: %w", err)
+	}
+	return nil
+}
+
 func (r *PostgresRepository) FindWeightLog(ctx context.Context, id string) (*domain.WeightLog, error) {
 	query := `SELECT id, "createdAt", "updatedAt", weight, "measuredAt", "userId", "trainerNote", "trainerNoteAt" FROM weight_logs WHERE id = $1 AND "deletedAt" IS NULL`
 	var l domain.WeightLog
@@ -138,53 +156,6 @@ func (r *PostgresRepository) FindWeightLog(ctx context.Context, id string) (*dom
 		return nil, fmt.Errorf("could not find weight log: %w", err)
 	}
 	return &l, nil
-}
-
-func (r *PostgresRepository) ListGoalsMetric(ctx context.Context, id string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.MetricGoal, *utils.CursorData, error) {
-	query := `SELECT id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId" FROM metric_goals WHERE "userId" = $1 AND "deletedAt" IS NULL`
-
-	var args []interface{}
-	args = append(args, id)
-
-	if since != nil {
-		query += fmt.Sprintf(` AND "createdAt" >= $%d`, len(args)+1)
-		args = append(args, *since)
-	}
-
-	if cursor != nil {
-		query += fmt.Sprintf(` AND ("createdAt", id) < ($%d, $%d)`, len(args)+1, len(args)+2)
-		args = append(args, cursor.CreatedAt, cursor.ID)
-	}
-
-	query += fmt.Sprintf(` ORDER BY "createdAt" DESC, id DESC LIMIT $%d`, len(args)+1)
-	args = append(args, limit+1)
-
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer rows.Close()
-
-	goals := make([]*domain.MetricGoal, 0)
-	for rows.Next() {
-		var g domain.MetricGoal
-		err := rows.Scan(&g.ID, &g.CreatedAt, &g.UpdatedAt, &g.Type, &g.StartingValue, &g.TargetValue, &g.Deadline, &g.AchievedAt, &g.Status, &g.UserId)
-		if err != nil {
-			return nil, nil, err
-		}
-		goals = append(goals, &g)
-	}
-
-	var nextCursor *utils.CursorData
-	if len(goals) > limit {
-		nextCursor = &utils.CursorData{
-			ID:        goals[limit].ID,
-			CreatedAt: goals[limit].CreatedAt,
-		}
-		goals = goals[:limit]
-	}
-
-	return goals, nextCursor, nil
 }
 
 func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error) {
@@ -232,13 +203,4 @@ func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, 
 	}
 
 	return logs, nextCursor, nil
-}
-
-func (r *PostgresRepository) AddGoalMetric(ctx context.Context, g domain.MetricGoal) error {
-	query := `INSERT INTO metric_goals (id, "createdAt", "updatedAt", "type", "startingValue", "targetValue", deadline, "achievedAt", status, "userId") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
-	_, err := r.db.ExecContext(ctx, query, g.ID, g.CreatedAt, g.UpdatedAt, g.Type, g.StartingValue, g.TargetValue, g.Deadline, g.AchievedAt, g.Status, g.UserId)
-	if err != nil {
-		return fmt.Errorf("could not add goal metric: %w", err)
-	}
-	return nil
 }

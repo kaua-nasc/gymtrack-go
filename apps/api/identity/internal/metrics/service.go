@@ -50,6 +50,25 @@ func (s *Service) checkPrivacy(ctx context.Context, requesterId, userId string, 
 	return linkedAt, nil
 }
 
+func (s *Service) CreateBodyMeasurement(ctx context.Context, requesterId string, m *domain.BodyMeasurement) error {
+	if _, err := s.checkPrivacy(ctx, requesterId, m.UserId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareBodyMeasurements // Trainers can only add if they can see
+	}); err != nil {
+		return err
+	}
+
+	id, err := utils.GenerateUUIDV7String(ctx)
+	if err != nil {
+		return err
+	}
+
+	m.ID = id
+	m.CreatedAt = time.Now().UTC()
+	m.UpdatedAt = time.Now().UTC()
+
+	return s.repo.CreateBodyMeasurement(ctx, m)
+}
+
 func (s *Service) AddBodyMeasurementNote(ctx context.Context, requesterId, id, note string) error {
 	m, err := s.repo.FindBodyMeasurement(ctx, id)
 	if err != nil {
@@ -106,6 +125,25 @@ func (s *Service) ListBodyMeasurements(ctx context.Context, requesterId, userId,
 	return measurements, nextCursorStr, nil
 }
 
+func (s *Service) CreateWeightLog(ctx context.Context, requesterId string, l *domain.WeightLog) error {
+	if _, err := s.checkPrivacy(ctx, requesterId, l.UserId, func(p *domain.UserPrivacySettings) bool {
+		return p.ShareWeightLogs
+	}); err != nil {
+		return err
+	}
+
+	id, err := utils.GenerateUUIDV7String(ctx)
+	if err != nil {
+		return err
+	}
+
+	l.ID = id
+	l.CreatedAt = time.Now().UTC()
+	l.UpdatedAt = time.Now().UTC()
+
+	return s.repo.CreateWeightLog(ctx, l)
+}
+
 func (s *Service) AddWeightLogNote(ctx context.Context, requesterId, id, note string) error {
 	l, err := s.repo.FindWeightLog(ctx, id)
 	if err != nil {
@@ -122,53 +160,6 @@ func (s *Service) AddWeightLogNote(ctx context.Context, requesterId, id, note st
 	}
 
 	return s.repo.AddWeightLogNote(ctx, id, note)
-}
-
-func (s *Service) AddGoalMetric(ctx context.Context, requesterId string, goal *domain.MetricGoal) error {
-	if requesterId != goal.UserId {
-		return domain.ErrUnauthorizedAccess
-	}
-
-	now := time.Now().UTC()
-	newId, err := utils.GenerateUUIDV7(ctx)
-	if err != nil {
-		return err
-	}
-
-	goal.ID = *newId
-	goal.CreatedAt = now
-	goal.UpdatedAt = now
-	goal.Status = domain.MetricGoalActive
-
-	return s.repo.AddGoalMetric(ctx, *goal)
-}
-
-func (s *Service) ListGoalsMetric(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.MetricGoal, string, error) {
-	linkedAt, err := s.checkPrivacy(ctx, requesterId, userId, func(p *domain.UserPrivacySettings) bool {
-		return p.ShareMetricGoals
-	})
-	if err != nil {
-		return nil, "", err
-	}
-
-	var decodedCursor *utils.CursorData
-	utils.DecodeCursor(cursor, &decodedCursor)
-
-	var since *time.Time
-	if linkedAt != nil {
-		privacy, _ := s.userRepo.GetPrivacySettings(ctx, userId)
-		if privacy != nil && !privacy.SharePastDataWithTrainer {
-			since = linkedAt
-		}
-	}
-
-	goals, rawNextCursor, err := s.repo.ListGoalsMetric(ctx, userId, since, decodedCursor, limit)
-	if err != nil {
-		return nil, "", err
-	}
-
-	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
-	return goals, nextCursorStr, nil
 }
 
 func (s *Service) ListWeightLogs(ctx context.Context, requesterId, userId, cursor string, limit int) ([]*domain.WeightLog, string, error) {

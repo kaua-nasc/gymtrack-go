@@ -81,35 +81,3 @@ func TestUserService_WeightLogs(t *testing.T) {
 	assert.Len(t, logs, 1)
 	assert.Equal(t, "bnVsbA==", nextCursor)
 }
-
-func TestUserService_GoalsMetric(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockRepo := NewMockRepository(ctrl)
-	mockUserRepo := user.NewMockRepository(ctrl)
-	mockTrainerRepo := trainer.NewMockRepository(ctrl)
-	service := NewService(mockRepo, mockUserRepo, mockTrainerRepo)
-
-	now := time.Now()
-
-	// Test AddGoalMetric
-	goal := &domain.MetricGoal{
-		UserId: "user-123",
-	}
-	mockRepo.EXPECT().AddGoalMetric(gomock.Any(), gomock.Any()).Return(nil)
-	err := service.AddGoalMetric(context.Background(), "user-123", goal) // requester must match userId
-	assert.NoError(t, err)
-	assert.NotEmpty(t, goal.ID)
-
-	// Test ListGoalsMetric
-	mockTrainerRepo.EXPECT().GetTrainerLinkDate(gomock.Any(), "requester", "user-123").Return(&now, nil)
-	mockUserRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-123").Return(&domain.UserPrivacySettings{ShareMetricGoals: true, SharePastDataWithTrainer: true}, nil).Times(2)
-	mockRepo.EXPECT().ListGoalsMetric(gomock.Any(), "user-123", gomock.Any(), gomock.Any(), 10).Return([]*domain.MetricGoal{
-		{ID: "goal-1", UserId: "user-123"},
-	}, nil, nil)
-
-	goals, nextCursor, err := service.ListGoalsMetric(context.Background(), "requester", "user-123", "", 10)
-	assert.NoError(t, err)
-	assert.Len(t, goals, 1)
-	assert.Equal(t, "bnVsbA==", nextCursor)
-}
