@@ -19,7 +19,7 @@ func TestService_ToggleLike(t *testing.T) {
 	postId := "post-123"
 	userId := "user-123"
 
-	mockRepo.EXPECT().ToggleLike(gomock.Any(), postId, userId).Return(nil)
+	mockRepo.EXPECT().ToggleLike(gomock.Any(), gomock.Any(), postId, userId).Return(nil)
 
 	err := service.ToggleLike(context.Background(), postId, userId)
 	assert.NoError(t, err)

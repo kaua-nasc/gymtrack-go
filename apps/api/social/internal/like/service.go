@@ -1,6 +1,10 @@
 package like
 
-import "context"
+import (
+	"context"
+
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
+)
 
 type Service struct {
 	repo Repository
@@ -11,5 +15,9 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) ToggleLike(ctx context.Context, postId, userId string) error {
-	return s.repo.ToggleLike(ctx, postId, userId)
+	id, err := utils.GenerateUUIDV7String(ctx)
+	if err != nil {
+		return err
+	}
+	return s.repo.ToggleLike(ctx, id, postId, userId)
 }
