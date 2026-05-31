@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -170,14 +169,9 @@ func (s *Service) sanitizePost(p *domain.Post) {
 		p.MediaUrls = []string{}
 	}
 
-	storageURL := os.Getenv("AZURE_STORAGE_URL")
-	if storageURL == "" {
-		return
-	}
-
 	for i, url := range p.MediaUrls {
 		if !strings.HasPrefix(url, "http") {
-			p.MediaUrls[i] = storageURL + "/" + url
+			p.MediaUrls[i] = *storage.GetBlobURL(url)
 		}
 	}
 }
