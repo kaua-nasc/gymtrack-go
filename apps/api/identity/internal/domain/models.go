@@ -210,3 +210,23 @@ type ChartPoint struct {
 	Date  time.Time `json:"date"`
 	Value float64   `json:"value"`
 }
+
+type InsightSeverity string
+
+const (
+	InsightInfo     InsightSeverity = "INFO"
+	InsightWarning  InsightSeverity = "WARNING"
+	InsightCritical InsightSeverity = "CRITICAL"
+)
+
+type DashboardInsight struct {
+	Type        string          `json:"type"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Severity    InsightSeverity `json:"severity"`
+	Metadata    map[string]any  `json:"metadata,omitempty"`
+}
+
+type InsightsDashboard struct {
+	Insights []DashboardInsight `json:"insights"`
+}

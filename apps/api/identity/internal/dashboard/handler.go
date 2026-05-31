@@ -25,7 +25,29 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	{
 		protected.GET("/engagement", h.GetStudentEngagement)
 		protected.GET("/biometrics", h.GetStudentBiometrics)
+		protected.GET("/insights", h.GetStudentInsights)
 	}
+}
+
+func (h *Handler) GetStudentInsights(ctx *gin.Context) {
+	studentId := ctx.Param("id")
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	insights, err := h.srv.GetStudentInsights(ctx.Request.Context(), userVal.ID, studentId)
+	if err != nil {
+		if errors.Is(err, domain.ErrUnauthorizedTrainerAccess) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "failed to get student insights", slog.Any("error", err), slog.String("trainer_id", userVal.ID), slog.String("student_id", studentId))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get insights dashboard data"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, insights)
 }
 
 func (h *Handler) GetStudentBiometrics(ctx *gin.Context) {

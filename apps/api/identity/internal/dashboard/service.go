@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
@@ -156,6 +157,105 @@ func (s *Service) GetStudentBiometrics(ctx context.Context, trainerId, studentId
 	}
 
 	return dashboard, nil
+}
+
+func (s *Service) GetStudentInsights(ctx context.Context, trainerId, studentId string) (*domain.InsightsDashboard, error) {
+	// 1. Check Link
+	linkedAt, err := s.trainerRepo.GetTrainerLinkDate(ctx, trainerId, studentId)
+	if err != nil {
+		return nil, err
+	}
+	if linkedAt == nil {
+		return nil, domain.ErrUnauthorizedTrainerAccess
+	}
+
+	// 2. Check Privacy
+	privacy, err := s.userRepo.GetPrivacySettings(ctx, studentId)
+	if err != nil {
+		return nil, err
+	}
+
+	insights := []domain.DashboardInsight{}
+
+	// 3. Review Notifications (Weight & Measurements)
+	if privacy == nil || privacy.ShareWeightLogs || privacy.ShareBodyMeasurements {
+		wCount, mCount, err := s.metricsRepo.CountUnreviewedMetrics(ctx, studentId)
+		if err == nil {
+			if (privacy == nil || privacy.ShareWeightLogs) && wCount > 0 {
+				insights = append(insights, domain.DashboardInsight{
+					Type:        "PENDING_REVIEW_WEIGHT",
+					Title:       "Novos registros de peso",
+					Description: fmt.Sprintf("O aluno possui %d registros de peso aguardando sua revisão.", wCount),
+					Severity:    domain.InsightInfo,
+				})
+			}
+			if (privacy == nil || privacy.ShareBodyMeasurements) && mCount > 0 {
+				insights = append(insights, domain.DashboardInsight{
+					Type:        "PENDING_REVIEW_MEASUREMENTS",
+					Title:       "Novas medidas corporais",
+					Description: fmt.Sprintf("O aluno possui %d novas medidas aguardando sua revisão.", mCount),
+					Severity:    domain.InsightInfo,
+				})
+			}
+		}
+	}
+
+	// 4. Inactivity & Performance Alerts (Requires training-plan data)
+	if privacy == nil || privacy.ShareTrainingProgress {
+		token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+		summary, err := s.trainingPlanClient.GetEngagementSummary(ctx, studentId, token)
+		if err == nil {
+			// Inactivity Alert (> 3 days)
+			if summary.LastWorkoutDate != nil {
+				daysInactive := int(time.Since(*summary.LastWorkoutDate).Hours() / 24)
+				if daysInactive >= 3 {
+					insights = append(insights, domain.DashboardInsight{
+						Type:        "INACTIVITY_ALERT",
+						Title:       "Inatividade detectada",
+						Description: fmt.Sprintf("O aluno não registra treinos há %d dias.", daysInactive),
+						Severity:    domain.InsightWarning,
+					})
+				}
+			} else {
+				// No workouts at all?
+				insights = append(insights, domain.DashboardInsight{
+					Type:        "NO_WORKOUTS_ALERT",
+					Title:       "Sem registros de treino",
+					Description: "O aluno ainda não realizou nenhum treino deste plano.",
+					Severity:    domain.InsightInfo,
+				})
+			}
+		}
+	}
+
+	// 5. Stagnation Alert (Weight Plateau - last 30 days)
+	if privacy == nil || privacy.ShareWeightLogs {
+		end := time.Now().UTC()
+		start := end.AddDate(0, 0, -30)
+		history, _ := s.metricsRepo.ListWeightHistory(ctx, studentId, start, end)
+		if len(history) >= 4 { // Need at least some data points over the month
+			minW, maxW := history[0].Weight, history[0].Weight
+			for _, l := range history {
+				if l.Weight < minW {
+					minW = l.Weight
+				}
+				if l.Weight > maxW {
+					maxW = l.Weight
+				}
+			}
+			// If variation is less than 0.3kg over 30 days
+			if maxW-minW < 0.3 {
+				insights = append(insights, domain.DashboardInsight{
+					Type:        "STAGNATION_WEIGHT",
+					Title:       "Possível estagnação de peso",
+					Description: "O peso do aluno apresentou pouca variação nos últimos 30 dias.",
+					Severity:    domain.InsightInfo,
+				})
+			}
+		}
+	}
+
+	return &domain.InsightsDashboard{Insights: insights}, nil
 }
 
 func calculateDelta(history []*domain.WeightLog, currentVal float64, days int) float64 {

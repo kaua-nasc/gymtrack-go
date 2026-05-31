@@ -25,6 +25,7 @@ type Repository interface {
 	ListWeightLogs(ctx context.Context, userId string, since *time.Time, cursor *utils.CursorData, limit int) ([]*domain.WeightLog, *utils.CursorData, error)
 	ListWeightHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.WeightLog, error)
 	ListMeasurementsHistory(ctx context.Context, userId string, start, end time.Time) ([]*domain.BodyMeasurement, error)
+	CountUnreviewedMetrics(ctx context.Context, userId string) (int, int, error)
 }
 
 type PostgresRepository struct {
@@ -257,4 +258,22 @@ func (r *PostgresRepository) ListWeightLogs(ctx context.Context, userId string, 
 	}
 
 	return logs, nextCursor, nil
+}
+
+func (r *PostgresRepository) CountUnreviewedMetrics(ctx context.Context, userId string) (int, int, error) {
+	weightQuery := `SELECT COUNT(*) FROM weight_logs WHERE "userId" = $1 AND "trainerNote" IS NULL AND "deletedAt" IS NULL`
+	var weightCount int
+	err := r.db.QueryRowContext(ctx, weightQuery, userId).Scan(&weightCount)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not count unreviewed weight logs: %w", err)
+	}
+
+	measurementsQuery := `SELECT COUNT(*) FROM body_measurements WHERE "userId" = $1 AND "trainerNote" IS NULL AND "deletedAt" IS NULL`
+	var measurementsCount int
+	err = r.db.QueryRowContext(ctx, measurementsQuery, userId).Scan(&measurementsCount)
+	if err != nil {
+		return 0, 0, fmt.Errorf("could not count unreviewed body measurements: %w", err)
+	}
+
+	return weightCount, measurementsCount, nil
 }
