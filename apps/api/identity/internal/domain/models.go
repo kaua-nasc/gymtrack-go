@@ -29,15 +29,23 @@ const (
 type BodyMeasurementType string
 
 const (
-	Chest      BodyMeasurementType = "CHEST"
-	Waist      BodyMeasurementType = "WAIST"
-	Hips       BodyMeasurementType = "HIPS"
-	ArmLeft    BodyMeasurementType = "ARM_LEFT"
-	ArmRight   BodyMeasurementType = "ARM_RIGHT"
-	ThighLeft  BodyMeasurementType = "THIGH_LEFT"
-	ThighRight BodyMeasurementType = "THIGH_RIGHT"
-	CalfLeft   BodyMeasurementType = "CALF_LEFT"
-	CalfRight  BodyMeasurementType = "CALF_RIGHT"
+	Chest           BodyMeasurementType = "CHEST"
+	Waist           BodyMeasurementType = "WAIST"
+	Hips            BodyMeasurementType = "HIPS"
+	Neck            BodyMeasurementType = "NECK"
+	Shoulders       BodyMeasurementType = "SHOULDERS"
+	BicepLeft       BodyMeasurementType = "BICEP_LEFT"
+	BicepRight      BodyMeasurementType = "BICEP_RIGHT"
+	ForearmLeft     BodyMeasurementType = "FOREARM_LEFT"
+	ForearmRight    BodyMeasurementType = "FOREARM_RIGHT"
+	ThighLeft       BodyMeasurementType = "THIGH_LEFT"
+	ThighRight      BodyMeasurementType = "THIGH_RIGHT"
+	CalfLeft        BodyMeasurementType = "CALF_LEFT"
+	CalfRight       BodyMeasurementType = "CALF_RIGHT"
+	BodyFat         BodyMeasurementType = "BODY_FAT"
+	WaterPercentage BodyMeasurementType = "WATER_PERCENTAGE"
+	MuscleMass      BodyMeasurementType = "MUSCLE_MASS"
+	BoneMass        BodyMeasurementType = "BONE_MASS"
 )
 
 type MetricGoalStatus string
