@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Handler struct {
@@ -23,6 +24,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	protected := r.Group("/identity/users")
 	protected.Use(auth.AuthMiddleware())
 	{
+		protected.GET("/search", h.SearchUsers)
 		protected.GET("", h.ListUsers)
 		protected.GET("/:id", h.GetUser)
 		protected.PUT("/:id", h.UpdateProfile)
@@ -284,6 +286,28 @@ func (h *Handler) ChangeToTrainer(ctx *gin.Context) {
 	}
 
 	ctx.Status(http.StatusOK)
+}
+
+func (h *Handler) SearchUsers(ctx *gin.Context) {
+	q := ctx.Query("q")
+	cursor, limit := utils.GetPagination(ctx)
+	if limit > 50 {
+		limit = 50
+	}
+
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	users, nextCursor, err := h.srv.SearchUsers(ctx.Request.Context(), q, userVal.ID, cursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to search users", slog.Any("error", err), slog.String("query", q))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to search users"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(users, nextCursor))
 }
 
 func (h *Handler) ChangeToClient(ctx *gin.Context) {

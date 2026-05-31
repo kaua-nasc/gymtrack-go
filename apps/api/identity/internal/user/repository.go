@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/identity/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/lib/pq"
 )
 
@@ -20,6 +21,7 @@ type Repository interface {
 	ChangeProfileImage(ctx context.Context, u domain.User, pictureUrl string) error
 	GetPrivacySettings(ctx context.Context, userId string) (*domain.UserPrivacySettings, error)
 	UpsertPrivacySettings(ctx context.Context, settings domain.UserPrivacySettings) error
+	SearchByName(ctx context.Context, currentUserId string, term string, cursor *utils.CursorData, limit int) ([]*domain.User, *utils.CursorData, error)
 }
 
 type PostgresRepository struct {
@@ -242,4 +244,59 @@ func (r *PostgresRepository) UpsertPrivacySettings(ctx context.Context, s domain
 	)
 
 	return err
+}
+
+func (r *PostgresRepository) SearchByName(ctx context.Context, currentUserId string, term string, cursor *utils.CursorData, limit int) ([]*domain.User, *utils.CursorData, error) {
+	query := `
+		SELECT 
+			u.id, u."firstName", u."lastName", u.email, u.type, u."createdAt", u."updatedAt",
+			u.bio, u."profilePictureUrl", u.height, u."currentWeight", u."weightUnit", u."heightUnit",
+			u."trainerInviteCode", u.cref, u."isVerified",
+			EXISTS (SELECT 1 FROM user_follows WHERE "followerId" = NULLIF($4, '')::uuid AND "followingId" = u.id AND "deletedAt" IS NULL) as is_following
+		FROM users u 
+		WHERE (u."firstName" ILIKE $1 OR u."lastName" ILIKE $1 OR (u."firstName" || ' ' || u."lastName") ILIKE $1)
+		AND u."deletedAt" IS NULL
+		AND ($2::timestamp IS NULL OR u."createdAt" < $2)
+		ORDER BY u."createdAt" DESC
+		LIMIT $3`
+
+	searchTerm := "%" + term + "%"
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.CreatedAt
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, searchTerm, cursorTime, limit, currentUserId)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	users := make([]*domain.User, 0)
+	for rows.Next() {
+		var u domain.User
+		var isFollowing bool
+		err := rows.Scan(
+			&u.ID, &u.FirstName, &u.LastName, &u.Email, &u.Type, &u.CreatedAt, &u.UpdatedAt,
+			&u.Bio, &u.ProfilePictureUrl, &u.Height, &u.CurrentWeight, &u.WeightUnit, &u.HeightUnit,
+			&u.TrainerInviteCode, &u.Cref, &u.IsVerified,
+			&isFollowing,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		u.IsFollowing = &isFollowing
+		users = append(users, &u)
+	}
+
+	var nextCursor *utils.CursorData
+	if len(users) > 0 && len(users) == limit {
+		lastUser := users[len(users)-1]
+		nextCursor = &utils.CursorData{
+			ID:        *lastUser.ID,
+			CreatedAt: lastUser.CreatedAt,
+		}
+	}
+
+	return users, nextCursor, nil
 }

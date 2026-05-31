@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -246,4 +247,34 @@ func (s *Service) UpdatePrivacySettings(
 	}
 
 	return s.repo.UpsertPrivacySettings(ctx, settings)
+}
+
+func (s *Service) SearchUsers(ctx context.Context, term string, requesterId string, cursor string, limit int) ([]*domain.User, string, error) {
+	if len(strings.TrimSpace(term)) < 2 {
+		return []*domain.User{}, "", nil
+	}
+
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		slog.WarnContext(ctx, "failed to decode cursor", slog.String("cursor", cursor), slog.Any("error", err))
+	}
+
+	users, rawNextCursor, err := s.repo.SearchByName(ctx, requesterId, term, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, u := range users {
+		if requesterId != *u.ID {
+			settings, err := s.repo.GetPrivacySettings(ctx, *u.ID)
+			if err == nil && settings != nil {
+				u.ApplyPrivacy(settings)
+			}
+		}
+		u.Sanitize()
+	}
+
+	nextCursorStr, _ := utils.EncodeCursor(rawNextCursor)
+
+	return users, nextCursorStr, nil
 }

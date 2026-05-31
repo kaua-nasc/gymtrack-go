@@ -381,3 +381,67 @@ func TestService_ProfilePicture(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "AZURE_STORAGE_CONNECTION_STRING env variable not found")
 }
+
+func TestService_SearchUsers(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	service := NewService(mockRepo)
+
+	tests := []struct {
+		name         string
+		term         string
+		requesterId  string
+		cursorStr    *string
+		limit        int
+		mockBehavior func()
+		wantErr      bool
+		wantCount    int
+	}{
+		{
+			name:         "Return empty list for short term",
+			term:         "a",
+			requesterId:  "user-1",
+			mockBehavior: func() {},
+			wantErr:      false,
+			wantCount:    0,
+		},
+		{
+			name:        "Success search users",
+			term:        "John",
+			requesterId: "user-1",
+			limit:       10,
+			mockBehavior: func() {
+				userId2 := "user-2"
+				mockRepo.EXPECT().SearchByName(gomock.Any(), "user-1", "John", gomock.Any(), 10).Return([]*domain.User{
+					{ID: &userId2, FirstName: "John", LastName: "Doe", Password: "pass"},
+				}, nil, nil)
+				mockRepo.EXPECT().GetPrivacySettings(gomock.Any(), "user-2").Return(nil, nil)
+			},
+			wantErr:   false,
+			wantCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			cursor := ""
+			if tt.cursorStr != nil {
+				cursor = *tt.cursorStr
+			}
+			users, _, err := service.SearchUsers(context.Background(), tt.term, tt.requesterId, cursor, tt.limit)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, users, tt.wantCount)
+				if tt.wantCount > 0 {
+					assert.Empty(t, users[0].Password)
+				}
+			}
+		})
+	}
+}
