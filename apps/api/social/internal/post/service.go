@@ -40,11 +40,11 @@ func NewService(repo Repository, identity domain.IdentityClient, trainingPlan do
 func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId string) error {
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, egCtx := errgroup.WithContext(ctx)
 
 	// Validate author existence
 	g.Go(func() error {
-		if _, err := s.identity.FindUser(ctx, authorId, token); err != nil {
+		if _, err := s.identity.FindUser(egCtx, authorId, token); err != nil {
 			return fmt.Errorf("failed to verify author existence: %w", err)
 		}
 		return nil
@@ -53,7 +53,7 @@ func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId st
 	// Validate training plan existence (if applicable)
 	if post.EntityType != nil && *post.EntityType == domain.TrainingPlanPost && post.EntityId != nil {
 		g.Go(func() error {
-			exists, err := s.trainingPlan.ExistsPublicPlan(ctx, *post.EntityId, token)
+			exists, err := s.trainingPlan.ExistsPublicPlan(egCtx, *post.EntityId, token)
 			if err != nil {
 				return fmt.Errorf("failed to verify training plan visibility: %w", err)
 			}
@@ -119,19 +119,19 @@ func (s *Service) GetFeed(ctx context.Context, userId, cursor string, limit int)
 			plansIDs = append(plansIDs, id)
 		}
 
-		g, ctx := errgroup.WithContext(ctx)
+		g, egCtx := errgroup.WithContext(ctx)
 		var authorsMap map[string]any
 		var plansMap map[string]any
 
 		g.Go(func() error {
 			var err error
-			authorsMap, err = s.identity.ListUser(ctx, authorIDs, token)
+			authorsMap, err = s.identity.ListUser(egCtx, authorIDs, token)
 			return err
 		})
 
 		g.Go(func() error {
 			var err error
-			plansMap, err = s.trainingPlan.ListPlans(ctx, plansIDs, token)
+			plansMap, err = s.trainingPlan.ListPlans(egCtx, plansIDs, token)
 			return err
 		})
 
@@ -290,12 +290,12 @@ func (s *Service) GetPostsByAuthor(ctx context.Context, authorId, userId, cursor
 			plansIDs = append(plansIDs, id)
 		}
 
-		g, ctx := errgroup.WithContext(ctx)
+		g, egCtx := errgroup.WithContext(ctx)
 		var plansMap map[string]any
 
 		g.Go(func() error {
 			var err error
-			plansMap, err = s.trainingPlan.ListPlans(ctx, plansIDs, token)
+			plansMap, err = s.trainingPlan.ListPlans(egCtx, plansIDs, token)
 			return err
 		})
 

@@ -441,7 +441,7 @@ func (s *Service) ListPlan(ctx context.Context, authorId, cursor string, limit i
 		authorIDs = append(authorIDs, id)
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, egCtx := errgroup.WithContext(ctx)
 
 	var authorsMap map[string]*any
 
@@ -449,9 +449,9 @@ func (s *Service) ListPlan(ctx context.Context, authorId, cursor string, limit i
 
 	g.Go(func() error {
 		var err error
-		authorsMap, err = s.identity.ListUser(ctx, &authorIDs, token)
+		authorsMap, err = s.identity.ListUser(egCtx, &authorIDs, token)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to fetch authors", slog.Any("error", err))
+			slog.WarnContext(egCtx, "failed to fetch authors", slog.Any("error", err))
 		}
 		return err
 	})
