@@ -170,15 +170,14 @@ func (s *Service) UploadProfilePicture(ctx context.Context, id string, file io.R
 		return err
 	}
 
-	timestamp := strings.ReplaceAll(time.Now().UTC().String(), ":", "-")
-	timestamp = strings.ReplaceAll(timestamp, ".", "-")
-	filename := `identity/user/profile/user-` + id + `_` + timestamp + `.png`
+	filename := `identity/user/profile/profile.png`
 
-	if err := storage.UploadBuffer(ctx, filename, bytesVal); err != nil {
+	storageFilename, err := storage.UploadBuffer(ctx, filename, bytesVal)
+	if err != nil {
 		return fmt.Errorf("falha no upload: %w", err)
 	}
 
-	return s.repo.ChangeProfileImage(ctx, *userVal, filename)
+	return s.repo.ChangeProfileImage(ctx, *userVal, storageFilename)
 }
 
 func (s *Service) GetPrivacySettings(ctx context.Context, userId string) (*domain.UserPrivacySettings, error) {

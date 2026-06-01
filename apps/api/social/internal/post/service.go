@@ -244,14 +244,14 @@ func (s *Service) UploadMedia(ctx context.Context, authorId string, files []io.R
 		}
 
 		// Generate unique filename
-		timestamp := time.Now().UnixNano()
 		ext := "png" // default
 		if parts := strings.Split(filenames[i], "."); len(parts) > 1 {
 			ext = parts[len(parts)-1]
 		}
-		storageFilename := fmt.Sprintf("social/posts/media/%s-%d-%d.%s", authorId, timestamp, i, ext)
+		path := fmt.Sprintf("social/posts/media/%s.%s", filenames[i], ext)
 
-		if err := storage.UploadBuffer(ctx, storageFilename, content); err != nil {
+		storageFilename, err := storage.UploadBuffer(ctx, path, content)
+		if err != nil {
 			return nil, fmt.Errorf("failed to upload file %s: %w", filenames[i], err)
 		}
 

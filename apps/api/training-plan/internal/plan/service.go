@@ -238,20 +238,22 @@ func (s *Service) UploadExerciseMedia(ctx context.Context, exerciseId string, vi
 	if videoFile != nil {
 		ext := filepath.Ext(videoFile.Filename)
 		videoPath := fmt.Sprintf("exercises/%s/video%s", exerciseId, ext)
-		if err := storage.UploadBuffer(ctx, videoPath, videoFile.Data); err != nil {
+		storageFilename, err := storage.UploadBuffer(ctx, videoPath, videoFile.Data)
+		if err != nil {
 			return nil, nil, fmt.Errorf("failed to upload video: %w", err)
 		}
-		url := storage.GetBlobURL(videoPath)
+		url := storage.GetBlobURL(storageFilename)
 		videoUrl = url
 	}
 
 	if imageFile != nil {
 		ext := filepath.Ext(imageFile.Filename)
 		imagePath := fmt.Sprintf("exercises/%s/image%s", exerciseId, ext)
-		if err := storage.UploadBuffer(ctx, imagePath, imageFile.Data); err != nil {
+		storageFilename, err := storage.UploadBuffer(ctx, imagePath, imageFile.Data)
+		if err != nil {
 			return nil, nil, fmt.Errorf("failed to upload image: %w", err)
 		}
-		url := storage.GetBlobURL(imagePath)
+		url := storage.GetBlobURL(storageFilename)
 		imageUrl = url
 	}
 
