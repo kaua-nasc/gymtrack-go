@@ -86,6 +86,14 @@ func (s *Service) CreatePlan(ctx context.Context, plan domain.TrainingPlan, user
 	}
 
 	// 4. Save nested days and exercises (Cascade)
+	dayNames := make(map[string]bool)
+	for _, d := range plan.Days {
+		if dayNames[d.Name] {
+			return nil, fmt.Errorf("duplicate day name: %s", d.Name)
+		}
+		dayNames[d.Name] = true
+	}
+
 	for dayIdx := range plan.Days {
 		plan.Days[dayIdx].TrainingPlanId = *plan.Id
 		plan.Days[dayIdx].CreatedAt = now
@@ -153,6 +161,14 @@ func (s *Service) CreatePlanForStudent(ctx context.Context, studentId string, pl
 	}
 
 	// 4. Save nested days and exercises
+	dayNames := make(map[string]bool)
+	for _, d := range plan.Days {
+		if dayNames[d.Name] {
+			return nil, fmt.Errorf("duplicate day name: %s", d.Name)
+		}
+		dayNames[d.Name] = true
+	}
+
 	for dayIdx := range plan.Days {
 		plan.Days[dayIdx].TrainingPlanId = *plan.Id
 		plan.Days[dayIdx].CreatedAt = now
@@ -196,6 +212,14 @@ func (s *Service) CreatePlanForStudent(ctx context.Context, studentId string, pl
 }
 
 func (s *Service) CreateDay(ctx context.Context, day *domain.Day) error {
+	exists, err := s.repo.ExistsDayByName(ctx, day.TrainingPlanId, day.Name)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("a day with this name already exists in this training plan")
+	}
+
 	id, err := utils.GenerateUUIDV7(ctx)
 	if err != nil {
 		return err
@@ -322,13 +346,25 @@ func (s *Service) UpdatePlan(ctx context.Context, id string, data domain.Trainin
 }
 
 func (s *Service) DeletePlan(ctx context.Context, id string) error {
+	plan, err := s.repo.Find(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to find training plan: %w", err)
+	}
+	if plan == nil {
+		return errors.New("training plan not found")
+	}
+
+	if err := s.authorizeAccess(ctx, plan); err != nil {
+		return err
+	}
+
 	count, err := s.subRepo.CountActiveSubscriptionsByPlan(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to check active subscriptions: %w", err)
 	}
 
 	if count > 0 {
-		return errors.New("cannot delete a training plan with active subscriptions")
+		return errors.New("cannot delete a training plan with active subscriptions (not started or in progress)")
 	}
 
 	if err := s.repo.DeletePlan(ctx, id); err != nil {

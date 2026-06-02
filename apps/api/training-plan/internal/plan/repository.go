@@ -32,6 +32,7 @@ type Repository interface {
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
 	ExistsPlan(ctx context.Context, id string, publicOnly bool) (bool, error)
+	ExistsDayByName(ctx context.Context, planId string, name string) (bool, error)
 	UpdateRatingStats(ctx context.Context, planId string, sum *float64, count int) error
 }
 
@@ -488,6 +489,16 @@ func (r *PostgresRepository) ExistsPlan(ctx context.Context, id string, publicOn
 		return false, fmt.Errorf("could not check plan existence: %w", err)
 	}
 
+	return exists, nil
+}
+
+func (r *PostgresRepository) ExistsDayByName(ctx context.Context, planId string, name string) (bool, error) {
+	query := `SELECT EXISTS(SELECT 1 FROM days WHERE "trainingPlanId" = $1 AND name = $2 AND "deletedAt" IS NULL)`
+	var exists bool
+	err := r.db.QueryRowContext(ctx, query, planId, name).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("could not check day existence by name: %w", err)
+	}
 	return exists, nil
 }
 
