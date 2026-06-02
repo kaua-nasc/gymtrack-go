@@ -36,7 +36,12 @@ func (h *Handler) ListFollower(ctx *gin.Context) {
 	id := ctx.Param("id")
 	cursor, limit := utils.GetPagination(ctx)
 
-	users, nextCursor, err := h.srv.ListFollower(ctx.Request.Context(), id, cursor, limit)
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	users, nextCursor, err := h.srv.ListFollower(ctx.Request.Context(), id, userVal.ID, cursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list followers", slog.Any("error", err), slog.String("id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list followers"})
@@ -44,23 +49,25 @@ func (h *Handler) ListFollower(ctx *gin.Context) {
 	}
 
 	type followerResponse struct {
-		Id        string          `json:"id"`
-		FirstName string          `json:"firstName"`
-		LastName  string          `json:"lastName"`
-		Email     *string         `json:"email"`
-		Type      domain.UserType `json:"type"`
-		CreatedAt time.Time       `json:"createdAt"`
+		Id                string          `json:"id"`
+		FirstName         string          `json:"firstName"`
+		LastName          string          `json:"lastName"`
+		Email             *string         `json:"email"`
+		ProfilePictureUrl *string         `json:"profilePictureUrl"`
+		Type              domain.UserType `json:"type"`
+		CreatedAt         time.Time       `json:"createdAt"`
 	}
 
 	data := make([]followerResponse, len(users))
 	for i, u := range users {
 		data[i] = followerResponse{
-			Id:        *u.ID,
-			FirstName: u.FirstName,
-			LastName:  u.LastName,
-			Email:     u.Email,
-			Type:      u.Type,
-			CreatedAt: u.CreatedAt,
+			Id:                *u.ID,
+			FirstName:         u.FirstName,
+			LastName:          u.LastName,
+			Email:             u.Email,
+			ProfilePictureUrl: u.ProfilePictureUrl,
+			Type:              u.Type,
+			CreatedAt:         u.CreatedAt,
 		}
 	}
 
@@ -71,7 +78,12 @@ func (h *Handler) ListFollowing(ctx *gin.Context) {
 	id := ctx.Param("id")
 	cursor, limit := utils.GetPagination(ctx)
 
-	users, nextCursor, err := h.srv.ListFollowing(ctx.Request.Context(), id, cursor, limit)
+	userVal, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	users, nextCursor, err := h.srv.ListFollowing(ctx.Request.Context(), id, userVal.ID, cursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list following", slog.Any("error", err), slog.String("id", id))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list following"})
@@ -79,23 +91,25 @@ func (h *Handler) ListFollowing(ctx *gin.Context) {
 	}
 
 	type followerResponse struct {
-		Id        string          `json:"id"`
-		FirstName string          `json:"firstName"`
-		LastName  string          `json:"lastName"`
-		Email     *string         `json:"email"`
-		Type      domain.UserType `json:"type"`
-		CreatedAt time.Time       `json:"createdAt"`
+		Id                string          `json:"id"`
+		FirstName         string          `json:"firstName"`
+		LastName          string          `json:"lastName"`
+		Email             *string         `json:"email"`
+		ProfilePictureUrl *string         `json:"profilePictureUrl"`
+		Type              domain.UserType `json:"type"`
+		CreatedAt         time.Time       `json:"createdAt"`
 	}
 
 	data := make([]followerResponse, len(users))
 	for i, u := range users {
 		data[i] = followerResponse{
-			Id:        *u.ID,
-			FirstName: u.FirstName,
-			LastName:  u.LastName,
-			Email:     u.Email,
-			Type:      u.Type,
-			CreatedAt: u.CreatedAt,
+			Id:                *u.ID,
+			FirstName:         u.FirstName,
+			LastName:          u.LastName,
+			Email:             u.Email,
+			ProfilePictureUrl: u.ProfilePictureUrl,
+			Type:              u.Type,
+			CreatedAt:         u.CreatedAt,
 		}
 	}
 

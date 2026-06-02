@@ -22,7 +22,7 @@ func NewService(repo Repository, userRepo user.Repository) *Service {
 	}
 }
 
-func (s *Service) ListFollowing(ctx context.Context, id, cursor string, limit int) ([]*domain.User, string, error) {
+func (s *Service) ListFollowing(ctx context.Context, id, requesterId, cursor string, limit int) ([]*domain.User, string, error) {
 	var decodedCursor *utils.CursorData
 	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
 		// Log error if needed, but maintain current behavior of continuing with nil cursor
@@ -34,9 +34,11 @@ func (s *Service) ListFollowing(ctx context.Context, id, cursor string, limit in
 	}
 
 	for _, u := range users {
-		settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
-		if err == nil && settings != nil {
-			u.ApplyPrivacy(settings)
+		if requesterId != *u.ID {
+			settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
+			if err == nil && settings != nil {
+				u.ApplyPrivacy(settings)
+			}
 		}
 		u.Sanitize()
 	}
@@ -45,7 +47,7 @@ func (s *Service) ListFollowing(ctx context.Context, id, cursor string, limit in
 	return users, nextCursorStr, nil
 }
 
-func (s *Service) ListFollower(ctx context.Context, id, cursor string, limit int) ([]*domain.User, string, error) {
+func (s *Service) ListFollower(ctx context.Context, id, requesterId, cursor string, limit int) ([]*domain.User, string, error) {
 	var decodedCursor *utils.CursorData
 	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
 		// Log error if needed
@@ -57,9 +59,11 @@ func (s *Service) ListFollower(ctx context.Context, id, cursor string, limit int
 	}
 
 	for _, u := range users {
-		settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
-		if err == nil && settings != nil {
-			u.ApplyPrivacy(settings)
+		if requesterId != *u.ID {
+			settings, err := s.userRepo.GetPrivacySettings(ctx, *u.ID)
+			if err == nil && settings != nil {
+				u.ApplyPrivacy(settings)
+			}
 		}
 		u.Sanitize()
 	}
