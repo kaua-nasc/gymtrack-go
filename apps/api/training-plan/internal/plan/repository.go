@@ -27,7 +27,7 @@ type Repository interface {
 	ListDaysByPlan(ctx context.Context, planID string) ([]*domain.Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*domain.Exercise, error)
 	ListExercisesByPlan(ctx context.Context, planID string) ([]*domain.Exercise, error)
-	List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error)
+	List(ctx context.Context, authorId string, visibilities []domain.TrainingPlanVisibility, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error)
 	ListByIds(ctx context.Context, ids []string) ([]*domain.TrainingPlan, error)
 	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
@@ -199,7 +199,7 @@ func (r *PostgresRepository) FindComplete(ctx context.Context, id string) (*doma
 	return &p, nil
 }
 
-func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error) {
+func (r *PostgresRepository) List(ctx context.Context, authorId string, visibilities []domain.TrainingPlanVisibility, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error) {
 	sqlStr := `
 		SELECT 
 			id, name, "authorId", "timeInDays", type, visibility, 
@@ -207,15 +207,21 @@ func (r *PostgresRepository) List(ctx context.Context, authorId string, cursor *
 			"imageUrl", description, "createdAt", "updatedAt",
 			"totalRatingSum", "totalRatingsCount"
 		FROM training_plans 
-		WHERE 1=1`
+		WHERE "deletedAt" IS NULL`
 
 	var args []interface{}
 
 	if authorId != "" {
-		sqlStr += ` AND "authorId" = $1 AND "deletedAt" IS NULL`
+		sqlStr += ` AND "authorId" = $1`
 		args = append(args, authorId)
-	} else {
-		sqlStr += ` AND visibility = 'PUBLIC' AND "deletedAt" IS NULL`
+	}
+
+	if len(visibilities) > 0 {
+		sqlStr += fmt.Sprintf(` AND visibility = ANY($%d)`, len(args)+1)
+		args = append(args, pq.Array(visibilities))
+	} else if authorId == "" {
+		// Default to PUBLIC if no visibilities provided and no authorId
+		sqlStr += ` AND visibility = 'PUBLIC'`
 	}
 
 	if cursor != nil {

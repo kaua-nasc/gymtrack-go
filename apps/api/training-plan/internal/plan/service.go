@@ -458,7 +458,27 @@ func (s *Service) ListPlan(ctx context.Context, authorId, cursor string, limit i
 		slog.WarnContext(ctx, "failed to decode cursor", slog.String("cursor", cursor), slog.Any("error", err))
 	}
 
-	plans, rawNextCursor, err := s.repo.List(ctx, authorId, decodedCursor, limit)
+	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
+	if !ok {
+		return nil, "", errors.New("unauthorized")
+	}
+
+	visibilities := []domain.TrainingPlanVisibility{domain.Public}
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+
+	if authorId != "" {
+		if user.ID == authorId {
+			visibilities = append(visibilities, domain.Protected, domain.Private)
+		} else {
+			// Check if requester is a student of the author
+			requester, err := s.identity.FindUser(ctx, user.ID, token)
+			if err == nil && requester.StudentOf != nil && requester.StudentOf.TrainerId == authorId {
+				visibilities = append(visibilities, domain.Protected)
+			}
+		}
+	}
+
+	plans, rawNextCursor, err := s.repo.List(ctx, authorId, visibilities, decodedCursor, limit)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list training plans", slog.Any("error", err))
 		return nil, "", fmt.Errorf("error listing training plans")
@@ -482,8 +502,6 @@ func (s *Service) ListPlan(ctx context.Context, authorId, cursor string, limit i
 	g, egCtx := errgroup.WithContext(ctx)
 
 	var authorsMap map[string]*any
-
-	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 
 	g.Go(func() error {
 		var err error

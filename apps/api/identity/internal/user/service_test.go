@@ -181,6 +181,7 @@ func TestService_GetUser(t *testing.T) {
 			id:            "user-123",
 			currentUserId: "user-456",
 			mockBehavior: func() {
+				t.Setenv("AZURE_STORAGE_URL", "http://localhost:10000")
 				userIdStr := "user-123"
 				mockRepo.EXPECT().Find(gomock.Any(), "user-123", "user-456").Return(&domain.User{
 					ID:                &userIdStr,
@@ -193,7 +194,7 @@ func TestService_GetUser(t *testing.T) {
 			expectedUser: &domain.User{
 				ID:                func(s string) *string { return &s }("user-123"),
 				Password:          "",
-				ProfilePictureUrl: func(s string) *string { return &s }("/uploads/profile.png"),
+				ProfilePictureUrl: func(s string) *string { return &s }("http://localhost:10000/uploads/profile.png"),
 			},
 		},
 		{
