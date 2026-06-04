@@ -10,6 +10,7 @@ type UserType string
 const (
 	Trainer UserType = "PERSONAL_TRAINER"
 	Client  UserType = "CLIENT"
+	Admin   UserType = "ADMIN"
 )
 
 type WeightUnit string

@@ -1,0 +1,2 @@
+-- Removing a value from an enum is not supported in a simple way in PostgreSQL.
+-- To revert, you would need to recreate the enum type without the 'ADMIN' value.

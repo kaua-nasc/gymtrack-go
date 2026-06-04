@@ -22,6 +22,7 @@ type UserType string
 const (
 	Trainer UserType = "PERSONAL_TRAINER"
 	Client  UserType = "CLIENT"
+	Admin   UserType = "ADMIN"
 )
 
 type AuthUser struct {
@@ -92,7 +93,7 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		typedUserType := UserType(userType)
 
-		if typedUserType != Client && typedUserType != Trainer {
+		if typedUserType != Client && typedUserType != Trainer && typedUserType != Admin {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user type"})
 			c.Abort()
 			return
