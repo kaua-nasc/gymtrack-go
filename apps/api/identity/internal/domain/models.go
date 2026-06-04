@@ -48,26 +48,6 @@ const (
 	BoneMass        BodyMeasurementType = "BONE_MASS"
 )
 
-type MetricGoalType string
-
-const (
-	MetricGoalWeight  MetricGoalType = "WEIGHT"
-	MetricGoalBodyFat MetricGoalType = "BODY_FAT"
-	MetricGoalMuscle  MetricGoalType = "MUSCLE_MASS"
-	MetricGoalBone    MetricGoalType = "BONE_MASS"
-	MetricGoalChest   MetricGoalType = "CHEST"
-	MetricGoalWaist   MetricGoalType = "WAIST"
-	MetricGoalHips    MetricGoalType = "HIPS"
-)
-
-type MetricGoalStatus string
-
-const (
-	MetricGoalActive    MetricGoalStatus = "ACTIVE"
-	MetricGoalAchieved  MetricGoalStatus = "ACHIEVED"
-	MetricGoalAbandoned MetricGoalStatus = "ABANDONED"
-)
-
 // User Entity
 type User struct {
 	ID                *string    `json:"id" validate:"uuid"`
@@ -91,7 +71,6 @@ type User struct {
 
 	// Relations
 	Measurements    []BodyMeasurement        `json:"measurements,omitempty"`
-	MetricGoals     []MetricGoal             `json:"metricGoals,omitempty"`
 	TrainerOf       []TrainerStudentRelation `json:"trainerOf,omitempty"`
 	StudentOf       *TrainerStudentRelation  `json:"studentOf,omitempty"`
 	Followers       []UserFollows            `json:"followers,omitempty"`
@@ -111,23 +90,6 @@ type BodyMeasurement struct {
 	UserId        string              `json:"userId" validate:"required,uuid"`
 	TrainerNote   *string             `json:"trainerNote,omitempty"`
 	TrainerNoteAt *time.Time          `json:"trainerNoteAt,omitempty"`
-
-	// Relations
-	User *User `json:"user,omitempty"`
-}
-
-// MetricGoal Entity
-type MetricGoal struct {
-	ID            string           `json:"id" validate:"required,uuid"`
-	CreatedAt     time.Time        `json:"createdAt"`
-	UpdatedAt     time.Time        `json:"updatedAt"`
-	Type          MetricGoalType   `json:"type" validate:"required"`
-	StartingValue float64          `json:"startingValue" validate:"required"`
-	TargetValue   float64          `json:"targetValue" validate:"required"`
-	Deadline      *time.Time       `json:"deadline,omitempty"`
-	AchievedAt    *time.Time       `json:"achievedAt,omitempty"`
-	Status        MetricGoalStatus `json:"status" validate:"required"`
-	UserId        string           `json:"userId" validate:"required,uuid"`
 
 	// Relations
 	User *User `json:"user,omitempty"`
@@ -170,7 +132,6 @@ type UserPrivacySettings struct {
 	SharePastDataWithTrainer bool      `json:"sharePastDataWithTrainer"`
 	ShareBodyMeasurements    bool      `json:"shareBodyMeasurements"`
 	ShareWeightLogs          bool      `json:"shareWeightLogs"`
-	ShareMetricGoals         bool      `json:"shareMetricGoals"`
 	AllowTrainerNotes        bool      `json:"allowTrainerNotes"`
 	UserId                   string    `json:"userId" validate:"required,uuid"`
 

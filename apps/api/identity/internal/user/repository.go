@@ -198,7 +198,7 @@ func (r *PostgresRepository) GetPrivacySettings(ctx context.Context, userId stri
 		SELECT 
 			id, "createdAt", "updatedAt", "shareEmail", "shareTrainingProgress", 
 			"sharePastDataWithTrainer", "shareBodyMeasurements", "shareWeightLogs", 
-			"shareMetricGoals", "allowTrainerNotes", "userId"
+			"allowTrainerNotes", "userId"
 		FROM user_privacy_settings 
 		WHERE "userId" = $1 AND "deletedAt" IS NULL`
 
@@ -206,7 +206,7 @@ func (r *PostgresRepository) GetPrivacySettings(ctx context.Context, userId stri
 	err := r.db.QueryRowContext(ctx, query, userId).Scan(
 		&s.ID, &s.CreatedAt, &s.UpdatedAt, &s.ShareEmail, &s.ShareTrainingProgress,
 		&s.SharePastDataWithTrainer, &s.ShareBodyMeasurements, &s.ShareWeightLogs,
-		&s.ShareMetricGoals, &s.AllowTrainerNotes, &s.UserId,
+		&s.AllowTrainerNotes, &s.UserId,
 	)
 
 	if err != nil {
@@ -223,23 +223,22 @@ func (r *PostgresRepository) UpsertPrivacySettings(ctx context.Context, s domain
 	query := `
 		INSERT INTO user_privacy_settings (
 			id, "shareEmail", "shareTrainingProgress", "sharePastDataWithTrainer", 
-			"shareBodyMeasurements", "shareWeightLogs", "shareMetricGoals", 
+			"shareBodyMeasurements", "shareWeightLogs", 
 			"allowTrainerNotes", "userId", "updatedAt", "deletedAt"
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NULL)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NULL)
 		ON CONFLICT ("userId") DO UPDATE SET
 			"shareEmail" = EXCLUDED."shareEmail",
 			"shareTrainingProgress" = EXCLUDED."shareTrainingProgress",
 			"sharePastDataWithTrainer" = EXCLUDED."sharePastDataWithTrainer",
 			"shareBodyMeasurements" = EXCLUDED."shareBodyMeasurements",
 			"shareWeightLogs" = EXCLUDED."shareWeightLogs",
-			"shareMetricGoals" = EXCLUDED."shareMetricGoals",
 			"allowTrainerNotes" = EXCLUDED."allowTrainerNotes",
 			"updatedAt" = NOW(),
 			"deletedAt" = NULL`
 
 	_, err := r.db.ExecContext(ctx, query,
 		s.ID, s.ShareEmail, s.ShareTrainingProgress, s.SharePastDataWithTrainer,
-		s.ShareBodyMeasurements, s.ShareWeightLogs, s.ShareMetricGoals,
+		s.ShareBodyMeasurements, s.ShareWeightLogs,
 		s.AllowTrainerNotes, s.UserId,
 	)
 

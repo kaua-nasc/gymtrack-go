@@ -72,7 +72,6 @@ func (h *Handler) UpdatePrivacySettings(ctx *gin.Context) {
 		SharePastDataWithTrainer bool `json:"sharePastDataWithTrainer"`
 		ShareBodyMeasurements    bool `json:"shareBodyMeasurements"`
 		ShareWeightLogs          bool `json:"shareWeightLogs"`
-		ShareMetricGoals         bool `json:"shareMetricGoals"`
 		AllowTrainerNotes        bool `json:"allowTrainerNotes"`
 	}
 
@@ -84,7 +83,7 @@ func (h *Handler) UpdatePrivacySettings(ctx *gin.Context) {
 	err := h.srv.UpdatePrivacySettings(
 		ctx.Request.Context(), userVal.ID,
 		body.ShareEmail, body.ShareTrainingProgress, body.SharePastDataWithTrainer,
-		body.ShareBodyMeasurements, body.ShareWeightLogs, body.ShareMetricGoals,
+		body.ShareBodyMeasurements, body.ShareWeightLogs,
 		body.AllowTrainerNotes,
 	)
 

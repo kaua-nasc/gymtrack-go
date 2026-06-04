@@ -111,7 +111,6 @@ func (s *Service) GetStudentPrivacy(ctx context.Context, trainerId, studentId st
 			SharePastDataWithTrainer: false,
 			ShareBodyMeasurements:    false,
 			ShareWeightLogs:          false,
-			ShareMetricGoals:         false,
 			AllowTrainerNotes:        true,
 		}, nil
 	}

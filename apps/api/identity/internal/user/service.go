@@ -203,7 +203,6 @@ func (s *Service) GetPrivacySettings(ctx context.Context, userId string) (*domai
 			SharePastDataWithTrainer: false,
 			ShareBodyMeasurements:    false,
 			ShareWeightLogs:          false,
-			ShareMetricGoals:         false,
 			AllowTrainerNotes:        true,
 		}, nil
 	}
@@ -215,7 +214,7 @@ func (s *Service) UpdatePrivacySettings(
 	ctx context.Context,
 	userId string,
 	shareEmail, shareTrainingProgress, sharePastDataWithTrainer,
-	shareBodyMeasurements, shareWeightLogs, shareMetricGoals,
+	shareBodyMeasurements, shareWeightLogs,
 	allowTrainerNotes bool,
 ) error {
 	u, err := s.repo.Find(ctx, userId, "")
@@ -233,7 +232,6 @@ func (s *Service) UpdatePrivacySettings(
 		SharePastDataWithTrainer: sharePastDataWithTrainer,
 		ShareBodyMeasurements:    shareBodyMeasurements,
 		ShareWeightLogs:          shareWeightLogs,
-		ShareMetricGoals:         shareMetricGoals,
 		AllowTrainerNotes:        allowTrainerNotes,
 	}
 

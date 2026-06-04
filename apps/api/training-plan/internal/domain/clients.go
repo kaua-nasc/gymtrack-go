@@ -81,7 +81,6 @@ type UserPrivacySettings struct {
 	SharePastDataWithTrainer bool `json:"sharePastDataWithTrainer"`
 	ShareBodyMeasurements    bool `json:"shareBodyMeasurements"`
 	ShareWeightLogs          bool `json:"shareWeightLogs"`
-	ShareMetricGoals         bool `json:"shareMetricGoals"`
 	AllowTrainerNotes        bool `json:"allowTrainerNotes"`
 }
 
