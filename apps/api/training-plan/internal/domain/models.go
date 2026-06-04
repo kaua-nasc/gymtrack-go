@@ -76,7 +76,7 @@ type PlanDayProgressStatus string
 const (
 	DayInProgress PlanDayProgressStatus = "IN_PROGRESS"
 	DayCompleted  PlanDayProgressStatus = "COMPLETED"
-	DayCanceled   PlanDayProgressStatus = "CANCELLED"
+	DayCanceled   PlanDayProgressStatus = "CANCELED"
 )
 
 type ListSubscriptionFilters struct {

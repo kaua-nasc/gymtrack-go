@@ -57,7 +57,7 @@ func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string
 		SELECT 
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
 			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt",
-			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELLED') AND "deletedAt" IS NULL), 0) as completed_days_count
+			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELED') AND "deletedAt" IS NULL), 0) as completed_days_count
 		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL`
 
 	args := []interface{}{userId}
@@ -389,7 +389,7 @@ func (r *PostgresRepository) UpdateSubscriptionProgressStatus(ctx context.Contex
 }
 
 func (r *PostgresRepository) CountSubscriptionProgress(ctx context.Context, subsId string) (int, error) {
-	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NULL AND "planSubscriptionId" = $1 AND status IN ('COMPLETED', 'CANCELLED')`
+	query := `SELECT COUNT(*) FROM plan_day_progress WHERE "deletedAt" IS NULL AND "planSubscriptionId" = $1 AND status IN ('COMPLETED', 'CANCELED')`
 
 	var count int
 	err := r.db.QueryRowContext(ctx, query, subsId).Scan(&count)

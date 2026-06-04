@@ -48,6 +48,18 @@ const (
 	BoneMass        BodyMeasurementType = "BONE_MASS"
 )
 
+type MetricGoalType string
+
+const (
+	MetricGoalWeight  MetricGoalType = "WEIGHT"
+	MetricGoalBodyFat MetricGoalType = "BODY_FAT"
+	MetricGoalMuscle  MetricGoalType = "MUSCLE_MASS"
+	MetricGoalBone    MetricGoalType = "BONE_MASS"
+	MetricGoalChest   MetricGoalType = "CHEST"
+	MetricGoalWaist   MetricGoalType = "WAIST"
+	MetricGoalHips    MetricGoalType = "HIPS"
+)
+
 type MetricGoalStatus string
 
 const (
@@ -109,7 +121,7 @@ type MetricGoal struct {
 	ID            string           `json:"id" validate:"required,uuid"`
 	CreatedAt     time.Time        `json:"createdAt"`
 	UpdatedAt     time.Time        `json:"updatedAt"`
-	Type          string           `json:"type" validate:"required"`
+	Type          MetricGoalType   `json:"type" validate:"required"`
 	StartingValue float64          `json:"startingValue" validate:"required"`
 	TargetValue   float64          `json:"targetValue" validate:"required"`
 	Deadline      *time.Time       `json:"deadline,omitempty"`
