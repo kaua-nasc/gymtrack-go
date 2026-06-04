@@ -79,6 +79,15 @@ const (
 	DayCanceled   PlanDayProgressStatus = "CANCELLED"
 )
 
+type ListSubscriptionFilters struct {
+	Status     *PlanSubscriptionStatus
+	Type       *PlanSubscriptionType
+	PlanType   *TrainingPlanType
+	Visibility *TrainingPlanVisibility
+	Level      *TrainingPlanLevel
+	AuthorId   *string
+}
+
 type WeeklyDayProgress struct {
 	Mon *PlanDayProgress `json:"mon"`
 	Tue *PlanDayProgress `json:"tue"`

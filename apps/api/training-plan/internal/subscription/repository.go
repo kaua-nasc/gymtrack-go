@@ -14,7 +14,7 @@ import (
 
 //go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=subscription
 type Repository interface {
-	ListSubscription(ctx context.Context, userId string) ([]*domain.PlanSubscription, error)
+	ListSubscription(ctx context.Context, userId string, filters domain.ListSubscriptionFilters) ([]*domain.PlanSubscription, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
 	FindSubscription(ctx context.Context, id string) (*domain.PlanSubscription, error)
 	CreatePlanSubscription(ctx context.Context, s *domain.PlanSubscription) error
@@ -52,7 +52,7 @@ func NewRepository(database *sql.DB) Repository {
 	}
 }
 
-func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string) ([]*domain.PlanSubscription, error) {
+func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string, filters domain.ListSubscriptionFilters) ([]*domain.PlanSubscription, error) {
 	query := `
 		SELECT 
 			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
@@ -60,7 +60,39 @@ func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string
 			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELLED') AND "deletedAt" IS NULL), 0) as completed_days_count
 		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL`
 
-	rows, err := r.db.QueryContext(ctx, query, userId)
+	args := []interface{}{userId}
+
+	if filters.Status != nil {
+		query += fmt.Sprintf(` AND subs.status = $%d`, len(args)+1)
+		args = append(args, *filters.Status)
+	}
+
+	if filters.Type != nil {
+		query += fmt.Sprintf(` AND subs.type = $%d`, len(args)+1)
+		args = append(args, *filters.Type)
+	}
+
+	if filters.PlanType != nil {
+		query += fmt.Sprintf(` AND plans.type = $%d`, len(args)+1)
+		args = append(args, *filters.PlanType)
+	}
+
+	if filters.Visibility != nil {
+		query += fmt.Sprintf(` AND plans.visibility = $%d`, len(args)+1)
+		args = append(args, *filters.Visibility)
+	}
+
+	if filters.Level != nil {
+		query += fmt.Sprintf(` AND plans.level = $%d`, len(args)+1)
+		args = append(args, *filters.Level)
+	}
+
+	if filters.AuthorId != nil {
+		query += fmt.Sprintf(` AND plans."authorId" = $%d`, len(args)+1)
+		args = append(args, *filters.AuthorId)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

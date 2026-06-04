@@ -27,7 +27,7 @@ func TestService_ListSubscription(t *testing.T) {
 			name:   "Success list subscriptions",
 			userId: "user-123",
 			mockBehavior: func() {
-				mockRepo.EXPECT().ListSubscription(gomock.Any(), "user-123").Return([]*domain.PlanSubscription{}, nil)
+				mockRepo.EXPECT().ListSubscription(gomock.Any(), "user-123", domain.ListSubscriptionFilters{}).Return([]*domain.PlanSubscription{}, nil)
 				mockIdentity.EXPECT().FindUser(gomock.Any(), "user-123", gomock.Any()).Return(&domain.User{}, nil)
 			},
 			wantErr: false,
@@ -37,7 +37,7 @@ func TestService_ListSubscription(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockBehavior()
-			_, err := service.ListSubscription(context.Background(), tt.userId)
+			_, err := service.ListSubscription(context.Background(), tt.userId, domain.ListSubscriptionFilters{})
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

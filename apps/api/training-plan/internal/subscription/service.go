@@ -27,10 +27,10 @@ func NewService(
 	}
 }
 
-func (s *Service) ListSubscription(ctx context.Context, userId string) ([]*domain.PlanSubscription, error) {
+func (s *Service) ListSubscription(ctx context.Context, userId string, filters domain.ListSubscriptionFilters) ([]*domain.PlanSubscription, error) {
 	slog.InfoContext(ctx, "listing subscriptions", slog.String("user_id", userId))
 
-	subscriptions, err := s.repo.ListSubscription(ctx, userId)
+	subscriptions, err := s.repo.ListSubscription(ctx, userId, filters)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list subscriptions", slog.String("user_id", userId), slog.Any("error", err))
 		return nil, err
@@ -60,7 +60,7 @@ func (s *Service) ListSubscription(ctx context.Context, userId string) ([]*domai
 	return filteredSubs, nil
 }
 
-func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId string) ([]*domain.PlanSubscription, error) {
+func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId string, filters domain.ListSubscriptionFilters) ([]*domain.PlanSubscription, error) {
 	slog.InfoContext(ctx, "listing subscriptions", slog.String("user_id", userId))
 
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
@@ -70,7 +70,7 @@ func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId strin
 		return nil, err
 	}
 
-	subscriptions, err := s.repo.ListSubscription(ctx, userId)
+	subscriptions, err := s.repo.ListSubscription(ctx, userId, filters)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to list subscriptions", slog.String("user_id", userId), slog.Any("error", err))
 		return nil, err

@@ -67,7 +67,9 @@ func (h *Handler) ListSubscription(ctx *gin.Context) {
 		userId = user.ID
 	}
 
-	subscriptions, err := h.srv.ListSubscription(ctx.Request.Context(), userId)
+	filters := h.parseFilters(ctx)
+
+	subscriptions, err := h.srv.ListSubscription(ctx.Request.Context(), userId, filters)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to list subscriptions", slog.Any("error", err), slog.String("user_id", userId))
 		ctx.JSON(http.StatusInternalServerError, err.Error())
@@ -84,7 +86,9 @@ func (h *Handler) ListSubscriptionByUserId(ctx *gin.Context) {
 		return
 	}
 
-	res, err := h.srv.ListSubscriptionByUserId(ctx.Request.Context(), user.ID, userId)
+	filters := h.parseFilters(ctx)
+
+	res, err := h.srv.ListSubscriptionByUserId(ctx.Request.Context(), user.ID, userId, filters)
 	if err != nil {
 		if errors.Is(err, domain.ErrPrivacySettingsForbidden) {
 			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
@@ -96,6 +100,41 @@ func (h *Handler) ListSubscriptionByUserId(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) parseFilters(ctx *gin.Context) domain.ListSubscriptionFilters {
+	var filters domain.ListSubscriptionFilters
+
+	if status := ctx.Query("status"); status != "" {
+		s := domain.PlanSubscriptionStatus(status)
+		filters.Status = &s
+	}
+
+	if subType := ctx.Query("type"); subType != "" {
+		t := domain.PlanSubscriptionType(subType)
+		filters.Type = &t
+	}
+
+	if planType := ctx.Query("planType"); planType != "" {
+		pt := domain.TrainingPlanType(planType)
+		filters.PlanType = &pt
+	}
+
+	if visibility := ctx.Query("visibility"); visibility != "" {
+		v := domain.TrainingPlanVisibility(visibility)
+		filters.Visibility = &v
+	}
+
+	if level := ctx.Query("level"); level != "" {
+		l := domain.TrainingPlanLevel(level)
+		filters.Level = &l
+	}
+
+	if authorId := ctx.Query("authorId"); authorId != "" {
+		filters.AuthorId = &authorId
+	}
+
+	return filters
 }
 
 func (h *Handler) Subscribe(ctx *gin.Context) {
