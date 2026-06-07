@@ -1,7 +1,7 @@
-import type { AuditedPost } from '../../api/queries/useAuditHistory'
+import type { AuditLog } from '../../api/queries/useAuditHistory'
 
 interface AuditedPostCardProps {
-  post: AuditedPost
+  log: AuditLog
 }
 
 const levelLabel: Record<string, string> = {
@@ -18,18 +18,25 @@ const typeLabel: Record<string, string> = {
   GENERAL: 'Geral',
 }
 
-export function AuditedPostCard({ post }: AuditedPostCardProps) {
-  const authorName = post.author
+export function AuditedPostCard({ log }: AuditedPostCardProps) {
+  const post = log.post
+  const authorName = post?.author
     ? `${post.author.firstName} ${post.author.lastName}`
     : 'Autor Desconhecido'
 
-  const dateStr = new Date(post.createdAt).toLocaleDateString('pt-BR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const adminName = log.admin
+    ? `${log.admin.firstName} ${log.admin.lastName}`
+    : 'Administrador Desconhecido'
 
-  const auditedDateStr = new Date(post.updatedAt).toLocaleDateString('pt-BR', {
+  const dateStr = post?.createdAt
+    ? new Date(post.createdAt).toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '-'
+
+  const auditedDateStr = new Date(log.createdAt).toLocaleDateString('pt-BR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -42,7 +49,7 @@ export function AuditedPostCard({ post }: AuditedPostCardProps) {
       <div className="p-6">
         <header className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 rounded-full bg-card flex items-center justify-center font-bold text-text-muted overflow-hidden">
-            {post.author?.profilePictureUrl ? (
+            {post?.author?.profilePictureUrl ? (
               <img src={post.author.profilePictureUrl} alt={authorName} className="w-full h-full object-cover" />
             ) : (
               authorName.charAt(0)
@@ -56,10 +63,10 @@ export function AuditedPostCard({ post }: AuditedPostCardProps) {
 
         <div className="space-y-4">
           <p className="text-text-gray whitespace-pre-wrap leading-relaxed">
-            {post.content}
+            {post?.content}
           </p>
 
-          {post.trainingPlan && (
+          {post?.trainingPlan && (
             <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex gap-4">
                 {post.trainingPlan.imageUrl && (
@@ -97,7 +104,7 @@ export function AuditedPostCard({ post }: AuditedPostCardProps) {
             </div>
           )}
 
-          {post.mediaUrls && post.mediaUrls.length > 0 && (
+          {post?.mediaUrls && post.mediaUrls.length > 0 && (
             <div className="grid gap-2 grid-cols-2">
               {post.mediaUrls.map((url, i) => (
                 <img
@@ -117,20 +124,23 @@ export function AuditedPostCard({ post }: AuditedPostCardProps) {
           <div className="flex items-center gap-2">
             <span
               className={`text-xs uppercase tracking-wider font-bold px-3 py-1 rounded-full ${
-                post.status === 'APPROVED'
+                log.newStatus === 'APPROVED'
                   ? 'bg-success/15 text-success'
                   : 'bg-error/15 text-error'
               }`}
             >
-              {post.status === 'APPROVED' ? 'Aprovado' : 'Rejeitado'}
+              {log.newStatus === 'APPROVED' ? 'Aprovado' : 'Rejeitado'}
             </span>
             <span className="text-xs text-text-muted">em {auditedDateStr}</span>
           </div>
+          <div className="text-xs text-text-muted">
+            por <span className="font-semibold text-text-gray">{adminName}</span>
+          </div>
         </div>
-        {post.status === 'REJECTED' && post.rejectedReason && (
+        {log.newStatus === 'REJECTED' && log.reason && (
           <div className="mt-3 p-3 rounded-xl bg-error/5 border border-error/20">
             <p className="text-xs font-semibold text-error mb-1">Motivo da rejeição:</p>
-            <p className="text-sm text-text-gray">{post.rejectedReason}</p>
+            <p className="text-sm text-text-gray">{log.reason}</p>
           </div>
         )}
       </footer>

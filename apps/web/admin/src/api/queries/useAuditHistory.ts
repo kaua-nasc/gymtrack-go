@@ -4,14 +4,15 @@ import { apiFetch } from '../client'
 export interface AuditedPost {
   id: string
   createdAt: string
-  updatedAt: string
-  authorId: string
   content: string
   mediaUrls: string[]
-  status: 'APPROVED' | 'REJECTED'
+  status: 'APPROVED' | 'REJECTED' | 'PENDING'
   rejectedReason?: string
-  entityId?: string
-  entityType?: 'TRAINING_PLAN'
+  author?: {
+    firstName: string
+    lastName: string
+    profilePictureUrl?: string
+  }
   trainingPlan?: {
     id: string
     name: string
@@ -21,7 +22,18 @@ export interface AuditedPost {
     imageUrl?: string
     description?: string
   }
-  author?: {
+}
+
+export interface AuditLog {
+  id: string
+  postId: string
+  adminId: string
+  previousStatus: string
+  newStatus: string
+  reason?: string
+  createdAt: string
+  post?: AuditedPost
+  admin?: {
     firstName: string
     lastName: string
     profilePictureUrl?: string
@@ -29,7 +41,7 @@ export interface AuditedPost {
 }
 
 interface AuditHistoryResponse {
-  data: AuditedPost[]
+  data: AuditLog[]
   nextCursor?: string
 }
 

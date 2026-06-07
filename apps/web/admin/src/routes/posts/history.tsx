@@ -1,8 +1,8 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../../store/auth'
 import { Sidebar } from '../../components/Sidebar'
-import { useAuditHistory } from '../../api/queries/useAuditHistory'
+import { useAuditHistory, type AuditLog } from '../../api/queries/useAuditHistory'
 import { AuditedPostCard } from '../../features/posts/AuditedPostCard'
 
 export const Route = createFileRoute('/posts/history')({
@@ -23,7 +23,7 @@ function AuditHistoryPage() {
   const [filterError, setFilterError] = useState('')
   const [appliedFilters, setAppliedFilters] = useState({ status: '', startDate: '', endDate: '' })
   const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const [allPosts, setAllPosts] = useState<any[]>([])
+  const [logs, setLogs] = useState<AuditLog[]>([])
 
   const today = new Date().toISOString().split('T')[0]
 
@@ -33,8 +33,17 @@ function AuditHistoryPage() {
 
   const { data, isLoading, isError, error } = useAuditHistory(filters, cursor)
 
-  const posts = data?.data || []
   const nextCursor = data?.nextCursor
+
+  useEffect(() => {
+    if (data?.data) {
+      if (!cursor) {
+        setLogs(data.data)
+      } else {
+        setLogs((prev) => [...prev, ...data.data])
+      }
+    }
+  }, [data, cursor])
 
   const clearError = () => { if (filterError) setFilterError('') }
 
@@ -58,7 +67,7 @@ function AuditHistoryPage() {
     const end = endDate ? new Date(endDate + 'T23:59:59').toISOString() : ''
     setAppliedFilters({ status: statusFilter, startDate: start, endDate: end })
     setCursor(undefined)
-    setAllPosts([])
+    setLogs([])
   }
 
   const loadMore = () => {
@@ -145,7 +154,7 @@ function AuditHistoryPage() {
             </div>
           )}
 
-          {!isLoading && !isError && posts.length === 0 && cursor === undefined && (
+          {!isLoading && !isError && logs.length === 0 && cursor === undefined && (
             <div className="flex flex-col items-center justify-center p-20 bg-surface border border-border rounded-3xl text-center">
               <div className="w-20 h-20 bg-text-muted/10 text-text-muted rounded-full flex items-center justify-center mb-6 text-3xl">
                 📋
@@ -155,8 +164,8 @@ function AuditHistoryPage() {
             </div>
           )}
 
-          {posts.map((post) => (
-            <AuditedPostCard key={post.id} post={post} />
+          {logs.map((log) => (
+            <AuditedPostCard key={log.id} log={log} />
           ))}
 
           {nextCursor && (

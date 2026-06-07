@@ -24,8 +24,8 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 	FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
 	FindPending(ctx context.Context, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
-	UpdateStatus(ctx context.Context, id string, status domain.PostStatus, reason *string) error
-	FindAuditHistory(ctx context.Context, status domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.Post, *AuditCursorData, error)
+	AuditPost(ctx context.Context, id string, status domain.PostStatus, reason *string, adminId string) error
+	FindAuditLogs(ctx context.Context, newStatus domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.AuditLog, *AuditCursorData, error)
 }
 
 type PostgresRepository struct {
@@ -141,20 +141,52 @@ func (r *PostgresRepository) FindPending(ctx context.Context, cursor *utils.Curs
 	return posts, nextCursor, nil
 }
 
-func (r *PostgresRepository) FindAuditHistory(ctx context.Context, status domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.Post, *AuditCursorData, error) {
+func (r *PostgresRepository) AuditPost(ctx context.Context, id string, status domain.PostStatus, reason *string, adminId string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	updateQuery := `UPDATE posts SET status = $1, "updatedAt" = NOW(), "rejectedReason" = $2 WHERE id = $3`
+	_, err = tx.ExecContext(ctx, updateQuery, status, reason, id)
+	if err != nil {
+		return err
+	}
+
+	previousStatusQuery := `SELECT status FROM posts WHERE id = $1`
+	var previousStatus domain.PostStatus
+	err = tx.QueryRowContext(ctx, previousStatusQuery, id).Scan(&previousStatus)
+	if err != nil {
+		return err
+	}
+
+	logId, err := utils.GenerateUUIDV7String(ctx)
+	if err != nil {
+		return err
+	}
+	insertQuery := `
+		INSERT INTO post_audit_logs (id, "postId", "adminId", "previousStatus", "newStatus", reason, "createdAt")
+		VALUES ($1, $2, $3, $4, $5, $6, NOW())
+	`
+	_, err = tx.ExecContext(ctx, insertQuery, logId, id, adminId, previousStatus, status, reason)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *PostgresRepository) FindAuditLogs(ctx context.Context, newStatus domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.AuditLog, *AuditCursorData, error) {
 	query := `
 		SELECT 
-			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status, p."rejectedReason",
-			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
-			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
-			false as liked_by_me
-		FROM posts p
-		WHERE ("deletedAt" IS NULL) 
-			AND (p.status = $1 OR $1 IS NULL)
-			AND ($2::timestamp IS NULL OR p."updatedAt" >= $2)
-			AND ($3::timestamp IS NULL OR p."updatedAt" <= $3)
-			AND ($4::timestamp IS NULL OR p."updatedAt" < $4)
-		ORDER BY p."updatedAt" DESC
+			l.id, l."postId", l."adminId", l."previousStatus", l."newStatus", l.reason, l."createdAt"
+		FROM post_audit_logs l
+		WHERE ($1::post_status_enum IS NULL OR l."newStatus" = $1)
+			AND ($2::timestamp IS NULL OR l."createdAt" >= $2)
+			AND ($3::timestamp IS NULL OR l."createdAt" <= $3)
+			AND ($4::timestamp IS NULL OR l."createdAt" < $4)
+		ORDER BY l."createdAt" DESC
 		LIMIT $5
 	`
 	var cursorTime interface{}
@@ -162,8 +194,8 @@ func (r *PostgresRepository) FindAuditHistory(ctx context.Context, status domain
 		cursorTime = cursor.UpdatedAt
 	}
 
-	var statusArg interface{} = status
-	if status == "" {
+	var statusArg interface{} = newStatus
+	if newStatus == "" {
 		statusArg = nil
 	}
 
@@ -173,44 +205,37 @@ func (r *PostgresRepository) FindAuditHistory(ctx context.Context, status domain
 	}
 	defer rows.Close()
 
-	posts := make([]domain.Post, 0)
+	logs := make([]domain.AuditLog, 0)
 	for rows.Next() {
-		var p domain.Post
+		var l domain.AuditLog
 		err := rows.Scan(
-			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status, &p.RejectedReason,
-			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
+			&l.Id, &l.PostId, &l.AdminId, &l.PreviousStatus, &l.NewStatus, &l.Reason, &l.CreatedAt,
 		)
 		if err != nil {
 			return nil, nil, err
 		}
-		posts = append(posts, p)
+		logs = append(logs, l)
 	}
 
 	var nextCursor *AuditCursorData
-	if len(posts) > 0 && len(posts) == limit {
-		lastPost := posts[len(posts)-1]
+	if len(logs) > 0 && len(logs) == limit {
+		lastLog := logs[len(logs)-1]
 		nextCursor = &AuditCursorData{
-			ID:        *lastPost.Id,
-			UpdatedAt: lastPost.UpdatedAt,
+			ID:        lastLog.Id,
+			UpdatedAt: lastLog.CreatedAt,
 		}
 	}
 
-	return posts, nextCursor, nil
-}
-
-func (r *PostgresRepository) UpdateStatus(ctx context.Context, id string, status domain.PostStatus, reason *string) error {
-	query := `UPDATE posts SET status = $1, "updatedAt" = NOW(), "rejectedReason" = $2 WHERE id = $3`
-	_, err := r.db.ExecContext(ctx, query, status, reason, id)
-	return err
+	return logs, nextCursor, nil
 }
 
 func (r *PostgresRepository) FindById(ctx context.Context, id string) (*domain.Post, error) {
 	query := `
-		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls", status
+		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls", status, "rejectedReason"
 		FROM posts WHERE id = $1 AND "deletedAt" IS NULL
 	`
 	var p domain.Post
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status)
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status, &p.RejectedReason)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -235,7 +260,7 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
-			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status,
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status, p."rejectedReason",
 			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
@@ -259,7 +284,7 @@ func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, current
 	for rows.Next() {
 		var p domain.Post
 		err := rows.Scan(
-			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status,
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status, &p.RejectedReason,
 			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
 		)
 		if err != nil {

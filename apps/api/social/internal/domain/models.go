@@ -59,3 +59,18 @@ type Comment struct {
 	// Virtual fields
 	Author any `json:"author,omitempty"`
 }
+
+type AuditLog struct {
+	Id             string     `json:"id"`
+	PostId         string     `json:"postId"`
+	AdminId        string     `json:"adminId"`
+	PreviousStatus PostStatus `json:"previousStatus"`
+	NewStatus      PostStatus `json:"newStatus"`
+	Reason         *string    `json:"reason,omitempty"`
+	CreatedAt      time.Time  `json:"createdAt"`
+
+	// Relations
+	Post   *Post `json:"post,omitempty"`
+	Author any   `json:"author,omitempty"`
+	Admin  any   `json:"admin,omitempty"`
+}

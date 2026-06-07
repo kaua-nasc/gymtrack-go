@@ -415,10 +415,10 @@ func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, 
 		return fmt.Errorf("admins cannot audit their own posts")
 	}
 
-	return s.repo.UpdateStatus(ctx, postId, status, reason)
+	return s.repo.AuditPost(ctx, postId, status, reason, adminId)
 }
 
-func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, startDateStr, endDateStr, cursor string, limit int) ([]domain.Post, string, error) {
+func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, startDateStr, endDateStr, cursor string, limit int) ([]domain.AuditLog, string, error) {
 	// Verify admin role
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 	userAny, err := s.identity.FindUser(ctx, adminId, token)
@@ -430,12 +430,12 @@ func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, start
 		return nil, "", fmt.Errorf("forbidden: only admins can view audit history")
 	}
 
-	var status domain.PostStatus
+	var newStatus domain.PostStatus
 	if statusStr != "" {
 		if statusStr != string(domain.PostApproved) && statusStr != string(domain.PostRejected) {
 			return nil, "", fmt.Errorf("invalid status filter")
 		}
-		status = domain.PostStatus(statusStr)
+		newStatus = domain.PostStatus(statusStr)
 	}
 
 	var startDate, endDate *time.Time
@@ -460,18 +460,39 @@ func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, start
 		utils.DecodeCursor(cursor, decodedCursor)
 	}
 
-	posts, rawNextCursor, err := s.repo.FindAuditHistory(ctx, status, startDate, endDate, decodedCursor, limit)
+	logs, rawNextCursor, err := s.repo.FindAuditLogs(ctx, newStatus, startDate, endDate, decodedCursor, limit)
 	if err != nil {
 		return nil, "", err
 	}
 
-	if len(posts) > 0 {
+	if len(logs) > 0 {
+		postIDsMap := make(map[string]bool)
+		adminIDsMap := make(map[string]bool)
+		for _, l := range logs {
+			postIDsMap[l.PostId] = true
+			adminIDsMap[l.AdminId] = true
+		}
+
+		var postIDs []string
+		for id := range postIDsMap {
+			postIDs = append(postIDs, id)
+		}
+		var adminIDs []string
+		for id := range adminIDsMap {
+			adminIDs = append(adminIDs, id)
+		}
+
+		// Fetch posts and collect author IDs (sequential, no race condition)
+		postsMap := make(map[string]*domain.Post)
 		authorIDsMap := make(map[string]bool)
-		plansIDsMap := make(map[string]bool)
-		for _, p := range posts {
-			authorIDsMap[p.AuthorId] = true
-			if p.EntityType != nil && *p.EntityType == domain.TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
-				plansIDsMap[*p.EntityId] = true
+		for _, pid := range postIDs {
+			post, err := s.repo.FindById(ctx, pid)
+			if err != nil {
+				continue
+			}
+			if post != nil {
+				postsMap[pid] = post
+				authorIDsMap[post.AuthorId] = true
 			}
 		}
 
@@ -479,14 +500,11 @@ func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, start
 		for id := range authorIDsMap {
 			authorIDs = append(authorIDs, id)
 		}
-		var plansIDs []string
-		for id := range plansIDsMap {
-			plansIDs = append(plansIDs, id)
-		}
 
-		g, egCtx := errgroup.WithContext(ctx)
+		// Fetch authors and admins in parallel
 		var authorsMap map[string]any
-		var plansMap map[string]any
+		var adminsMap map[string]any
+		g, egCtx := errgroup.WithContext(ctx)
 
 		if len(authorIDs) > 0 {
 			g.Go(func() error {
@@ -495,31 +513,30 @@ func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, start
 				return err
 			})
 		}
-		if len(plansIDs) > 0 {
+		if len(adminIDs) > 0 {
 			g.Go(func() error {
 				var err error
-				plansMap, err = s.trainingPlan.ListPlans(egCtx, plansIDs, token)
+				adminsMap, err = s.identity.ListUser(egCtx, adminIDs, token)
 				return err
 			})
 		}
 
 		g.Wait()
 
-		for i := range posts {
-			s.sanitizePost(&posts[i])
-			if authorsMap != nil {
-				if author, ok := authorsMap[posts[i].AuthorId]; ok {
-					posts[i].Author = author
+		for i := range logs {
+			if post, ok := postsMap[logs[i].PostId]; ok {
+				s.sanitizePost(post)
+				if author, ok := authorsMap[post.AuthorId]; ok {
+					post.Author = author
 				}
+				logs[i].Post = post
 			}
-			if plansMap != nil && posts[i].EntityId != nil {
-				if plan, ok := plansMap[*posts[i].EntityId]; ok {
-					posts[i].Entity = plan
-				}
+			if admin, ok := adminsMap[logs[i].AdminId]; ok {
+				logs[i].Admin = admin
 			}
 		}
 	}
 
 	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
-	return posts, nextCursor, nil
+	return logs, nextCursor, nil
 }
