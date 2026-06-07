@@ -157,8 +157,8 @@ func (r *PostgresRepository) FindById(ctx context.Context, id string) (*domain.P
 }
 
 func (r *PostgresRepository) Update(ctx context.Context, post *domain.Post) error {
-	query := `UPDATE posts SET content = $1, "updatedAt" = $2 WHERE id = $3`
-	_, err := r.db.ExecContext(ctx, query, post.Content, post.UpdatedAt, *post.Id)
+	query := `UPDATE posts SET content = $1, "updatedAt" = $2, status = $3 WHERE id = $4`
+	_, err := r.db.ExecContext(ctx, query, post.Content, post.UpdatedAt, post.Status, *post.Id)
 	return err
 }
 

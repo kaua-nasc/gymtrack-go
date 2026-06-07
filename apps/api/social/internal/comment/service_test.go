@@ -7,6 +7,7 @@ import (
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/comment"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/post"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -17,9 +18,10 @@ func TestService_AddComment(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := comment.NewMockRepository(ctrl)
+	mockPostRepo := post.NewMockRepository(ctrl)
 	mockIdentity := domain.NewMockIdentityClient(ctrl)
 
-	service := comment.NewService(mockRepo, mockIdentity)
+	service := comment.NewService(mockRepo, mockPostRepo, mockIdentity)
 
 	authorId := "user-123"
 	ctx := context.WithValue(context.Background(), string(auth.TokenContextKey), "valid-token")
@@ -37,10 +39,22 @@ func TestService_AddComment(t *testing.T) {
 				PostId:  "post-123",
 			},
 			mockBehavior: func() {
+				mockPostRepo.EXPECT().FindById(gomock.Any(), "post-123").Return(&domain.Post{Status: domain.PostApproved}, nil)
 				mockIdentity.EXPECT().FindUser(gomock.Any(), authorId, "valid-token").Return(map[string]any{"id": authorId}, nil)
 				mockRepo.EXPECT().AddComment(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr: false,
+		},
+		{
+			name: "Post not approved",
+			comment: &domain.Comment{
+				Content: "Nice post!",
+				PostId:  "post-123",
+			},
+			mockBehavior: func() {
+				mockPostRepo.EXPECT().FindById(gomock.Any(), "post-123").Return(&domain.Post{Status: domain.PostPending}, nil)
+			},
+			wantErr: true,
 		},
 		{
 			name: "Identity error",
@@ -49,6 +63,7 @@ func TestService_AddComment(t *testing.T) {
 				PostId:  "post-123",
 			},
 			mockBehavior: func() {
+				mockPostRepo.EXPECT().FindById(gomock.Any(), "post-123").Return(&domain.Post{Status: domain.PostApproved}, nil)
 				mockIdentity.EXPECT().FindUser(gomock.Any(), authorId, "valid-token").Return(nil, errors.New("user not found"))
 			},
 			wantErr: true,
@@ -73,9 +88,10 @@ func TestService_DeleteComment(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := comment.NewMockRepository(ctrl)
+	mockPostRepo := post.NewMockRepository(ctrl)
 	mockIdentity := domain.NewMockIdentityClient(ctrl)
 
-	service := comment.NewService(mockRepo, mockIdentity)
+	service := comment.NewService(mockRepo, mockPostRepo, mockIdentity)
 
 	commentId := "comm-123"
 	userId := "user-123"

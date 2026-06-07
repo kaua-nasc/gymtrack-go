@@ -192,6 +192,7 @@ func (s *Service) UpdatePost(ctx context.Context, postId, userId, content string
 
 	post.Content = content
 	post.UpdatedAt = time.Now().UTC()
+	post.Status = domain.PostPending
 
 	return s.repo.Update(ctx, post)
 }

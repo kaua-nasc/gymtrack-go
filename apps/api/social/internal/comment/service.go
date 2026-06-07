@@ -6,23 +6,38 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/post"
 	"github.com/kaua-nasc/gymtrack-go/libs/auth"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 type Service struct {
 	repo     Repository
+	postRepo post.Repository
 	identity domain.IdentityClient
 }
 
-func NewService(repo Repository, identity domain.IdentityClient) *Service {
+func NewService(repo Repository, postRepo post.Repository, identity domain.IdentityClient) *Service {
 	return &Service{
 		repo:     repo,
+		postRepo: postRepo,
 		identity: identity,
 	}
 }
 
 func (s *Service) AddComment(ctx context.Context, comment *domain.Comment, authorId string) error {
+	p, err := s.postRepo.FindById(ctx, comment.PostId)
+	if err != nil {
+		return err
+	}
+	if p == nil {
+		return fmt.Errorf("post not found")
+	}
+
+	if p.Status != domain.PostApproved {
+		return fmt.Errorf("cannot comment on a post that is not approved")
+	}
+
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 
 	// Validate author existence
