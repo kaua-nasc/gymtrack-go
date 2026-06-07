@@ -59,9 +59,10 @@ export function PendingPostsList() {
         {rowVirtualizer.getVirtualItems().map((virtualRow) => (
           <div
             key={virtualRow.key}
+            data-index={virtualRow.index}
+            ref={rowVirtualizer.measureElement}
             className="absolute top-0 left-0 w-full pb-8"
             style={{
-              height: `${virtualRow.size}px`,
               transform: `translateY(${virtualRow.start}px)`,
             }}
           >

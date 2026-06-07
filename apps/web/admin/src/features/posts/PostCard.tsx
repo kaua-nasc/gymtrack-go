@@ -1,9 +1,31 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type { Post } from '../../api/queries/usePendingPosts'
 import { useUpdatePostStatus } from '../../api/queries/useUpdatePostStatus'
 
 interface PostCardProps {
   post: Post
+}
+
+const videoExts = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'])
+
+function isVideoUrl(url: string): boolean {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
+  return ext ? videoExts.has(ext) : false
+}
+
+function MediaItem({ url, className }: { url: string; className?: string }) {
+  if (isVideoUrl(url)) {
+    return (
+      <video
+        src={url}
+        controls
+        playsInline
+        preload="metadata"
+        className={className}
+      />
+    )
+  }
+  return <img src={url} alt="Mídia do post" className={className} />
 }
 
 const levelLabel: Record<string, string> = {
@@ -113,18 +135,52 @@ export function PostCard({ post }: PostCardProps) {
             </div>
           )}
 
-          {post.mediaUrls && post.mediaUrls.length > 0 && (
-            <div className={`grid gap-2 ${post.mediaUrls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {post.mediaUrls.map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt="Mídia do post"
-                  className="rounded-xl w-full h-64 object-cover bg-card"
+          {post.mediaUrls && post.mediaUrls.length > 0 && (() => {
+            const count = post.mediaUrls.length
+            const base = "rounded-xl overflow-hidden bg-black/20"
+
+            if (count === 1) {
+              return (
+                <MediaItem
+                  url={post.mediaUrls[0]}
+                  className={`${base} w-full max-h-[600px] object-contain`}
                 />
-              ))}
-            </div>
-          )}
+              )
+            }
+
+            if (count === 3) {
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="row-span-2">
+                    <MediaItem
+                      url={post.mediaUrls[0]}
+                      className={`${base} w-full h-full object-cover`}
+                    />
+                  </div>
+                  <MediaItem
+                    url={post.mediaUrls[1]}
+                    className={`${base} w-full aspect-square object-cover`}
+                  />
+                  <MediaItem
+                    url={post.mediaUrls[2]}
+                    className={`${base} w-full aspect-square object-cover`}
+                  />
+                </div>
+              )
+            }
+
+            return (
+              <div className="grid grid-cols-2 gap-2">
+                {post.mediaUrls.map((url, i) => (
+                  <MediaItem
+                    key={i}
+                    url={url}
+                    className={`${base} w-full aspect-square object-cover`}
+                  />
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </div>
 
