@@ -46,6 +46,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		admin.Use(auth.RolesMiddleware(auth.Admin))
 		{
 			admin.GET("/posts/pending", h.getPendingPosts)
+			admin.GET("/posts/history", h.getAuditHistory)
 			admin.PATCH("/posts/:id/status", h.updatePostStatus)
 		}
 	}
@@ -175,6 +176,26 @@ func (h *Handler) getPendingPosts(ctx *gin.Context) {
 
 	cursor, limit := utils.GetPagination(ctx)
 	posts, nextCursor, err := h.service.GetPendingPosts(ctx.Request.Context(), user.ID, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
+}
+
+func (h *Handler) getAuditHistory(ctx *gin.Context) {
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	cursor, limit := utils.GetPagination(ctx)
+	status := ctx.Query("status")
+	startDate := ctx.Query("startDate")
+	endDate := ctx.Query("endDate")
+
+	posts, nextCursor, err := h.service.GetAuditHistory(ctx.Request.Context(), user.ID, status, startDate, endDate, cursor, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return

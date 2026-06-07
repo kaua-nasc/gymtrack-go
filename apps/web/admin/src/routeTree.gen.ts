@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PostsPendingRouteImport } from './routes/posts/pending'
+import { Route as PostsHistoryRouteImport } from './routes/posts/history'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -28,34 +29,43 @@ const PostsPendingRoute = PostsPendingRouteImport.update({
   path: '/posts/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PostsHistoryRoute = PostsHistoryRouteImport.update({
+  id: '/posts/history',
+  path: '/posts/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/posts/history': typeof PostsHistoryRoute
   '/posts/pending': typeof PostsPendingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/posts/history': typeof PostsHistoryRoute
   '/posts/pending': typeof PostsPendingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/posts/history': typeof PostsHistoryRoute
   '/posts/pending': typeof PostsPendingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/posts/pending'
+  fullPaths: '/' | '/login' | '/posts/history' | '/posts/pending'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/posts/pending'
-  id: '__root__' | '/' | '/login' | '/posts/pending'
+  to: '/' | '/login' | '/posts/history' | '/posts/pending'
+  id: '__root__' | '/' | '/login' | '/posts/history' | '/posts/pending'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  PostsHistoryRoute: typeof PostsHistoryRoute
   PostsPendingRoute: typeof PostsPendingRoute
 }
 
@@ -82,12 +92,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PostsPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/posts/history': {
+      id: '/posts/history'
+      path: '/posts/history'
+      fullPath: '/posts/history'
+      preLoaderRoute: typeof PostsHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  PostsHistoryRoute: PostsHistoryRoute,
   PostsPendingRoute: PostsPendingRoute,
 }
 export const routeTree = rootRouteImport

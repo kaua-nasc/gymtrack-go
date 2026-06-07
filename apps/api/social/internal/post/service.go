@@ -417,3 +417,109 @@ func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, 
 
 	return s.repo.UpdateStatus(ctx, postId, status, reason)
 }
+
+func (s *Service) GetAuditHistory(ctx context.Context, adminId, statusStr, startDateStr, endDateStr, cursor string, limit int) ([]domain.Post, string, error) {
+	// Verify admin role
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+	userAny, err := s.identity.FindUser(ctx, adminId, token)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to verify admin: %w", err)
+	}
+	userMap, ok := userAny.(map[string]any)
+	if !ok || userMap["type"] != string(auth.Admin) {
+		return nil, "", fmt.Errorf("forbidden: only admins can view audit history")
+	}
+
+	var status domain.PostStatus
+	if statusStr != "" {
+		if statusStr != string(domain.PostApproved) && statusStr != string(domain.PostRejected) {
+			return nil, "", fmt.Errorf("invalid status filter")
+		}
+		status = domain.PostStatus(statusStr)
+	}
+
+	var startDate, endDate *time.Time
+	if startDateStr != "" {
+		t, err := time.Parse(time.RFC3339, startDateStr)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid start date format, use RFC3339")
+		}
+		startDate = &t
+	}
+	if endDateStr != "" {
+		t, err := time.Parse(time.RFC3339, endDateStr)
+		if err != nil {
+			return nil, "", fmt.Errorf("invalid end date format, use RFC3339")
+		}
+		endDate = &t
+	}
+
+	var decodedCursor *AuditCursorData
+	if cursor != "" {
+		decodedCursor = &AuditCursorData{}
+		utils.DecodeCursor(cursor, decodedCursor)
+	}
+
+	posts, rawNextCursor, err := s.repo.FindAuditHistory(ctx, status, startDate, endDate, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if len(posts) > 0 {
+		authorIDsMap := make(map[string]bool)
+		plansIDsMap := make(map[string]bool)
+		for _, p := range posts {
+			authorIDsMap[p.AuthorId] = true
+			if p.EntityType != nil && *p.EntityType == domain.TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
+				plansIDsMap[*p.EntityId] = true
+			}
+		}
+
+		var authorIDs []string
+		for id := range authorIDsMap {
+			authorIDs = append(authorIDs, id)
+		}
+		var plansIDs []string
+		for id := range plansIDsMap {
+			plansIDs = append(plansIDs, id)
+		}
+
+		g, egCtx := errgroup.WithContext(ctx)
+		var authorsMap map[string]any
+		var plansMap map[string]any
+
+		if len(authorIDs) > 0 {
+			g.Go(func() error {
+				var err error
+				authorsMap, err = s.identity.ListUser(egCtx, authorIDs, token)
+				return err
+			})
+		}
+		if len(plansIDs) > 0 {
+			g.Go(func() error {
+				var err error
+				plansMap, err = s.trainingPlan.ListPlans(egCtx, plansIDs, token)
+				return err
+			})
+		}
+
+		g.Wait()
+
+		for i := range posts {
+			s.sanitizePost(&posts[i])
+			if authorsMap != nil {
+				if author, ok := authorsMap[posts[i].AuthorId]; ok {
+					posts[i].Author = author
+				}
+			}
+			if plansMap != nil && posts[i].EntityId != nil {
+				if plan, ok := plansMap[*posts[i].EntityId]; ok {
+					posts[i].Entity = plan
+				}
+			}
+		}
+	}
+
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return posts, nextCursor, nil
+}

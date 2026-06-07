@@ -3,11 +3,17 @@ package post
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/social/internal/domain"
 	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/lib/pq"
 )
+
+type AuditCursorData struct {
+	ID        string    `json:"id"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
 
 //go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=post
 type Repository interface {
@@ -19,6 +25,7 @@ type Repository interface {
 	FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
 	FindPending(ctx context.Context, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
 	UpdateStatus(ctx context.Context, id string, status domain.PostStatus, reason *string) error
+	FindAuditHistory(ctx context.Context, status domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.Post, *AuditCursorData, error)
 }
 
 type PostgresRepository struct {
@@ -128,6 +135,63 @@ func (r *PostgresRepository) FindPending(ctx context.Context, cursor *utils.Curs
 		nextCursor = &utils.CursorData{
 			ID:        *lastPost.Id,
 			CreatedAt: lastPost.CreatedAt,
+		}
+	}
+
+	return posts, nextCursor, nil
+}
+
+func (r *PostgresRepository) FindAuditHistory(ctx context.Context, status domain.PostStatus, startDate, endDate *time.Time, cursor *AuditCursorData, limit int) ([]domain.Post, *AuditCursorData, error) {
+	query := `
+		SELECT 
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status, p."rejectedReason",
+			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
+			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
+			false as liked_by_me
+		FROM posts p
+		WHERE ("deletedAt" IS NULL) 
+			AND (p.status = $1 OR $1 IS NULL)
+			AND ($2::timestamp IS NULL OR p."updatedAt" >= $2)
+			AND ($3::timestamp IS NULL OR p."updatedAt" <= $3)
+			AND ($4::timestamp IS NULL OR p."updatedAt" < $4)
+		ORDER BY p."updatedAt" DESC
+		LIMIT $5
+	`
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.UpdatedAt
+	}
+
+	var statusArg interface{} = status
+	if status == "" {
+		statusArg = nil
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, statusArg, startDate, endDate, cursorTime, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	posts := make([]domain.Post, 0)
+	for rows.Next() {
+		var p domain.Post
+		err := rows.Scan(
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status, &p.RejectedReason,
+			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		posts = append(posts, p)
+	}
+
+	var nextCursor *AuditCursorData
+	if len(posts) > 0 && len(posts) == limit {
+		lastPost := posts[len(posts)-1]
+		nextCursor = &AuditCursorData{
+			ID:        *lastPost.Id,
+			UpdatedAt: lastPost.UpdatedAt,
 		}
 	}
 
