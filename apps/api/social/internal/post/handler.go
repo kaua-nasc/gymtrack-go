@@ -31,12 +31,16 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	social := r.Group("/social")
 	social.Use(auth.AuthMiddleware())
 	{
-		social.POST("/posts", h.createPost)
-		social.GET("/posts", h.getFeed)
-		social.GET("/posts/author/:authorId", h.getPostsByAuthor)
-		social.POST("/posts/media", h.uploadMedia)
-		social.PUT("/posts/:id", h.updatePost)
-		social.DELETE("/posts/:id", h.deletePost)
+		app := social.Group("")
+		app.Use(auth.RolesMiddleware(auth.Client, auth.Trainer))
+		{
+			app.POST("/posts", h.createPost)
+			app.GET("/posts", h.getFeed)
+			app.GET("/posts/author/:authorId", h.getPostsByAuthor)
+			app.POST("/posts/media", h.uploadMedia)
+			app.PUT("/posts/:id", h.updatePost)
+			app.DELETE("/posts/:id", h.deletePost)
+		}
 
 		admin := social.Group("/admin")
 		admin.Use(auth.RolesMiddleware(auth.Admin))

@@ -18,7 +18,7 @@ func NewHandler(service *Service) *Handler {
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	social := r.Group("/social")
-	social.Use(auth.AuthMiddleware())
+	social.Use(auth.AuthMiddleware(), auth.RolesMiddleware(auth.Client, auth.Trainer))
 	{
 		social.POST("/posts/:id/like", h.toggleLike)
 	}
