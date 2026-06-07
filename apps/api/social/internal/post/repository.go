@@ -17,6 +17,8 @@ type Repository interface {
 	Update(ctx context.Context, post *domain.Post) error
 	Delete(ctx context.Context, id string) error
 	FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
+	FindPending(ctx context.Context, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
+	UpdateStatus(ctx context.Context, id string, status domain.PostStatus) error
 }
 
 type PostgresRepository struct {
@@ -29,22 +31,22 @@ func NewRepository(db *sql.DB) Repository {
 
 func (r *PostgresRepository) Create(ctx context.Context, post *domain.Post) error {
 	query := `
-        INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls")
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO posts (id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls", status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `
-	_, err := r.db.ExecContext(ctx, query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType, pq.Array(post.MediaUrls))
+	_, err := r.db.ExecContext(ctx, query, *post.Id, post.CreatedAt, post.UpdatedAt, post.AuthorId, post.Content, post.EntityId, post.EntityType, pq.Array(post.MediaUrls), post.Status)
 	return err
 }
 
 func (r *PostgresRepository) FindAll(ctx context.Context, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
-			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status,
 			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
 		FROM posts p
-		WHERE ("deletedAt" IS NULL) AND ($2::timestamp IS NULL OR p."createdAt" < $2)
+		WHERE ("deletedAt" IS NULL) AND (status = 'APPROVED') AND ($2::timestamp IS NULL OR p."createdAt" < $2)
 		ORDER BY p."createdAt" DESC
 		LIMIT $3
 	`
@@ -63,7 +65,7 @@ func (r *PostgresRepository) FindAll(ctx context.Context, currentUserId string, 
 	for rows.Next() {
 		var p domain.Post
 		err := rows.Scan(
-			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls),
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status,
 			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
 		)
 		if err != nil {
@@ -84,13 +86,67 @@ func (r *PostgresRepository) FindAll(ctx context.Context, currentUserId string, 
 	return posts, nextCursor, nil
 }
 
+func (r *PostgresRepository) FindPending(ctx context.Context, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
+	query := `
+		SELECT 
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status,
+			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
+			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
+			false as liked_by_me
+		FROM posts p
+		WHERE ("deletedAt" IS NULL) AND (status = 'PENDING') AND ($1::timestamp IS NULL OR p."createdAt" < $1)
+		ORDER BY p."createdAt" DESC
+		LIMIT $2
+	`
+	var cursorTime interface{}
+	if cursor != nil {
+		cursorTime = cursor.CreatedAt
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, cursorTime, limit)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	posts := make([]domain.Post, 0)
+	for rows.Next() {
+		var p domain.Post
+		err := rows.Scan(
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status,
+			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		posts = append(posts, p)
+	}
+
+	var nextCursor *utils.CursorData
+	if len(posts) > 0 && len(posts) == limit {
+		lastPost := posts[len(posts)-1]
+		nextCursor = &utils.CursorData{
+			ID:        *lastPost.Id,
+			CreatedAt: lastPost.CreatedAt,
+		}
+	}
+
+	return posts, nextCursor, nil
+}
+
+func (r *PostgresRepository) UpdateStatus(ctx context.Context, id string, status domain.PostStatus) error {
+	query := `UPDATE posts SET status = $1, "updatedAt" = NOW() WHERE id = $2`
+	_, err := r.db.ExecContext(ctx, query, status, id)
+	return err
+}
+
 func (r *PostgresRepository) FindById(ctx context.Context, id string) (*domain.Post, error) {
 	query := `
-		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls"
+		SELECT id, "createdAt", "updatedAt", "authorId", "content", "entityId", "entityType", "mediaUrls", status
 		FROM posts WHERE id = $1 AND "deletedAt" IS NULL
 	`
 	var p domain.Post
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls))
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
@@ -115,12 +171,12 @@ func (r *PostgresRepository) Delete(ctx context.Context, id string) error {
 func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error) {
 	query := `
 		SELECT 
-			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls",
+			p.id, p."createdAt", p."updatedAt", p."authorId", p."content", p."entityId", p."entityType", p."mediaUrls", p.status,
 			(SELECT COUNT(*) FROM public.post_likes WHERE "postId" = p.id) as likes_count,
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
 		FROM posts p
-		WHERE p."authorId" = $2 AND ("deletedAt" IS NULL) AND ($3::timestamp IS NULL OR p."createdAt" < $3)
+		WHERE p."authorId" = $2 AND ("deletedAt" IS NULL) AND (status = 'APPROVED') AND ($3::timestamp IS NULL OR p."createdAt" < $3)
 		ORDER BY p."createdAt" DESC
 		LIMIT $4
 	`
@@ -139,7 +195,7 @@ func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, current
 	for rows.Next() {
 		var p domain.Post
 		err := rows.Scan(
-			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls),
+			&p.Id, &p.CreatedAt, &p.UpdatedAt, &p.AuthorId, &p.Content, &p.EntityId, &p.EntityType, pq.Array(&p.MediaUrls), &p.Status,
 			&p.LikesCount, &p.CommentsCount, &p.LikedByCurrentUser,
 		)
 		if err != nil {

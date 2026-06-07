@@ -9,6 +9,14 @@ const (
 	TrainingPlanPost PostEntityType = "TRAINING_PLAN"
 )
 
+type PostStatus string
+
+const (
+	PostPending  PostStatus = "PENDING"
+	PostApproved PostStatus = "APPROVED"
+	PostRejected PostStatus = "REJECTED"
+)
+
 type Post struct {
 	Id         *string         `json:"id" validate:"required,uuid"`
 	CreatedAt  time.Time       `json:"createdAt"`
@@ -18,6 +26,7 @@ type Post struct {
 	MediaUrls  []string        `json:"mediaUrls"`
 	EntityId   *string         `json:"entityId" validate:"omitempty,uuid"`
 	EntityType *PostEntityType `json:"entityType" validate:"omitempty"`
+	Status     PostStatus      `json:"status"`
 
 	// Relations
 	Likes    []Like    `json:"likes,omitempty"`

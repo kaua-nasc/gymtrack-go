@@ -37,6 +37,13 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		social.POST("/posts/media", h.uploadMedia)
 		social.PUT("/posts/:id", h.updatePost)
 		social.DELETE("/posts/:id", h.deletePost)
+
+		admin := social.Group("/admin")
+		admin.Use(auth.RolesMiddleware(auth.Admin))
+		{
+			admin.GET("/posts/pending", h.getPendingPosts)
+			admin.PATCH("/posts/:id/status", h.updatePostStatus)
+		}
 	}
 }
 
@@ -154,6 +161,50 @@ func (h *Handler) getFeed(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
+}
+
+func (h *Handler) getPendingPosts(ctx *gin.Context) {
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	cursor, limit := utils.GetPagination(ctx)
+	posts, nextCursor, err := h.service.GetPendingPosts(ctx.Request.Context(), user.ID, cursor, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(posts, nextCursor))
+}
+
+func (h *Handler) updatePostStatus(ctx *gin.Context) {
+	postId := ctx.Param("id")
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	var body struct {
+		Status domain.PostStatus `json:"status" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	if body.Status != domain.PostApproved && body.Status != domain.PostRejected {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("invalid status. must be APPROVED or REJECTED"))
+		return
+	}
+
+	if err := h.service.UpdatePostStatus(ctx.Request.Context(), user.ID, postId, body.Status); err != nil {
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	ctx.Status(http.StatusNoContent)
 }
 
 func (h *Handler) getPostsByAuthor(ctx *gin.Context) {

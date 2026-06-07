@@ -77,6 +77,7 @@ func (s *Service) CreatePost(ctx context.Context, post *domain.Post, authorId st
 	post.AuthorId = authorId
 	post.CreatedAt = now
 	post.UpdatedAt = now
+	post.Status = domain.PostPending
 
 	if post.MediaUrls == nil {
 		post.MediaUrls = []string{}
@@ -310,4 +311,108 @@ func (s *Service) GetPostsByAuthor(ctx context.Context, authorId, userId, cursor
 
 	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
 	return posts, nextCursor, nil
+}
+
+func (s *Service) GetPendingPosts(ctx context.Context, adminId, cursor string, limit int) ([]domain.Post, string, error) {
+	// Verify admin role
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+	userAny, err := s.identity.FindUser(ctx, adminId, token)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to verify admin: %w", err)
+	}
+
+	userMap, ok := userAny.(map[string]any)
+	if !ok || userMap["type"] != string(auth.Admin) {
+		return nil, "", fmt.Errorf("forbidden: only admins can view pending posts")
+	}
+
+	var decodedCursor *utils.CursorData
+	utils.DecodeCursor(cursor, &decodedCursor)
+
+	posts, rawNextCursor, err := s.repo.FindPending(ctx, decodedCursor, limit)
+	if err != nil {
+		return nil, "", err
+	}
+
+	if len(posts) > 0 {
+		authorIDsMap := make(map[string]bool)
+		plansIDsMap := make(map[string]bool)
+		for _, p := range posts {
+			authorIDsMap[p.AuthorId] = true
+			if p.EntityType != nil && *p.EntityType == domain.TrainingPlanPost && p.EntityId != nil && *p.EntityId != "" {
+				plansIDsMap[*p.EntityId] = true
+			}
+		}
+		var authorIDs []string
+		for id := range authorIDsMap {
+			authorIDs = append(authorIDs, id)
+		}
+		var plansIDs []string
+		for id := range plansIDsMap {
+			plansIDs = append(plansIDs, id)
+		}
+
+		g, egCtx := errgroup.WithContext(ctx)
+		var authorsMap map[string]any
+		var plansMap map[string]any
+
+		g.Go(func() error {
+			var err error
+			authorsMap, err = s.identity.ListUser(egCtx, authorIDs, token)
+			return err
+		})
+
+		g.Go(func() error {
+			var err error
+			plansMap, err = s.trainingPlan.ListPlans(egCtx, plansIDs, token)
+			return err
+		})
+
+		g.Wait()
+
+		for i := range posts {
+			s.sanitizePost(&posts[i])
+			if authorsMap != nil {
+				if author, ok := authorsMap[posts[i].AuthorId]; ok {
+					posts[i].Author = author
+				}
+			}
+			if plansMap != nil && posts[i].EntityId != nil {
+				if plan, ok := plansMap[*posts[i].EntityId]; ok {
+					posts[i].Entity = plan
+				}
+			}
+		}
+	}
+
+	nextCursor, _ := utils.EncodeCursor(rawNextCursor)
+	return posts, nextCursor, nil
+}
+
+func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, status domain.PostStatus) error {
+	// Verify admin role
+	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+	userAny, err := s.identity.FindUser(ctx, adminId, token)
+	if err != nil {
+		return fmt.Errorf("failed to verify admin: %w", err)
+	}
+
+	userMap, ok := userAny.(map[string]any)
+	if !ok || userMap["type"] != string(auth.Admin) {
+		return fmt.Errorf("forbidden: only admins can audit posts")
+	}
+
+	post, err := s.repo.FindById(ctx, postId)
+	if err != nil {
+		return err
+	}
+	if post == nil {
+		return fmt.Errorf("post not found")
+	}
+
+	if post.AuthorId == adminId {
+		return fmt.Errorf("admins cannot audit their own posts")
+	}
+
+	return s.repo.UpdateStatus(ctx, postId, status)
 }
