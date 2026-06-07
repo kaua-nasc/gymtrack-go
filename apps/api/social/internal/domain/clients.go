@@ -51,7 +51,7 @@ func (s *IdentityService) FindUser(ctx context.Context, id string, token string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("user not found")
+		return nil, nil
 	}
 
 	if resp.StatusCode != http.StatusOK {
