@@ -12,7 +12,7 @@ export function PendingPostsList() {
   const rowVirtualizer = useVirtualizer({
     count: posts.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 400, // Estimativa de altura de um card
+    estimateSize: () => 400,
     overscan: 5,
   })
 
@@ -20,7 +20,7 @@ export function PendingPostsList() {
     return (
       <div className="space-y-6">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-white dark:bg-slate-900 h-64 rounded-2xl animate-pulse border border-slate-200 dark:border-slate-800" />
+          <div key={i} className="bg-surface h-64 rounded-2xl animate-pulse border border-border" />
         ))}
       </div>
     )
@@ -28,7 +28,7 @@ export function PendingPostsList() {
 
   if (isError) {
     return (
-      <div className="p-8 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-2xl text-red-600">
+      <div className="p-8 bg-error/10 border border-error/30 rounded-2xl text-error">
         <p className="font-bold">Erro ao carregar posts</p>
         <p className="text-sm">{(error as Error).message}</p>
       </div>
@@ -37,12 +37,12 @@ export function PendingPostsList() {
 
   if (posts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl text-center">
-        <div className="w-20 h-20 bg-green-100 dark:bg-green-900/20 text-green-500 rounded-full flex items-center justify-center mb-6 text-3xl">
+      <div className="flex flex-col items-center justify-center p-20 bg-surface border border-border rounded-3xl text-center">
+        <div className="w-20 h-20 bg-success/20 text-success rounded-full flex items-center justify-center mb-6 text-3xl">
           🎉
         </div>
-        <h3 className="text-xl font-bold">Tudo em dia!</h3>
-        <p className="text-slate-500 mt-2">Nenhum post pendente para revisão no momento.</p>
+        <h3 className="text-xl font-bold text-text-strong">Tudo em dia!</h3>
+        <p className="text-text-muted mt-2">Nenhum post pendente para revisão no momento.</p>
       </div>
     )
   }

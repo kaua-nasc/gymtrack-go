@@ -15,10 +15,10 @@ export const Route = createFileRoute('/login')({
 
 function LoginComponent() {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-bg">
       <div className="mb-8 text-center">
         <h1 className="text-4xl font-black tracking-tight text-primary">GYMTRACK</h1>
-        <p className="text-slate-500 font-medium">Portal de Administração</p>
+        <p className="text-text-muted font-medium">Portal de Administração</p>
       </div>
       <LoginForm />
     </div>
