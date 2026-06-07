@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Post } from '../../api/queries/usePendingPosts'
 import { useUpdatePostStatus } from '../../api/queries/useUpdatePostStatus'
 
@@ -20,10 +21,22 @@ const typeLabel: Record<string, string> = {
 }
 
 export function PostCard({ post }: PostCardProps) {
+  const [showRejectForm, setShowRejectForm] = useState(false)
+  const [rejectReason, setRejectReason] = useState('')
   const statusMutation = useUpdatePostStatus()
 
-  const handleAction = (status: 'APPROVED' | 'REJECTED') => {
-    statusMutation.mutate({ postId: post.id, status })
+  const handleApprove = () => {
+    statusMutation.mutate({ postId: post.id, status: 'APPROVED' })
+  }
+
+  const handleReject = () => {
+    if (!rejectReason.trim()) return
+    statusMutation.mutate({ postId: post.id, status: 'REJECTED', reason: rejectReason.trim() })
+  }
+
+  const cancelReject = () => {
+    setShowRejectForm(false)
+    setRejectReason('')
   }
 
   const authorName = post.author
@@ -39,10 +52,10 @@ export function PostCard({ post }: PostCardProps) {
   })
 
   return (
-    <article className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md">
+    <article className="bg-surface border border-border rounded-2xl overflow-hidden shadow-sm transition-all hover:shadow-md">
       <div className="p-6">
         <header className="flex items-center gap-4 mb-4">
-          <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center font-bold text-slate-400 overflow-hidden">
+          <div className="w-12 h-12 rounded-full bg-card flex items-center justify-center font-bold text-text-muted overflow-hidden">
             {post.author?.profilePictureUrl ? (
               <img src={post.author.profilePictureUrl} alt={authorName} className="w-full h-full object-cover" />
             ) : (
@@ -50,18 +63,18 @@ export function PostCard({ post }: PostCardProps) {
             )}
           </div>
           <div>
-            <h4 className="font-bold text-slate-900 dark:text-slate-50">{authorName}</h4>
-            <time className="text-xs text-slate-500 font-medium">{dateStr}</time>
+            <h4 className="font-bold text-text-strong">{authorName}</h4>
+            <time className="text-xs text-text-muted font-medium">{dateStr}</time>
           </div>
         </header>
 
         <div className="space-y-4">
-          <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+          <p className="text-text-gray whitespace-pre-wrap leading-relaxed">
             {post.content}
           </p>
 
           {post.trainingPlan && (
-            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
               <div className="flex gap-4">
                 {post.trainingPlan.imageUrl && (
                   <div className="w-28 shrink-0">
@@ -77,7 +90,7 @@ export function PostCard({ post }: PostCardProps) {
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M6 2L3 6v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V6l-3-4H6z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
                     <span className="text-xs uppercase tracking-wider font-bold text-primary">Plano de Treino</span>
                   </div>
-                  <h5 className="text-lg font-bold text-slate-900 dark:text-slate-50">
+                  <h5 className="text-lg font-bold text-text-strong">
                     {post.trainingPlan.name}
                   </h5>
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -87,11 +100,11 @@ export function PostCard({ post }: PostCardProps) {
                       </span>
                     )}
                     {post.trainingPlan.type && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-border text-text-muted font-semibold">
                         {typeLabel[post.trainingPlan.type] || post.trainingPlan.type}
                       </span>
                     )}
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-semibold">
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-border text-text-muted font-semibold">
                       {post.trainingPlan.timeInDays} dias
                     </span>
                   </div>
@@ -107,7 +120,7 @@ export function PostCard({ post }: PostCardProps) {
                   key={i}
                   src={url}
                   alt="Mídia do post"
-                  className="rounded-xl w-full h-64 object-cover bg-slate-100 dark:bg-slate-800"
+                  className="rounded-xl w-full h-64 object-cover bg-card"
                 />
               ))}
             </div>
@@ -115,21 +128,63 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       </div>
 
-      <footer className="bg-slate-50/50 dark:bg-slate-800/30 p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-        <button
-          onClick={() => handleAction('REJECTED')}
-          disabled={statusMutation.isPending}
-          className="px-6 py-2 rounded-xl font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors disabled:opacity-50"
-        >
-          {statusMutation.isPending && statusMutation.variables?.status === 'REJECTED' ? 'Rejeitando...' : 'Rejeitar'}
-        </button>
-        <button
-          onClick={() => handleAction('APPROVED')}
-          disabled={statusMutation.isPending}
-          className="px-6 py-2 rounded-xl font-bold bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
-        >
-          {statusMutation.isPending && statusMutation.variables?.status === 'APPROVED' ? 'Aprovando...' : 'Aprovar'}
-        </button>
+      <footer className="bg-card/50 p-4 border-t border-border">
+        {showRejectForm ? (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-text-muted mb-1">
+                Motivo da rejeição
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Explique ao autor por que o post foi rejeitado..."
+                rows={3}
+                maxLength={1024}
+                className="w-full px-4 py-2 rounded-xl border border-border bg-input text-text-strong text-sm focus:ring-2 focus:ring-primary outline-none transition-all resize-none placeholder:text-placeholder"
+                autoFocus
+              />
+              <div className="flex justify-end mt-1">
+                <span className={`text-xs font-medium ${rejectReason.length >= 1024 ? 'text-error' : 'text-text-muted'}`}>
+                  {rejectReason.length}/1024
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={cancelReject}
+                disabled={statusMutation.isPending}
+                className="px-6 py-2 rounded-xl font-bold text-text-muted hover:bg-surface-hover transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={statusMutation.isPending || !rejectReason.trim()}
+                className="px-6 py-2 rounded-xl font-bold bg-error text-white hover:opacity-90 shadow-lg shadow-error/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {statusMutation.isPending ? 'Rejeitando...' : 'Confirmar Rejeição'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => setShowRejectForm(true)}
+              disabled={statusMutation.isPending}
+              className="px-6 py-2 rounded-xl font-bold text-error hover:bg-error/10 transition-colors disabled:opacity-50"
+            >
+              Rejeitar
+            </button>
+            <button
+              onClick={handleApprove}
+              disabled={statusMutation.isPending}
+              className="px-6 py-2 rounded-xl font-bold bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
+            >
+              {statusMutation.isPending ? 'Aprovando...' : 'Aprovar'}
+            </button>
+          </div>
+        )}
       </footer>
     </article>
   )

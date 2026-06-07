@@ -18,7 +18,7 @@ type Repository interface {
 	Delete(ctx context.Context, id string) error
 	FindByAuthor(ctx context.Context, authorId, currentUserId string, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
 	FindPending(ctx context.Context, cursor *utils.CursorData, limit int) ([]domain.Post, *utils.CursorData, error)
-	UpdateStatus(ctx context.Context, id string, status domain.PostStatus) error
+	UpdateStatus(ctx context.Context, id string, status domain.PostStatus, reason *string) error
 }
 
 type PostgresRepository struct {
@@ -134,9 +134,9 @@ func (r *PostgresRepository) FindPending(ctx context.Context, cursor *utils.Curs
 	return posts, nextCursor, nil
 }
 
-func (r *PostgresRepository) UpdateStatus(ctx context.Context, id string, status domain.PostStatus) error {
-	query := `UPDATE posts SET status = $1, "updatedAt" = NOW() WHERE id = $2`
-	_, err := r.db.ExecContext(ctx, query, status, id)
+func (r *PostgresRepository) UpdateStatus(ctx context.Context, id string, status domain.PostStatus, reason *string) error {
+	query := `UPDATE posts SET status = $1, "updatedAt" = NOW(), "rejectedReason" = $2 WHERE id = $3`
+	_, err := r.db.ExecContext(ctx, query, status, reason, id)
 	return err
 }
 
@@ -176,7 +176,7 @@ func (r *PostgresRepository) FindByAuthor(ctx context.Context, authorId, current
 			(SELECT COUNT(*) FROM public.post_comments WHERE "postId" = p.id) as comments_count,
 			EXISTS(SELECT 1 FROM public.post_likes WHERE "postId" = p.id AND "userId" = $1) as liked_by_me
 		FROM posts p
-		WHERE p."authorId" = $2 AND ("deletedAt" IS NULL) AND (status = 'APPROVED') AND ($3::timestamp IS NULL OR p."createdAt" < $3)
+		WHERE p."authorId" = $2 AND ("deletedAt" IS NULL) AND (status = 'APPROVED' OR $1 = $2) AND ($3::timestamp IS NULL OR p."createdAt" < $3)
 		ORDER BY p."createdAt" DESC
 		LIMIT $4
 	`

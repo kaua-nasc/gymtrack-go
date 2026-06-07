@@ -188,6 +188,7 @@ func (h *Handler) updatePostStatus(ctx *gin.Context) {
 
 	var body struct {
 		Status domain.PostStatus `json:"status" binding:"required"`
+		Reason *string           `json:"reason" binding:"omitempty,max=1024"`
 	}
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
@@ -199,7 +200,12 @@ func (h *Handler) updatePostStatus(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.UpdatePostStatus(ctx.Request.Context(), user.ID, postId, body.Status); err != nil {
+	if body.Status == domain.PostRejected && (body.Reason == nil || *body.Reason == "") {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("reason is required when rejecting a post"))
+		return
+	}
+
+	if err := h.service.UpdatePostStatus(ctx.Request.Context(), user.ID, postId, body.Status, body.Reason); err != nil {
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

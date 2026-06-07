@@ -390,7 +390,7 @@ func (s *Service) GetPendingPosts(ctx context.Context, adminId, cursor string, l
 	return posts, nextCursor, nil
 }
 
-func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, status domain.PostStatus) error {
+func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, status domain.PostStatus, reason *string) error {
 	// Verify admin role
 	token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
 	userAny, err := s.identity.FindUser(ctx, adminId, token)
@@ -415,5 +415,5 @@ func (s *Service) UpdatePostStatus(ctx context.Context, adminId, postId string, 
 		return fmt.Errorf("admins cannot audit their own posts")
 	}
 
-	return s.repo.UpdateStatus(ctx, postId, status)
+	return s.repo.UpdateStatus(ctx, postId, status, reason)
 }

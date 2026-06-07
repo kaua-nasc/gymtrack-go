@@ -5,10 +5,10 @@ export function useUpdatePostStatus() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ postId, status }: { postId: string; status: 'APPROVED' | 'REJECTED' }) =>
+    mutationFn: ({ postId, status, reason }: { postId: string; status: 'APPROVED' | 'REJECTED'; reason?: string }) =>
       apiFetch(`/social/admin/posts/${postId}/status`, {
         method: 'PATCH',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, reason }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posts', 'pending'] })

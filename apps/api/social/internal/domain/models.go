@@ -18,15 +18,16 @@ const (
 )
 
 type Post struct {
-	Id         *string         `json:"id" validate:"required,uuid"`
-	CreatedAt  time.Time       `json:"createdAt"`
-	UpdatedAt  time.Time       `json:"updatedAt"`
-	AuthorId   string          `json:"-" validate:"required,uuid"`
-	Content    string          `json:"content" validate:"required"`
-	MediaUrls  []string        `json:"mediaUrls"`
-	EntityId   *string         `json:"entityId" validate:"omitempty,uuid"`
-	EntityType *PostEntityType `json:"entityType" validate:"omitempty"`
-	Status     PostStatus      `json:"status"`
+	Id             *string         `json:"id" validate:"required,uuid"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
+	AuthorId       string          `json:"-" validate:"required,uuid"`
+	Content        string          `json:"content" validate:"required"`
+	MediaUrls      []string        `json:"mediaUrls"`
+	EntityId       *string         `json:"entityId" validate:"omitempty,uuid"`
+	EntityType     *PostEntityType `json:"entityType" validate:"omitempty"`
+	Status         PostStatus      `json:"status"`
+	RejectedReason *string         `json:"rejectedReason,omitempty"`
 
 	// Relations
 	Likes    []Like    `json:"likes,omitempty"`
