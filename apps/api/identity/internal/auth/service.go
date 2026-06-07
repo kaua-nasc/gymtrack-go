@@ -60,7 +60,7 @@ func (s *Service) Register(ctx context.Context, u domain.User) error {
 	return nil
 }
 
-func (s *Service) Login(ctx context.Context, emailVal, password string) (string, error) {
+func (s *Service) Login(ctx context.Context, emailVal, password string, allowedTypes ...domain.UserType) (string, error) {
 	u, err := s.repo.FindByEmail(ctx, emailVal)
 	if err != nil || u == nil {
 		return "", domain.ErrInvalidCredentials
@@ -69,6 +69,19 @@ func (s *Service) Login(ctx context.Context, emailVal, password string) (string,
 	ok, err := auth.VerifyArgon2Password(password, u.Password)
 	if err != nil || !ok {
 		return "", domain.ErrInvalidCredentials
+	}
+
+	if len(allowedTypes) > 0 {
+		allowed := false
+		for _, t := range allowedTypes {
+			if u.Type == t {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return "", domain.ErrForbiddenRole
+		}
 	}
 
 	now := time.Now().UTC()

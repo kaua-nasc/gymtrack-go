@@ -21,7 +21,7 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (credentials: LoginCredentials) =>
-      apiFetch<LoginResponse>('/identity/auth/login', {
+      apiFetch<LoginResponse>('/identity/auth/admin/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       }),

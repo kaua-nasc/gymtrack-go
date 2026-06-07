@@ -25,6 +25,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	})
 	r.POST("/identity/auth/register", h.Register)
 	r.POST("/identity/auth/login", h.Login)
+	r.POST("/identity/auth/admin/login", h.AdminLogin)
 	r.POST("/identity/auth/verify/send-token", h.SendVerificationEmail)
 	r.POST("/identity/auth/verify", h.VerifyEmail)
 	r.POST("/identity/auth/reset-password/send-token", h.ResetPasswordSendToken)
@@ -102,13 +103,46 @@ func (h *Handler) Login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := h.srv.Login(ctx.Request.Context(), body.Email, body.Password)
+	token, err := h.srv.Login(ctx.Request.Context(), body.Email, body.Password, domain.Client, domain.Trainer)
 	if err != nil {
 		if errors.Is(err, domain.ErrInvalidCredentials) {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
+		if errors.Is(err, domain.ErrForbiddenRole) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "administradores devem usar o painel administrativo"})
+			return
+		}
 		slog.ErrorContext(ctx.Request.Context(), "login failed", slog.Any("error", err), slog.String("email", body.Email))
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to login"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"accessToken": token})
+}
+
+func (h *Handler) AdminLogin(ctx *gin.Context) {
+	var body struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := h.srv.Login(ctx.Request.Context(), body.Email, body.Password, domain.Admin)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidCredentials) {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, domain.ErrForbiddenRole) {
+			ctx.JSON(http.StatusForbidden, gin.H{"error": "acesso restrito para administradores"})
+			return
+		}
+		slog.ErrorContext(ctx.Request.Context(), "admin login failed", slog.Any("error", err), slog.String("email", body.Email))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to login"})
 		return
 	}
