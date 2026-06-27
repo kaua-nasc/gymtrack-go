@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import type { Post } from '../../api/queries/usePendingPosts'
 import { useUpdatePostStatus } from '../../api/queries/useUpdatePostStatus'
 

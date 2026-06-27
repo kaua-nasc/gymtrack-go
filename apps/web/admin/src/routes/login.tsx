@@ -3,7 +3,7 @@ import { LoginForm } from '../features/auth/LoginForm';
 import { useAuthStore } from '../store/auth';
 
 export const Route = createFileRoute('/login')({
-  beforeLoad: ({ search }) => {
+  beforeLoad: () => {
     if (useAuthStore.getState().token) {
       throw redirect({
         to: '/posts/pending',
