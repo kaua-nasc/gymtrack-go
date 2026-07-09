@@ -1,0 +1,9 @@
+DROP TYPE IF EXISTS public.plan_day_progress_status_enum;
+DROP TYPE IF EXISTS public.plan_subscription_type_enum;
+DROP TYPE IF EXISTS public.plan_subscription_status_enum;
+DROP TYPE IF EXISTS public.plan_invites_status_enum;
+DROP TYPE IF EXISTS public.plan_access_request_status_enum;
+DROP TYPE IF EXISTS public.exercises_type_enum;
+DROP TYPE IF EXISTS public.training_plans_level_enum;
+DROP TYPE IF EXISTS public.training_plans_visibility_enum;
+DROP TYPE IF EXISTS public.training_plans_type_enum;
