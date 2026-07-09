@@ -3,7 +3,6 @@ package cache
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -12,8 +11,9 @@ import (
 
 type Cache interface {
 	Get(ctx context.Context, key string) (string, error)
-	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
+	Set(ctx context.Context, key string, value any, expiration time.Duration) error
 	Del(ctx context.Context, key string) error
+	Close(ctx context.Context) error
 }
 
 type redisCache struct {
@@ -32,13 +32,23 @@ func (r *redisCache) Del(ctx context.Context, key string) error {
 	return r.client.Del(ctx, key).Err()
 }
 
-func NewCache(lc fx.Lifecycle) (Cache, error) {
-	redisURL := os.Getenv("REDIS_CACHE_CONNECTION_STRING")
-	if redisURL == "" {
-		return nil, fmt.Errorf("REDIS_CACHE_CONNECTION_STRING environment variable is required")
+func (r *redisCache) Close(ctx context.Context) error {
+	return r.client.Close()
+}
+
+func NewCache(url string) (Cache, error) {
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse redis url: %w", err)
 	}
 
-	opt, err := redis.ParseURL(redisURL)
+	client := redis.NewClient(opt)
+
+	return &redisCache{client: client}, nil
+}
+
+func NewFxCache(lc fx.Lifecycle, url string) (Cache, error) {
+	opt, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse redis url: %w", err)
 	}
@@ -56,7 +66,3 @@ func NewCache(lc fx.Lifecycle) (Cache, error) {
 
 	return &redisCache{client: client}, nil
 }
-
-var Module = fx.Module("cache",
-	fx.Provide(NewCache),
-)

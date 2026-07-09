@@ -30,6 +30,20 @@ func NewDatabase() (*sql.DB, error) {
 	return db.NewConnection(dsn)
 }
 
+func NewCache(lc fx.Lifecycle) (cache.Cache, error) {
+	redisURL := os.Getenv("REDIS_CACHE_CONNECTION_STRING")
+	if redisURL == "" {
+		panic("REDIS_CACHE_CONNECTION_STRING environment variable is required")
+	}
+
+	client, err := cache.NewFxCache(lc, redisURL)
+	if err != nil {
+		panic("Error to connect to client")
+	}
+
+	return client, nil
+}
+
 func NewHTTPServer(
 	lc fx.Lifecycle,
 	postHandler *post.Handler,
@@ -83,9 +97,9 @@ func main() {
 	logutil.InitLogger()
 
 	fx.New(
-		cache.Module,
 		fx.Provide(
 			NewDatabase,
+			NewCache,
 			domain.NewIdentityService,
 			domain.NewTrainingPlanClient,
 			post.NewRepository,

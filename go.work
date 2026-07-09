@@ -12,4 +12,5 @@ use (
 	./libs/log
 	./libs/storage
 	./libs/utils
+	./libs/integration-tests
 )
