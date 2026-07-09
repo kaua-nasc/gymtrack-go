@@ -1,7 +1,7 @@
 import { useAuthStore } from '../store/auth';
 
-const IDENTITY_URL = '__VITE_IDENTITY_API_URL__';
-const SOCIAL_URL = '__VITE_SOCIAL_API_URL__';
+const IDENTITY_URL = import.meta.env.VITE_IDENTITY_API_URL ?? '__VITE_IDENTITY_API_URL__';
+const SOCIAL_URL = import.meta.env.VITE_SOCIAL_API_URL ?? '__VITE_SOCIAL_API_URL__';
 
 export function resolveBaseUrl(endpoint: string): string {
   if (endpoint.startsWith('/identity')) return IDENTITY_URL;
