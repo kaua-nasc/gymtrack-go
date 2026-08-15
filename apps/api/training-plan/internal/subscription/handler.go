@@ -29,6 +29,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	{
 		plans.GET("/subscriptions", h.ListSubscription)
 		plans.GET("/subscriptions/:id", h.ListSubscriptionByUserId)
+		plans.GET("/my", h.ListSubscribedPlans)
 		plans.POST("/:id/subscriptions", h.Subscribe)
 		plans.DELETE("/:id/subscriptions", h.Unsubscribe)
 
@@ -54,6 +55,25 @@ func (h *Handler) GetEngagementSummary(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, summary)
+}
+
+func (h *Handler) ListSubscribedPlans(ctx *gin.Context) {
+	user, ok := auth.GetAuthUser(ctx)
+	if !ok {
+		return
+	}
+
+	cursor, limit := utils.GetPagination(ctx)
+	filters := h.parseFilters(ctx)
+
+	plans, nextCursor, err := h.srv.ListSubscribedPlans(ctx.Request.Context(), user.ID, filters, cursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx.Request.Context(), "failed to list subscribed plans", slog.Any("error", err), slog.String("user_id", user.ID))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to list subscribed plans"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, utils.NewPaginatedResponse(plans, nextCursor))
 }
 
 func (h *Handler) ListSubscription(ctx *gin.Context) {

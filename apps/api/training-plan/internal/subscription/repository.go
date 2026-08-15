@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 )
 
 //go:generate go run go.uber.org/mock/mockgen -source=repository.go -destination=mock_repository.go -package=subscription
@@ -29,6 +30,7 @@ type Repository interface {
 	FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error)
 	GetSubscriptionEligibility(ctx context.Context, planId, userId string) (alreadySubscribed bool, isComplete bool, err error)
 	FindPlanForSubscription(ctx context.Context, planId string) (*domain.TrainingPlan, error)
+	ListSubscribedPlans(ctx context.Context, userId string, filters domain.ListSubscriptionFilters, cursor *utils.CursorData, limit int) ([]*domain.PlanSubscription, *utils.CursorData, error)
 	FindActiveSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
 	FindInProgressSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
 	FindFirstDay(ctx context.Context, planId string) (*domain.Day, error)
@@ -50,15 +52,96 @@ func NewRepository(database *sql.DB) Repository {
 }
 
 func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string, filters domain.ListSubscriptionFilters) ([]*domain.PlanSubscription, error) {
-	query := `
-		SELECT 
-			subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
-			plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt",
-			COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELED') AND "deletedAt" IS NULL), 0) as completed_days_count
-		FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL`
+	query, args := applySubscriptionFilters(subscriptionListSelect, []interface{}{userId}, filters)
 
-	args := []interface{}{userId}
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+	defer rows.Close()
 
+	subscriptions := make([]*domain.PlanSubscription, 0)
+	for rows.Next() {
+		c := &domain.PlanSubscription{TrainingPlan: &domain.TrainingPlan{}}
+		var completedCount int
+		err := rows.Scan(
+			&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
+			&c.TrainingPlan.Id, &c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays,
+			&c.TrainingPlan.Type, &c.TrainingPlan.Visibility, &c.TrainingPlan.Level, &c.TrainingPlan.Observation,
+			&c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions, &c.TrainingPlan.ImageUrl,
+			&c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt,
+			&completedCount,
+		)
+		if err != nil {
+			return nil, err
+		}
+		c.CompletedDaysCount = &completedCount
+		subscriptions = append(subscriptions, c)
+	}
+
+	return subscriptions, nil
+}
+
+func (r *PostgresRepository) ListSubscribedPlans(ctx context.Context, userId string, filters domain.ListSubscriptionFilters, cursor *utils.CursorData, limit int) ([]*domain.PlanSubscription, *utils.CursorData, error) {
+	query, args := applySubscriptionFilters(subscriptionListSelect, []interface{}{userId}, filters)
+
+	if cursor != nil {
+		query += fmt.Sprintf(` AND (subs."createdAt", subs.id) < ($%d, $%d)`, len(args)+1, len(args)+2)
+		args = append(args, cursor.CreatedAt, cursor.ID)
+	}
+	query += ` ORDER BY subs."createdAt" DESC, subs.id DESC`
+	query += fmt.Sprintf(` LIMIT $%d`, len(args)+1)
+	args = append(args, limit+1)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	subscriptions := make([]*domain.PlanSubscription, 0)
+	for rows.Next() {
+		c := &domain.PlanSubscription{TrainingPlan: &domain.TrainingPlan{}}
+		var completedCount int
+		err := rows.Scan(
+			&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
+			&c.TrainingPlan.Id, &c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays,
+			&c.TrainingPlan.Type, &c.TrainingPlan.Visibility, &c.TrainingPlan.Level, &c.TrainingPlan.Observation,
+			&c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions, &c.TrainingPlan.ImageUrl,
+			&c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt,
+			&completedCount,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+		c.CompletedDaysCount = &completedCount
+		subscriptions = append(subscriptions, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	if len(subscriptions) > limit {
+		last := subscriptions[limit-1]
+		nextCursor := &utils.CursorData{ID: last.Id, CreatedAt: last.CreatedAt}
+		subscriptions = subscriptions[:limit]
+		return subscriptions, nextCursor, nil
+	}
+
+	return subscriptions, nil, nil
+}
+
+const subscriptionListSelect = `
+	SELECT 
+		subs.id, subs."createdAt", subs."updatedAt", subs."trainingPlanId", subs."userId", subs.status, subs."type", 
+		plans.id, plans.name, plans."authorId", plans."timeInDays", plans.type, plans.visibility, plans.level, plans.observation, plans.pathology, plans."maxSubscriptions", plans."imageUrl", plans.description, plans."createdAt", plans."updatedAt",
+		COALESCE((SELECT COUNT(*) FROM plan_day_progress WHERE "planSubscriptionId" = subs.id AND status IN ('COMPLETED', 'CANCELED') AND "deletedAt" IS NULL), 0) as completed_days_count
+	FROM plan_subscription subs LEFT JOIN training_plans plans ON subs."trainingPlanId" = plans.id WHERE subs."userId" = $1 AND subs."deletedAt" IS NULL`
+
+func applySubscriptionFilters(query string, args []interface{}, filters domain.ListSubscriptionFilters) (string, []interface{}) {
 	if filters.Status != nil {
 		query += fmt.Sprintf(` AND subs.status = $%d`, len(args)+1)
 		args = append(args, *filters.Status)
@@ -89,32 +172,7 @@ func (r *PostgresRepository) ListSubscription(ctx context.Context, userId string
 		args = append(args, *filters.AuthorId)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	subscriptions := make([]*domain.PlanSubscription, 0)
-	for rows.Next() {
-		c := &domain.PlanSubscription{TrainingPlan: &domain.TrainingPlan{}}
-		var completedCount int
-		err := rows.Scan(
-			&c.Id, &c.CreatedAt, &c.UpdatedAt, &c.TrainingPlanId, &c.UserId, &c.Status, &c.Type,
-			&c.TrainingPlan.Id, &c.TrainingPlan.Name, &c.TrainingPlan.AuthorId, &c.TrainingPlan.TimeInDays,
-			&c.TrainingPlan.Type, &c.TrainingPlan.Visibility, &c.TrainingPlan.Level, &c.TrainingPlan.Observation,
-			&c.TrainingPlan.Pathology, &c.TrainingPlan.MaxSubscriptions, &c.TrainingPlan.ImageUrl,
-			&c.TrainingPlan.Description, &c.TrainingPlan.CreatedAt, &c.TrainingPlan.UpdatedAt,
-			&completedCount,
-		)
-		if err != nil {
-			return nil, err
-		}
-		c.CompletedDaysCount = &completedCount
-		subscriptions = append(subscriptions, c)
-	}
-
-	return subscriptions, nil
+	return query, args
 }
 
 func (r *PostgresRepository) ListWeeklyDayProgress(ctx context.Context, userId string) ([]domain.PlanDayProgress, error) {
@@ -302,6 +360,10 @@ func (r *PostgresRepository) GetEngagementSummary(ctx context.Context, userId st
 				summary.ActiveDaysThisWeek = append(summary.ActiveDaysThisWeek, strings.TrimSpace(day))
 			}
 		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("could not query active days this week: %w", err)
 	}
 
 	return summary, nil
@@ -520,6 +582,10 @@ func (r *PostgresRepository) loadExercisesForDay(ctx context.Context, dayId stri
 	if err != nil {
 		return nil, fmt.Errorf("could not load exercises: %w", err)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over exercises rows: %w", err)
+	}
+
 	defer rows.Close()
 
 	exercises := make([]domain.Exercise, 0)

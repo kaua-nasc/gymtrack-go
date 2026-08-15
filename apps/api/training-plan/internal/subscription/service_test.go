@@ -3,8 +3,10 @@ package subscription
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
+	"github.com/kaua-nasc/gymtrack-go/libs/utils"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 )
@@ -207,6 +209,86 @@ func TestService_Subscribe(t *testing.T) {
 				}
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestService_ListSubscribedPlans(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	mockIdentity := domain.NewMockIdentityClient(ctrl)
+	service := NewService(mockRepo, mockIdentity)
+
+	now := time.Now().UTC()
+
+	buildSub := func(id, planName string, status domain.PlanSubscriptionStatus, completed int) *domain.PlanSubscription {
+		completedCount := completed
+		return &domain.PlanSubscription{
+			Id:                 id,
+			TrainingPlanId:     "plan-" + id,
+			UserId:             "user-123",
+			Status:             status,
+			Type:               domain.TotalAccessSubscription,
+			CreatedAt:          now,
+			UpdatedAt:          now,
+			CompletedDaysCount: &completedCount,
+			TrainingPlan: &domain.TrainingPlan{
+				Id:         new("plan-" + id),
+				Name:       planName,
+				AuthorId:   "trainer-1",
+				TimeInDays: 30,
+				Visibility: domain.Public,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			},
+		}
+	}
+
+	tests := []struct {
+		name          string
+		repoReturns   []*domain.PlanSubscription
+		nextCursor    *utils.CursorData
+		wantPlans     int
+		wantHasCursor bool
+	}{
+		{
+			name: "Success with plans",
+			repoReturns: []*domain.PlanSubscription{
+				buildSub("sub-1", "Plan A", domain.InProgress, 3),
+				buildSub("sub-2", "Plan B", domain.Completed, 30),
+			},
+			wantPlans: 2,
+		},
+		{
+			name:        "No subscriptions",
+			repoReturns: []*domain.PlanSubscription{},
+			wantPlans:   0,
+		},
+		{
+			name: "Has next cursor",
+			repoReturns: []*domain.PlanSubscription{
+				buildSub("sub-1", "Plan A", domain.InProgress, 3),
+			},
+			nextCursor:    &utils.CursorData{ID: "sub-1", CreatedAt: now},
+			wantPlans:     1,
+			wantHasCursor: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo.EXPECT().ListSubscribedPlans(gomock.Any(), "user-123", domain.ListSubscriptionFilters{}, gomock.Any(), gomock.Any()).Return(tt.repoReturns, tt.nextCursor, nil)
+
+			plans, next, err := service.ListSubscribedPlans(context.Background(), "user-123", domain.ListSubscriptionFilters{}, "", 20)
+			assert.NoError(t, err)
+			assert.Len(t, plans, tt.wantPlans)
+			if tt.wantHasCursor {
+				assert.NotEmpty(t, next)
+			} else {
+				assert.Empty(t, next)
 			}
 		})
 	}

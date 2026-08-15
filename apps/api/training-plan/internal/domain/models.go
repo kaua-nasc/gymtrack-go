@@ -106,6 +106,7 @@ type TrainingPlan struct {
 
 	// Computed/Virtual Fields
 	PlanSubscriptionStatus *PlanSubscriptionStatus `json:"planSubscriptionStatus"`
+	CompletedDaysCount     *int                    `json:"completedDaysCount,omitempty"`
 	Author                 any                     `json:"author,omitempty"`
 }
 

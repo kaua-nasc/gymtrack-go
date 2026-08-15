@@ -107,6 +107,38 @@ func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId strin
 	return subs, nil
 }
 
+func (s *Service) ListSubscribedPlans(ctx context.Context, userId string, filters domain.ListSubscriptionFilters, cursor string, limit int) ([]*domain.TrainingPlan, string, error) {
+	slog.InfoContext(ctx, "listing subscribed plans", slog.String("user_id", userId), slog.Int("limit", limit))
+
+	var decodedCursor *utils.CursorData
+	if err := utils.DecodeCursor(cursor, &decodedCursor); err != nil {
+		slog.WarnContext(ctx, "failed to decode cursor", slog.String("cursor", cursor), slog.Any("error", err))
+	}
+
+	subscriptions, nextCursor, err := s.repo.ListSubscribedPlans(ctx, userId, filters, decodedCursor, limit)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to list subscribed plans", slog.String("user_id", userId), slog.Any("error", err))
+		return nil, "", err
+	}
+
+	plans := make([]*domain.TrainingPlan, 0, len(subscriptions))
+	for _, sub := range subscriptions {
+		if sub.TrainingPlan == nil {
+			continue
+		}
+		p := sub.TrainingPlan
+		p.PlanSubscriptionStatus = &sub.Status
+		p.CompletedDaysCount = sub.CompletedDaysCount
+		plans = append(plans, p)
+	}
+
+	var nextCursorStr string
+	if nextCursor != nil {
+		nextCursorStr, _ = utils.EncodeCursor(nextCursor)
+	}
+	return plans, nextCursorStr, nil
+}
+
 func (s *Service) Subscribe(ctx context.Context, planId, userId string) error {
 	slog.InfoContext(ctx, "subscribing user to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
 
