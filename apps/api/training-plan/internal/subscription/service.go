@@ -172,16 +172,8 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string) error {
 		return err
 	}
 
-	if plan.MaxSubscriptions != nil {
-		count, err := s.repo.CountActiveSubscriptionsByPlan(ctx, planId)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to count active subscriptions", slog.String("plan_id", planId), slog.Any("error", err))
-			return err
-		}
-		if count >= *plan.MaxSubscriptions {
-			slog.WarnContext(ctx, "plan reached max subscriptions", slog.String("plan_id", planId), slog.Int("max", *plan.MaxSubscriptions), slog.Int("active", count))
-			return domain.ErrMaxSubscriptionsReached
-		}
+	if err := s.verifyPlanExceededMaxSubscriptions(ctx, plan); err != nil {
+		return err
 	}
 
 	id, err := utils.GenerateUUIDV7(ctx)
@@ -231,6 +223,21 @@ func (s *Service) authorizeSubscription(ctx context.Context, plan *domain.Traini
 		return domain.ErrSubscriptionForbidden
 	}
 	return domain.ErrSubscriptionForbidden
+}
+
+func (s *Service) verifyPlanExceededMaxSubscriptions(ctx context.Context, plan *domain.TrainingPlan) error {
+	if plan.MaxSubscriptions != nil {
+		count, err := s.repo.CountActiveSubscriptionsByPlan(ctx, *plan.Id)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to count active subscriptions", slog.String("plan_id", *plan.Id), slog.Any("error", err))
+			return err
+		}
+		if count >= *plan.MaxSubscriptions {
+			slog.WarnContext(ctx, "plan reached max subscriptions", slog.String("plan_id", *plan.Id), slog.Int("max", *plan.MaxSubscriptions), slog.Int("active", count))
+			return domain.ErrMaxSubscriptionsReached
+		}
+	}
+	return nil
 }
 
 func (s *Service) Unsubscribe(ctx context.Context, planId, userId string) error {
