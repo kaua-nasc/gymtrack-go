@@ -31,7 +31,6 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("", h.ListPlan)
 		plans.POST("/by-ids", h.ListPlansByIds)
 		plans.POST("", h.CreatePlan)
-		plans.POST("/student/:studentId", h.CreatePlanForStudent)
 		plans.GET("author/:authorId", h.ListPlan)
 		plans.GET("/:id", h.GetPlan)
 		plans.PUT("/:id", h.UpdatePlan)
@@ -62,34 +61,6 @@ func (h *Handler) CreatePlan(ctx *gin.Context) {
 	_, err := h.srv.CreatePlan(ctx.Request.Context(), plan, user)
 	if err != nil {
 		slog.ErrorContext(ctx.Request.Context(), "failed to create plan", slog.Any("error", err), slog.String("authorId", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	ctx.Status(http.StatusCreated)
-}
-
-func (h *Handler) CreatePlanForStudent(ctx *gin.Context) {
-	studentId := ctx.Param("studentId")
-	if studentId == "" {
-		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("student id is required"))
-		return
-	}
-
-	var plan domain.TrainingPlan
-	if err := ctx.ShouldBindJSON(&plan); err != nil {
-		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	user, ok := auth.GetAuthUser(ctx)
-	if !ok {
-		return
-	}
-
-	_, err := h.srv.CreatePlanForStudent(ctx.Request.Context(), studentId, plan, user)
-	if err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to create plan for student", slog.Any("error", err), slog.String("authorId", user.ID), slog.String("studentId", studentId))
 		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse(err.Error()))
 		return
 	}

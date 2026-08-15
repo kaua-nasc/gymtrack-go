@@ -144,19 +144,25 @@ func (h *Handler) Subscribe(ctx *gin.Context) {
 		return
 	}
 
-	var body struct {
-		Type domain.PlanSubscriptionType `json:"type" binding:"required"`
-	}
-
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
-		return
-	}
-
-	if err := h.srv.Subscribe(ctx.Request.Context(), id, user.ID, body.Type); err != nil {
-		slog.ErrorContext(ctx.Request.Context(), "failed to subscribe", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
-		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to subscribe"))
-		return
+	if err := h.srv.Subscribe(ctx.Request.Context(), id, user.ID); err != nil {
+		switch {
+		case errors.Is(err, domain.ErrPlanNotFound):
+			ctx.JSON(http.StatusNotFound, utils.NewErrorResponse(err.Error()))
+			return
+		case errors.Is(err, domain.ErrAlreadySubscribed), errors.Is(err, domain.ErrMaxSubscriptionsReached):
+			ctx.JSON(http.StatusConflict, utils.NewErrorResponse(err.Error()))
+			return
+		case errors.Is(err, domain.ErrPlanIncomplete):
+			ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+			return
+		case errors.Is(err, domain.ErrCannotSubscribeOwnPlan), errors.Is(err, domain.ErrSubscriptionForbidden):
+			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
+			return
+		default:
+			slog.ErrorContext(ctx.Request.Context(), "failed to subscribe", slog.Any("error", err), slog.String("plan_id", id), slog.String("user_id", user.ID))
+			ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to subscribe"))
+			return
+		}
 	}
 
 	ctx.Status(http.StatusNoContent)

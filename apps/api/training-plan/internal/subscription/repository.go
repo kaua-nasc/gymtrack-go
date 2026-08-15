@@ -400,7 +400,7 @@ func (r *PostgresRepository) CountSubscriptionProgress(ctx context.Context, subs
 func (r *PostgresRepository) GetSubscriptionEligibility(ctx context.Context, planId, userId string) (bool, bool, error) {
 	query := `
 		SELECT 
-			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND status != 'CANCELED' AND "deletedAt" IS NULL) as already_subscribed,
+			EXISTS (SELECT 1 FROM plan_subscription WHERE "trainingPlanId" = $1 AND "userId" = $2 AND status IN ('NOT_STARTED', 'IN_PROGRESS') AND "deletedAt" IS NULL) as already_subscribed,
 			EXISTS (SELECT 1 FROM days d JOIN exercises e ON d.id = e."dayId" WHERE d."trainingPlanId" = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL) as is_complete
 	`
 	var alreadySubscribed, isComplete bool

@@ -107,8 +107,23 @@ func (s *Service) ListSubscriptionByUserId(ctx context.Context, id, userId strin
 	return subs, nil
 }
 
-func (s *Service) Subscribe(ctx context.Context, planId, userId string, subType domain.PlanSubscriptionType) error {
+func (s *Service) Subscribe(ctx context.Context, planId, userId string) error {
 	slog.InfoContext(ctx, "subscribing user to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
+
+	plan, err := s.repo.FindPlanForSubscription(ctx, planId)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to fetch plan for subscription", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
+		return err
+	}
+	if plan == nil {
+		slog.WarnContext(ctx, "plan not found for subscription", slog.String("plan_id", planId), slog.String("user_id", userId))
+		return domain.ErrPlanNotFound
+	}
+
+	if plan.AuthorId == userId {
+		slog.WarnContext(ctx, "user attempted to subscribe to own plan", slog.String("plan_id", planId), slog.String("user_id", userId))
+		return domain.ErrCannotSubscribeOwnPlan
+	}
 
 	alreadySubscribed, isComplete, err := s.repo.GetSubscriptionEligibility(ctx, planId, userId)
 	if err != nil {
@@ -118,12 +133,28 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string, subType 
 
 	if alreadySubscribed {
 		slog.WarnContext(ctx, "user already subscribed to plan", slog.String("plan_id", planId), slog.String("user_id", userId))
-		return errors.New("already subscribed")
+		return domain.ErrAlreadySubscribed
 	}
 
 	if !isComplete {
 		slog.WarnContext(ctx, "attempted to subscribe to incomplete plan", slog.String("plan_id", planId))
-		return errors.New("training plan is incomplete (must have at least one day and one exercise)")
+		return domain.ErrPlanIncomplete
+	}
+
+	if err := s.authorizeSubscription(ctx, plan, userId); err != nil {
+		return err
+	}
+
+	if plan.MaxSubscriptions != nil {
+		count, err := s.repo.CountActiveSubscriptionsByPlan(ctx, planId)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to count active subscriptions", slog.String("plan_id", planId), slog.Any("error", err))
+			return err
+		}
+		if count >= *plan.MaxSubscriptions {
+			slog.WarnContext(ctx, "plan reached max subscriptions", slog.String("plan_id", planId), slog.Int("max", *plan.MaxSubscriptions), slog.Int("active", count))
+			return domain.ErrMaxSubscriptionsReached
+		}
 	}
 
 	id, err := utils.GenerateUUIDV7(ctx)
@@ -136,7 +167,7 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string, subType 
 		TrainingPlanId: planId,
 		UserId:         userId,
 		Status:         domain.NotStarted,
-		Type:           subType,
+		Type:           domain.TotalAccessSubscription,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -146,6 +177,29 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string, subType 
 		return err
 	}
 	return nil
+}
+
+func (s *Service) authorizeSubscription(ctx context.Context, plan *domain.TrainingPlan, userId string) error {
+	switch plan.Visibility {
+	case domain.Public:
+		return nil
+	case domain.Protected:
+		token, _ := ctx.Value(string(auth.TokenContextKey)).(string)
+		user, err := s.identity.FindUser(ctx, userId, token)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to validate student relation for protected plan", slog.String("plan_id", *plan.Id), slog.String("user_id", userId), slog.Any("error", err))
+			return domain.ErrSubscriptionForbidden
+		}
+		if user.StudentOf == nil || user.StudentOf.TrainerId != plan.AuthorId {
+			slog.WarnContext(ctx, "user is not a student of the plan author", slog.String("plan_id", *plan.Id), slog.String("user_id", userId))
+			return domain.ErrSubscriptionForbidden
+		}
+		return nil
+	case domain.Private:
+		slog.WarnContext(ctx, "attempted to subscribe to private plan", slog.String("plan_id", *plan.Id), slog.String("user_id", userId))
+		return domain.ErrSubscriptionForbidden
+	}
+	return domain.ErrSubscriptionForbidden
 }
 
 func (s *Service) Unsubscribe(ctx context.Context, planId, userId string) error {
@@ -182,11 +236,11 @@ func (s *Service) ChangeSubscriptionStatus(ctx context.Context, planId, userId s
 	switch status {
 	case domain.NotStarted:
 		if subscription.Status != domain.Canceled {
-			return fmt.Errorf("o status deve ser cancelado")
+			return fmt.Errorf("cannot change status from %s to %s", subscription.Status, status)
 		}
 	case domain.InProgress:
 		if subscription.Status != domain.NotStarted {
-			return fmt.Errorf("o status deve ser cancelado")
+			return fmt.Errorf("cannot change status from %s to %s", subscription.Status, status)
 		}
 		inProgressSub, err := s.repo.FindInProgressSubscription(ctx, userId)
 		if err != nil {
@@ -197,11 +251,11 @@ func (s *Service) ChangeSubscriptionStatus(ctx context.Context, planId, userId s
 		}
 	case domain.Completed:
 		if subscription.Status != domain.InProgress {
-			return fmt.Errorf("o status deve ser cancelado")
+			return fmt.Errorf("cannot change status from %s to %s", subscription.Status, status)
 		}
 	case domain.Canceled:
 		if subscription.Status != domain.InProgress {
-			return fmt.Errorf("o status deve ser cancelado")
+			return fmt.Errorf("cannot change status from %s to %s", subscription.Status, status)
 		}
 	}
 
