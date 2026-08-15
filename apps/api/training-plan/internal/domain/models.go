@@ -53,24 +53,6 @@ const (
 	PrivateSubscription       PlanSubscriptionType = "PRIVATE"
 )
 
-type PlanAccessRequestStatus string
-
-const (
-	PendingAccess  PlanAccessRequestStatus = "PENDING"
-	ApprovedAccess PlanAccessRequestStatus = "APPROVED"
-	RejectedAccess PlanAccessRequestStatus = "REJECTED"
-	CanceledAccess PlanAccessRequestStatus = "CANCELED"
-)
-
-type PlanInviteStatus string
-
-const (
-	PendingInvite  PlanInviteStatus = "PENDING"
-	AcceptedInvite PlanInviteStatus = "ACCEPTED"
-	RejectedInvite PlanInviteStatus = "REJECTED"
-	CanceledInvite PlanInviteStatus = "CANCELED"
-)
-
 type PlanDayProgressStatus string
 
 const (
@@ -118,12 +100,9 @@ type TrainingPlan struct {
 	TotalRatingsCount int                    `json:"totalRatingsCount"`
 
 	// Relations
-	Days                []Day                  `json:"days,omitempty"`
-	PlanSubscriptions   []PlanSubscription     `json:"planSubscriptions,omitempty"`
-	AccessRequests      []PlanAccessRequest    `json:"accessRequests,omitempty"`
-	PrivateParticipants []PlanParticipant      `json:"privateParticipants,omitempty"`
-	Feedbacks           []TrainingPlanFeedback `json:"feedbacks,omitempty"`
-	Invites             []PlanInvite           `json:"invites,omitempty"`
+	Days              []Day                  `json:"days,omitempty"`
+	PlanSubscriptions []PlanSubscription     `json:"planSubscriptions,omitempty"`
+	Feedbacks         []TrainingPlanFeedback `json:"feedbacks,omitempty"`
 
 	// Computed/Virtual Fields
 	PlanSubscriptionStatus *PlanSubscriptionStatus `json:"planSubscriptionStatus"`
@@ -181,34 +160,7 @@ type PlanSubscription struct {
 	TrainingPlan    *TrainingPlan     `json:"trainingPlan,omitempty"`
 }
 
-// PlanAccessRequest Entity
-type PlanAccessRequest struct {
-	Id             string                  `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time               `json:"createdAt"`
-	UpdatedAt      time.Time               `json:"updatedAt"`
-	UserId         string                  `json:"userId" validate:"required,uuid"`
-	TrainingPlanId string                  `json:"trainingPlanId" validate:"required,uuid"`
-	Status         PlanAccessRequestStatus `json:"status" validate:"required"`
-
-	// Relations
-	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-}
-
 // Support Entities
-// PlanParticipant Entity
-type PlanParticipant struct {
-	Id             string    `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-	UserId         string    `json:"userId" validate:"required,uuid"`
-	TrainingPlanId string    `json:"trainingPlanId" validate:"required,uuid"`
-	ExpirationDate time.Time `json:"expirationDate"`
-	ApprovedAt     time.Time `json:"approvedAt"`
-
-	// Relations
-	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-}
-
 // TrainingPlanFeedback Entity
 type TrainingPlanFeedback struct {
 	Id             string    `json:"id" validate:"required,uuid"`
@@ -218,21 +170,6 @@ type TrainingPlanFeedback struct {
 	UserId         string    `json:"userId" validate:"required,uuid"`
 	Rating         float64   `json:"rating" validate:"required,min=0,max=5"`
 	Message        *string   `json:"message,omitempty"`
-
-	// Relations
-	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`
-}
-
-// PlanInvite Entity
-type PlanInvite struct {
-	Id             string           `json:"id" validate:"required,uuid"`
-	CreatedAt      time.Time        `json:"createdAt"`
-	UpdatedAt      time.Time        `json:"updatedAt"`
-	PlanId         string           `json:"planId" validate:"required,uuid"`
-	SenderId       string           `json:"senderId" validate:"required,uuid"`
-	RecipientId    *string          `json:"recipientId,omitempty" validate:"omitempty,uuid"`
-	RecipientEmail string           `json:"recipientEmail" validate:"required,email"`
-	Status         PlanInviteStatus `json:"status" validate:"required"`
 
 	// Relations
 	TrainingPlan *TrainingPlan `json:"trainingPlan,omitempty"`

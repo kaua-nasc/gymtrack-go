@@ -29,7 +29,6 @@ type Repository interface {
 	ListExercisesByPlan(ctx context.Context, planID string) ([]*domain.Exercise, error)
 	List(ctx context.Context, authorId string, visibilities []domain.TrainingPlanVisibility, cursor *utils.CursorData, limit int) ([]*domain.TrainingPlan, *utils.CursorData, error)
 	ListByIds(ctx context.Context, ids []string) ([]*domain.TrainingPlan, error)
-	IsPlanComplete(ctx context.Context, planId string) (bool, error)
 	FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error)
 	ExistsPlan(ctx context.Context, id string, publicOnly bool) (bool, error)
 	ExistsDayByName(ctx context.Context, planId string, name string) (bool, error)
@@ -452,21 +451,6 @@ func (r *PostgresRepository) DeletePlan(ctx context.Context, id string) error {
 		return fmt.Errorf("could not soft delete training plan: %w", err)
 	}
 	return nil
-}
-
-func (r *PostgresRepository) IsPlanComplete(ctx context.Context, planId string) (bool, error) {
-	query := `
-		SELECT EXISTS (
-			SELECT 1 FROM days d
-			JOIN exercises e ON d.id = e."dayId"
-			WHERE d."trainingPlanId" = $1 AND d."deletedAt" IS NULL AND e."deletedAt" IS NULL
-		)`
-	var complete bool
-	err := r.db.QueryRowContext(ctx, query, planId).Scan(&complete)
-	if err != nil {
-		return false, fmt.Errorf("could not check if plan is complete: %w", err)
-	}
-	return complete, nil
 }
 
 func (r *PostgresRepository) FindSubscriptionByPlan(ctx context.Context, planId, userId string) (*domain.PlanSubscription, error) {

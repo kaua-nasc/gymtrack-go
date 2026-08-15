@@ -28,10 +28,7 @@ type Repository interface {
 	ListWeeklyDayProgress(ctx context.Context, userId string) ([]domain.PlanDayProgress, error)
 	FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error)
 	GetSubscriptionEligibility(ctx context.Context, planId, userId string) (alreadySubscribed bool, isComplete bool, err error)
-	CreateAccessRequest(ctx context.Context, req *domain.PlanAccessRequest) error
-	CreateInvite(ctx context.Context, i *domain.PlanInvite) error
-	AddParticipant(ctx context.Context, p *domain.PlanParticipant) error
-	IsParticipant(ctx context.Context, planId, userId string) (bool, error)
+	FindPlanForSubscription(ctx context.Context, planId string) (*domain.TrainingPlan, error)
 	FindActiveSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
 	FindInProgressSubscription(ctx context.Context, userId string) (*domain.PlanSubscription, error)
 	FindFirstDay(ctx context.Context, planId string) (*domain.Day, error)
@@ -400,33 +397,6 @@ func (r *PostgresRepository) CountSubscriptionProgress(ctx context.Context, subs
 	return count, nil
 }
 
-func (r *PostgresRepository) CreateAccessRequest(ctx context.Context, req *domain.PlanAccessRequest) error {
-	query := `INSERT INTO plan_access_request (id, "userId", "trainingPlanId", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)`
-	_, err := r.db.ExecContext(ctx, query, req.Id, req.UserId, req.TrainingPlanId, req.Status, req.CreatedAt, req.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("could not create access request: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresRepository) CreateInvite(ctx context.Context, i *domain.PlanInvite) error {
-	query := `INSERT INTO plan_invites (id, "planId", "senderId", "recipientId", "recipientEmail", status, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
-	_, err := r.db.ExecContext(ctx, query, i.Id, i.PlanId, i.SenderId, i.RecipientId, i.RecipientEmail, i.Status, i.CreatedAt, i.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("could not create invite: %w", err)
-	}
-	return nil
-}
-
-func (r *PostgresRepository) AddParticipant(ctx context.Context, p *domain.PlanParticipant) error {
-	query := `INSERT INTO plan_participant (id, "userId", "trainingPlanId", expiration_date, approved_at, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7)`
-	_, err := r.db.ExecContext(ctx, query, p.Id, p.UserId, p.TrainingPlanId, p.ExpirationDate, p.ApprovedAt, p.CreatedAt, p.UpdatedAt)
-	if err != nil {
-		return fmt.Errorf("could not add participant: %w", err)
-	}
-	return nil
-}
-
 func (r *PostgresRepository) GetSubscriptionEligibility(ctx context.Context, planId, userId string) (bool, bool, error) {
 	query := `
 		SELECT 
@@ -441,14 +411,24 @@ func (r *PostgresRepository) GetSubscriptionEligibility(ctx context.Context, pla
 	return alreadySubscribed, isComplete, nil
 }
 
-func (r *PostgresRepository) IsParticipant(ctx context.Context, planId, userId string) (bool, error) {
-	query := `SELECT EXISTS(SELECT 1 FROM plan_participant WHERE "trainingPlanId" = $1 AND "userId" = $2 AND "deletedAt" IS NULL)`
-	var exists bool
-	err := r.db.QueryRowContext(ctx, query, planId, userId).Scan(&exists)
+func (r *PostgresRepository) FindPlanForSubscription(ctx context.Context, planId string) (*domain.TrainingPlan, error) {
+	query := `
+		SELECT id, name, "authorId", "timeInDays", visibility, "maxSubscriptions"
+		FROM training_plans
+		WHERE id = $1 AND "deletedAt" IS NULL
+		LIMIT 1`
+
+	var p domain.TrainingPlan
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(
+		&p.Id, &p.Name, &p.AuthorId, &p.TimeInDays, &p.Visibility, &p.MaxSubscriptions,
+	)
 	if err != nil {
-		return false, fmt.Errorf("could not check participant status: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("could not find plan for subscription: %w", err)
 	}
-	return exists, nil
+	return &p, nil
 }
 
 func (r *PostgresRepository) FindLastDayProgressByUser(ctx context.Context, userId string) (*domain.PlanDayProgress, error) {
