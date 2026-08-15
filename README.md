@@ -1,12 +1,12 @@
 # Gymtrack
 
-A complete platform for training plan management, physical evolution tracking, and social interaction, connecting athletes and personal trainers in one place.
+A complete platform for training plan management and physical evolution tracking, connecting athletes and personal trainers in one place.
 
 This repository contains the Gymtrack API code, responsible for exposing the services and business rules consumed by client applications (mobile, web, etc.).
 
 ## Overview
 
-Gymtrack unifies body metrics analysis, workout execution, and a dedicated fitness social network, making life easier for both those who train and those who prescribe workouts.
+Gymtrack unifies body metrics analysis, workout execution, and trainer-student connection, making life easier for both those who train and those who prescribe workouts.
 
 ## Key Features
 
@@ -24,11 +24,9 @@ Gymtrack unifies body metrics analysis, workout execution, and a dedicated fitne
 - Dashboards with evolution charts, training adherence rate, weekly frequency, active plan progress, and health insights.
 - Granular privacy controls over which data is shared with the trainer.
 
-### Community & Social Interaction
+### Community
 
-- Post feed with support for text, media, and training plan sharing.
 - Follower system to build and engage with the fitness community.
-- Likes and comments on posts with moderation by status (approved, pending, rejected).
 
 ## Target Audience
 

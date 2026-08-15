@@ -12,7 +12,6 @@ COPY go.work go.work.sum ./
 # Copy all go.mod and go.sum files first to leverage Docker layer caching
 COPY apps/api/identity/go.mod* apps/api/identity/go.sum* ./apps/api/identity/
 COPY apps/api/training-plan/go.mod* apps/api/training-plan/go.sum* ./apps/api/training-plan/
-COPY apps/api/social/go.mod* apps/api/social/go.sum* ./apps/api/social/
 COPY libs/auth/go.mod* libs/auth/go.sum* ./libs/auth/
 COPY libs/db/go.mod* libs/db/go.sum* ./libs/db/
 COPY libs/email/go.mod* libs/email/go.sum* ./libs/email/

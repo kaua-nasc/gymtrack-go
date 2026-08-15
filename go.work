@@ -2,15 +2,14 @@ go 1.26.3
 
 use (
 	./apps/api/identity
-	./apps/api/social
 	./apps/api/training-plan
 	./libs/auth
 	./libs/cache
 	./libs/config
 	./libs/db
 	./libs/email
+	./libs/integration-tests
 	./libs/log
 	./libs/storage
 	./libs/utils
-	./libs/integration-tests
 )

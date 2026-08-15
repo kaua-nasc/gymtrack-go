@@ -28,9 +28,6 @@ jobs:
             training-plan:
               - 'apps/api/training-plan/**'
               - 'libs/**'
-            social:
-              - 'apps/api/social/**'
-              - 'libs/**'
             libs:
               - 'libs/**'
 
@@ -55,14 +52,6 @@ jobs:
       - name: Run Training Plan Tests
         if: steps.filter.outputs.training-plan == 'true'
         run: go test -v ./apps/api/training-plan/...
-
-      - name: Generate Social Mocks
-        if: steps.filter.outputs.social == 'true'
-        run: go generate ./apps/api/social/...
-
-      - name: Run Social Tests
-        if: steps.filter.outputs.social == 'true'
-        run: go test -v ./apps/api/social/...
 
       - name: Run Libs Tests
         if: steps.filter.outputs.libs == 'true'

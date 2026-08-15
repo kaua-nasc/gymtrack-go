@@ -10,6 +10,8 @@ require (
 )
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.7.0 // indirect
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/mdelapenya/tlscert v0.2.0 // indirect
 	github.com/redis/go-redis/v9 v9.19.0 // indirect
@@ -18,6 +20,7 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
 )
 
 require (

@@ -3,13 +3,13 @@ module github.com/kaua-nasc/gymtrack-go/apps/api/identity
 go 1.26.3
 
 require (
-	github.com/gin-contrib/cors v1.7.6
+	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/kaua-nasc/gymtrack-go/libs/auth v0.0.0-20260523221655-53bf912a6d9c
-	github.com/kaua-nasc/gymtrack-go/libs/cache v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/cache v0.0.0-20260628185021-a1f912e78270
 	github.com/kaua-nasc/gymtrack-go/libs/config v0.0.0-20260512003624-4a3773363858
-	github.com/kaua-nasc/gymtrack-go/libs/db v0.0.0-20260512003624-4a3773363858
+	github.com/kaua-nasc/gymtrack-go/libs/db v0.0.0-20260628185021-a1f912e78270
 	github.com/kaua-nasc/gymtrack-go/libs/email v0.0.0-20260512003624-4a3773363858
 	github.com/kaua-nasc/gymtrack-go/libs/integration-tests v0.0.0-00010101000000-000000000000
 	github.com/kaua-nasc/gymtrack-go/libs/log v0.0.0-20260523221655-53bf912a6d9c
