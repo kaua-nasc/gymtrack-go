@@ -155,7 +155,7 @@ func (h *Handler) Subscribe(ctx *gin.Context) {
 		case errors.Is(err, domain.ErrPlanIncomplete):
 			ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
 			return
-		case errors.Is(err, domain.ErrCannotSubscribeOwnPlan), errors.Is(err, domain.ErrSubscriptionForbidden):
+		case errors.Is(err, domain.ErrSubscriptionForbidden):
 			ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
 			return
 		default:

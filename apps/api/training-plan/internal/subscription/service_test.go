@@ -79,16 +79,6 @@ func TestService_Subscribe(t *testing.T) {
 			wantErrIs: domain.ErrPlanNotFound,
 		},
 		{
-			name:   "Cannot subscribe to own plan",
-			planId: "plan-123",
-			userId: "trainer-1",
-			mockBehavior: func() {
-				mockRepo.EXPECT().FindPlanForSubscription(gomock.Any(), "plan-123").Return(publicPlan, nil)
-			},
-			wantErr:   true,
-			wantErrIs: domain.ErrCannotSubscribeOwnPlan,
-		},
-		{
 			name:   "Already subscribed",
 			planId: "plan-123",
 			userId: "user-123",
@@ -98,6 +88,39 @@ func TestService_Subscribe(t *testing.T) {
 			},
 			wantErr:   true,
 			wantErrIs: domain.ErrAlreadySubscribed,
+		},
+		{
+			name:   "Own public plan allowed",
+			planId: "plan-123",
+			userId: "trainer-1",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindPlanForSubscription(gomock.Any(), "plan-123").Return(publicPlan, nil)
+				mockRepo.EXPECT().GetSubscriptionEligibility(gomock.Any(), "plan-123", "trainer-1").Return(false, true, nil)
+				mockRepo.EXPECT().CreatePlanSubscription(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Own private plan allowed without identity call",
+			planId: "plan-789",
+			userId: "trainer-1",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindPlanForSubscription(gomock.Any(), "plan-789").Return(privatePlan, nil)
+				mockRepo.EXPECT().GetSubscriptionEligibility(gomock.Any(), "plan-789", "trainer-1").Return(false, true, nil)
+				mockRepo.EXPECT().CreatePlanSubscription(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Own protected plan allowed without identity call",
+			planId: "plan-456",
+			userId: "trainer-1",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindPlanForSubscription(gomock.Any(), "plan-456").Return(protectedPlan, nil)
+				mockRepo.EXPECT().GetSubscriptionEligibility(gomock.Any(), "plan-456", "trainer-1").Return(false, true, nil)
+				mockRepo.EXPECT().CreatePlanSubscription(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
 		},
 		{
 			name:   "Plan incomplete",

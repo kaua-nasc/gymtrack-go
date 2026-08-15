@@ -120,11 +120,6 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string) error {
 		return domain.ErrPlanNotFound
 	}
 
-	if plan.AuthorId == userId {
-		slog.WarnContext(ctx, "user attempted to subscribe to own plan", slog.String("plan_id", planId), slog.String("user_id", userId))
-		return domain.ErrCannotSubscribeOwnPlan
-	}
-
 	alreadySubscribed, isComplete, err := s.repo.GetSubscriptionEligibility(ctx, planId, userId)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to check subscription eligibility", slog.String("plan_id", planId), slog.String("user_id", userId), slog.Any("error", err))
@@ -180,6 +175,10 @@ func (s *Service) Subscribe(ctx context.Context, planId, userId string) error {
 }
 
 func (s *Service) authorizeSubscription(ctx context.Context, plan *domain.TrainingPlan, userId string) error {
+	if plan.AuthorId == userId {
+		return nil
+	}
+
 	switch plan.Visibility {
 	case domain.Public:
 		return nil

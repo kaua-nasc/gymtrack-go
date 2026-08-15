@@ -10,7 +10,6 @@ var (
 	ErrPlanNotFound             = errors.New("training plan not found")
 	ErrAlreadySubscribed        = errors.New("already subscribed to this training plan")
 	ErrPlanIncomplete           = errors.New("training plan is incomplete (must have at least one day and one exercise)")
-	ErrCannotSubscribeOwnPlan   = errors.New("you cannot subscribe to your own training plan")
 	ErrSubscriptionForbidden    = errors.New("you are not allowed to subscribe to this training plan")
 	ErrMaxSubscriptionsReached  = errors.New("training plan reached the maximum number of subscriptions")
 )
