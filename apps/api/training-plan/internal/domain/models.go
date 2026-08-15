@@ -93,7 +93,7 @@ type TrainingPlan struct {
 	Level             TrainingPlanLevel      `json:"level" validate:"required"`
 	Observation       *string                `json:"observation,omitempty"`
 	Pathology         *string                `json:"pathology,omitempty"`
-	MaxSubscriptions  *int                   `json:"maxSubscriptions,omitempty"`
+	MaxSubscriptions  int                    `json:"maxSubscriptions,omitempty" validate:"omitempty,min=0"`
 	ImageUrl          *string                `json:"imageUrl"`
 	Description       *string                `json:"description"`
 	TotalRatingSum    *float64               `json:"totalRatingSum"`

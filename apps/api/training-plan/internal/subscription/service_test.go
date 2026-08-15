@@ -60,7 +60,8 @@ func TestService_Subscribe(t *testing.T) {
 	publicPlan := &domain.TrainingPlan{Id: new("plan-123"), AuthorId: "trainer-1", Visibility: domain.Public}
 	protectedPlan := &domain.TrainingPlan{Id: new("plan-456"), AuthorId: "trainer-1", Visibility: domain.Protected}
 	privatePlan := &domain.TrainingPlan{Id: new("plan-789"), AuthorId: "trainer-1", Visibility: domain.Private}
-	limitedPlan := &domain.TrainingPlan{Id: new("plan-101"), AuthorId: "trainer-1", Visibility: domain.Public, MaxSubscriptions: new(1)}
+	limitedPlan := &domain.TrainingPlan{Id: new("plan-101"), AuthorId: "trainer-1", Visibility: domain.Public, MaxSubscriptions: 1}
+	unlimitedPlan := &domain.TrainingPlan{Id: new("plan-102"), AuthorId: "trainer-1", Visibility: domain.Public, MaxSubscriptions: 0}
 
 	tests := []struct {
 		name         string
@@ -184,6 +185,17 @@ func TestService_Subscribe(t *testing.T) {
 			},
 			wantErr:   true,
 			wantErrIs: domain.ErrMaxSubscriptionsReached,
+		},
+		{
+			name:   "Unlimited when max is zero",
+			planId: "plan-102",
+			userId: "user-123",
+			mockBehavior: func() {
+				mockRepo.EXPECT().FindPlanForSubscription(gomock.Any(), "plan-102").Return(unlimitedPlan, nil)
+				mockRepo.EXPECT().GetSubscriptionEligibility(gomock.Any(), "plan-102", "user-123").Return(false, true, nil)
+				mockRepo.EXPECT().CreatePlanSubscription(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
 		},
 		{
 			name:   "Success subscribe",

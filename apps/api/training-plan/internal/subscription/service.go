@@ -226,14 +226,14 @@ func (s *Service) authorizeSubscription(ctx context.Context, plan *domain.Traini
 }
 
 func (s *Service) verifyPlanExceededMaxSubscriptions(ctx context.Context, plan *domain.TrainingPlan) error {
-	if plan.MaxSubscriptions != nil {
+	if plan.MaxSubscriptions > 0 {
 		count, err := s.repo.CountActiveSubscriptionsByPlan(ctx, *plan.Id)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to count active subscriptions", slog.String("plan_id", *plan.Id), slog.Any("error", err))
 			return err
 		}
-		if count >= *plan.MaxSubscriptions {
-			slog.WarnContext(ctx, "plan reached max subscriptions", slog.String("plan_id", *plan.Id), slog.Int("max", *plan.MaxSubscriptions), slog.Int("active", count))
+		if count >= plan.MaxSubscriptions {
+			slog.WarnContext(ctx, "plan reached max subscriptions", slog.String("plan_id", *plan.Id), slog.Int("max", plan.MaxSubscriptions), slog.Int("active", count))
 			return domain.ErrMaxSubscriptionsReached
 		}
 	}
