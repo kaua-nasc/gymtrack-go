@@ -23,6 +23,7 @@ type Repository interface {
 	Find(ctx context.Context, id string) (*domain.TrainingPlan, error)
 	FindComplete(ctx context.Context, id string) (*domain.TrainingPlan, error)
 	Update(ctx context.Context, p *domain.TrainingPlan) error
+	UpdateMaxSubscriptions(ctx context.Context, planId string, max int) error
 	DeletePlan(ctx context.Context, id string) error
 	ListDaysByPlan(ctx context.Context, planID string) ([]*domain.Day, error)
 	ListExercisesByDay(ctx context.Context, dayID string) ([]*domain.Exercise, error)
@@ -84,6 +85,15 @@ func (r *PostgresRepository) Update(ctx context.Context, p *domain.TrainingPlan)
 		return fmt.Errorf("could not update training plan: %w", err)
 	}
 
+	return nil
+}
+
+func (r *PostgresRepository) UpdateMaxSubscriptions(ctx context.Context, planId string, max int) error {
+	query := `UPDATE training_plans SET "maxSubscriptions" = $1, "updatedAt" = NOW() WHERE id = $2 AND "deletedAt" IS NULL`
+	_, err := r.db.ExecContext(ctx, query, max, planId)
+	if err != nil {
+		return fmt.Errorf("could not update max subscriptions: %w", err)
+	}
 	return nil
 }
 

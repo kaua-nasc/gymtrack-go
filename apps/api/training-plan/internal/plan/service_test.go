@@ -83,6 +83,104 @@ func TestService_CreatePlan(t *testing.T) {
 	}
 }
 
+func TestService_UpdateMaxSubscriptions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := NewMockRepository(ctrl)
+	mockSubRepo := subscription.NewMockRepository(ctrl)
+	mockIdentity := domain.NewMockIdentityClient(ctrl)
+	service := NewService(mockRepo, mockSubRepo, mockIdentity)
+
+	const (
+		planID   = "plan-123"
+		authorID = "author-1"
+		otherID  = "user-other"
+	)
+
+	plan := &domain.TrainingPlan{Id: new(planID), AuthorId: authorID}
+
+	ctxWithUser := func(userID string) context.Context {
+		return context.WithValue(context.Background(), string(auth.UserContextKey), auth.AuthUser{ID: userID})
+	}
+
+	tests := []struct {
+		name         string
+		userID       string
+		max          int
+		mockBehavior func()
+		wantErr      bool
+		wantErrIs    error
+	}{
+		{
+			name:   "Plan not found",
+			userID: authorID,
+			max:    10,
+			mockBehavior: func() {
+				mockRepo.EXPECT().Find(gomock.Any(), planID).Return(nil, nil)
+			},
+			wantErr:   true,
+			wantErrIs: domain.ErrPlanNotFound,
+		},
+		{
+			name:   "Unauthorized",
+			userID: otherID,
+			max:    10,
+			mockBehavior: func() {
+				mockRepo.EXPECT().Find(gomock.Any(), planID).Return(plan, nil)
+			},
+			wantErr:   true,
+			wantErrIs: domain.ErrPlanAccessForbidden,
+		},
+		{
+			name:   "Success when max above count",
+			userID: authorID,
+			max:    10,
+			mockBehavior: func() {
+				mockRepo.EXPECT().Find(gomock.Any(), planID).Return(plan, nil)
+				mockSubRepo.EXPECT().CountSubscriptionsByPlan(gomock.Any(), planID).Return(2, nil)
+				mockRepo.EXPECT().UpdateMaxSubscriptions(gomock.Any(), planID, 10).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:   "Error when count above max",
+			userID: authorID,
+			max:    1,
+			mockBehavior: func() {
+				mockRepo.EXPECT().Find(gomock.Any(), planID).Return(plan, nil)
+				mockSubRepo.EXPECT().CountSubscriptionsByPlan(gomock.Any(), planID).Return(3, nil)
+				mockRepo.EXPECT().UpdateMaxSubscriptions(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			},
+			wantErr:   true,
+			wantErrIs: domain.ErrMaxSubscriptionsBelowCurrent,
+		},
+		{
+			name:   "Unlimited zero allowed",
+			userID: authorID,
+			max:    0,
+			mockBehavior: func() {
+				mockRepo.EXPECT().Find(gomock.Any(), planID).Return(plan, nil)
+				mockSubRepo.EXPECT().CountSubscriptionsByPlan(gomock.Any(), gomock.Any()).Times(0)
+				mockRepo.EXPECT().UpdateMaxSubscriptions(gomock.Any(), planID, 0).Return(nil)
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockBehavior()
+			err := service.UpdateMaxSubscriptions(ctxWithUser(tt.userID), planID, tt.max)
+			if tt.wantErr {
+				assert.ErrorIs(t, err, tt.wantErrIs)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestService_GetPlan(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

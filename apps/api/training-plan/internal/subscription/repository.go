@@ -37,6 +37,7 @@ type Repository interface {
 	FindNextDayInSequence(ctx context.Context, planId string, currentSequence int) (*domain.Day, error)
 	FindDayWithExercises(ctx context.Context, dayId string) (*domain.Day, error)
 	CountActiveSubscriptionsByPlan(ctx context.Context, planId string) (int, error)
+	CountSubscriptionsByPlan(ctx context.Context, planId string) (int, error)
 	GetEngagementSummary(ctx context.Context, userId string) (*domain.EngagementSummary, error)
 	HasSubscription(ctx context.Context, planId, userId string) (bool, error)
 }
@@ -688,6 +689,18 @@ func (r *PostgresRepository) CountActiveSubscriptionsByPlan(ctx context.Context,
 	err := r.db.QueryRowContext(ctx, query, planId).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("could not count active subscriptions: %w", err)
+	}
+
+	return count, nil
+}
+
+func (r *PostgresRepository) CountSubscriptionsByPlan(ctx context.Context, planId string) (int, error) {
+	query := `SELECT COUNT(*) FROM plan_subscription WHERE "trainingPlanId" = $1 AND "deletedAt" IS NULL`
+
+	var count int
+	err := r.db.QueryRowContext(ctx, query, planId).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("could not count subscriptions: %w", err)
 	}
 
 	return count, nil

@@ -1,10 +1,10 @@
 package plan
 
 import (
+	"errors"
+	"io"
 	"log/slog"
 	"net/http"
-
-	"io"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kaua-nasc/gymtrack-go/apps/api/training-plan/internal/domain"
@@ -34,6 +34,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		plans.GET("author/:authorId", h.ListPlan)
 		plans.GET("/:id", h.GetPlan)
 		plans.PUT("/:id", h.UpdatePlan)
+		plans.PUT("/:id/max-subscriptions", h.UpdateMaxSubscriptions)
 		plans.DELETE("/:id", h.DeletePlan)
 		plans.GET("/exists/:id", h.ExistsPlan)
 
@@ -103,6 +104,41 @@ func (h *Handler) UpdatePlan(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, updatedPlan)
+}
+
+func (h *Handler) UpdateMaxSubscriptions(ctx *gin.Context) {
+	id := ctx.Param("id")
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse("plan id is required"))
+		return
+	}
+
+	var payload struct {
+		MaxSubscriptions int `json:"maxSubscriptions" binding:"required,min=0"`
+	}
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	}
+
+	err := h.srv.UpdateMaxSubscriptions(ctx.Request.Context(), id, payload.MaxSubscriptions)
+	switch {
+	case errors.Is(err, domain.ErrPlanNotFound):
+		ctx.JSON(http.StatusNotFound, utils.NewErrorResponse(err.Error()))
+		return
+	case errors.Is(err, domain.ErrMaxSubscriptionsBelowCurrent):
+		ctx.JSON(http.StatusBadRequest, utils.NewErrorResponse(err.Error()))
+		return
+	case errors.Is(err, domain.ErrPlanAccessForbidden):
+		ctx.JSON(http.StatusForbidden, utils.NewErrorResponse(err.Error()))
+		return
+	case err != nil:
+		slog.ErrorContext(ctx.Request.Context(), "failed to update plan max subscriptions", slog.Any("error", err), slog.String("plan_id", id))
+		ctx.JSON(http.StatusInternalServerError, utils.NewErrorResponse("failed to update plan max subscriptions"))
+		return
+	}
+
+	ctx.Status(http.StatusOK)
 }
 
 func (h *Handler) DeletePlan(ctx *gin.Context) {

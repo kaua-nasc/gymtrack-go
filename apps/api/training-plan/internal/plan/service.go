@@ -254,6 +254,45 @@ func (s *Service) UpdatePlan(ctx context.Context, id string, data domain.Trainin
 	return plan, nil
 }
 
+func (s *Service) UpdateMaxSubscriptions(ctx context.Context, id string, max int) error {
+	slog.InfoContext(ctx, "updating plan max subscriptions", slog.String("plan_id", id), slog.Int("max", max))
+
+	plan, err := s.repo.Find(ctx, id)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to find training plan", slog.String("plan_id", id), slog.Any("error", err))
+		return fmt.Errorf("error finding training plan: %w", err)
+	}
+	if plan == nil {
+		slog.WarnContext(ctx, "training plan not found for max subscriptions update", slog.String("plan_id", id))
+		return domain.ErrPlanNotFound
+	}
+
+	if err := s.authorizeAccess(ctx, plan); err != nil {
+		slog.WarnContext(ctx, "unauthorized attempt to update plan max subscriptions", slog.String("plan_id", id))
+		return err
+	}
+
+	if max > 0 {
+		count, err := s.subRepo.CountSubscriptionsByPlan(ctx, id)
+		if err != nil {
+			slog.ErrorContext(ctx, "failed to count subscriptions", slog.String("plan_id", id), slog.Any("error", err))
+			return err
+		}
+		if count > max {
+			slog.WarnContext(ctx, "new max subscriptions lower than current subscribed users", slog.String("plan_id", id), slog.Int("max", max), slog.Int("subscribed", count))
+			return domain.ErrMaxSubscriptionsBelowCurrent
+		}
+	}
+
+	if err := s.repo.UpdateMaxSubscriptions(ctx, id, max); err != nil {
+		slog.ErrorContext(ctx, "failed to update plan max subscriptions", slog.String("plan_id", id), slog.Any("error", err))
+		return err
+	}
+
+	slog.InfoContext(ctx, "plan max subscriptions updated successfully", slog.String("plan_id", id), slog.Int("max", max))
+	return nil
+}
+
 func (s *Service) DeletePlan(ctx context.Context, id string) error {
 	plan, err := s.repo.Find(ctx, id)
 	if err != nil {
@@ -438,12 +477,12 @@ func (s *Service) ListPlan(ctx context.Context, authorId, cursor string, limit i
 func (s *Service) authorizeAccess(ctx context.Context, plan *domain.TrainingPlan) error {
 	user, ok := ctx.Value(string(auth.UserContextKey)).(auth.AuthUser)
 	if !ok {
-		return errors.New("unauthorized")
+		return domain.ErrPlanAccessForbidden
 	}
 
 	if plan.AuthorId == user.ID {
 		return nil
 	}
 
-	return errors.New("you are not authorized to modify this training plan")
+	return domain.ErrPlanAccessForbidden
 }
